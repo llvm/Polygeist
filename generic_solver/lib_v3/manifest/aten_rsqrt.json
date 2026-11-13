@@ -1,0 +1,39 @@
+{
+  "routine": "aten_rsqrt",
+  "source": "Pinned ATen scalar implementation; parameterized contiguous FP32 reference",
+  "upstream_files": [
+    {
+      "path": "third_party/pytorch/aten/src/ATen/native/cpu/UnaryOpsKernel.cpp",
+      "sha256": "15cf2f206fc3274a2c263ce279984e5a425ac573082032367dd415e747eff637"
+    }
+  ],
+  "adaptation": "",
+  "specs": [
+    {
+      "name": "aten_rsqrt_f32",
+      "target": {
+        "library": "cuDNN",
+        "call": "cudnnBackendExecute",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "pointwise_reference",
+          "extent_arg": "n"
+        }
+      },
+      "args": [
+        "n",
+        "a",
+        "output"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX",
+        "contiguous FP32 arrays; output disjoint from inputs",
+        "errno and floating exception flags are not observed"
+      ],
+      "deviations": []
+    }
+  ]
+}

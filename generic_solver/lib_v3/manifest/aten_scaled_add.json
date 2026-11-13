@@ -1,0 +1,41 @@
+{
+  "routine": "aten_scaled_add",
+  "source": "Pinned ATen scalar implementation; parameterized contiguous FP32 reference",
+  "upstream_files": [
+    {
+      "path": "third_party/pytorch/aten/src/ATen/native/ufunc/add.h",
+      "sha256": "a277e74e7e35497127da9e24ae91b2be38e01e3d6f0e8c8b1834c10d72870f4c"
+    }
+  ],
+  "adaptation": "",
+  "specs": [
+    {
+      "name": "aten_scaled_add_f32",
+      "target": {
+        "library": "cuDNN",
+        "call": "cudnnBackendExecute",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "pointwise_reference",
+          "extent_arg": "n"
+        }
+      },
+      "args": [
+        "n",
+        "self",
+        "other",
+        "output",
+        "alpha"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX",
+        "contiguous FP32 arrays; output disjoint from inputs",
+        "errno and floating exception flags are not observed"
+      ],
+      "deviations": []
+    }
+  ]
+}

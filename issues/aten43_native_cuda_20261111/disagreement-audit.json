@@ -1,0 +1,44 @@
+[
+  {
+    "name": "softshrink",
+    "edge": false,
+    "parameter_case": 0,
+    "count": 4096,
+    "observed_native_mismatches_per_residency_mode": 122,
+    "source_semantics_predicted_mismatches": {
+      "negative zero versus positive zero": 122
+    }
+  },
+  {
+    "name": "softshrink",
+    "edge": true,
+    "parameter_case": 0,
+    "count": 4096,
+    "observed_native_mismatches_per_residency_mode": 862,
+    "source_semantics_predicted_mismatches": {
+      "negative zero versus positive zero": 647,
+      "NaN versus zero": 215
+    }
+  },
+  {
+    "name": "hardswish_backward",
+    "edge": false,
+    "parameter_case": 0,
+    "count": 4096,
+    "observed_native_mismatches_per_residency_mode": 1,
+    "source_semantics_predicted_mismatches": {
+      "self=-3 boundary": 1
+    }
+  },
+  {
+    "name": "hardswish_backward",
+    "edge": true,
+    "parameter_case": 0,
+    "count": 4096,
+    "observed_native_mismatches_per_residency_mode": 317,
+    "source_semantics_predicted_mismatches": {
+      "self=+3 boundary": 141,
+      "self=-3 boundary": 176
+    }
+  }
+]

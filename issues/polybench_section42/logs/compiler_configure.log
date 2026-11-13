@@ -1,0 +1,272 @@
+-- polygeist_pluto_dir '/tmp/polygeist-section42-build'
+-- The CXX compiler identification is GNU 11.4.0
+-- The C compiler identification is GNU 11.4.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Searching for MLIRConfig.cmake in: /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir
+-- Performing Test Terminfo_LINKABLE
+-- Performing Test Terminfo_LINKABLE - Success
+-- Found Terminfo: /usr/lib/x86_64-linux-gnu/libtinfo.so  
+-- Found ZLIB: /usr/lib/x86_64-linux-gnu/libz.so (found version "1.2.11") 
+-- Found LibXml2: /usr/lib/x86_64-linux-gnu/libxml2.so (found version "2.9.13") 
+-- Searching for ClangConfig.cmake in: /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/clang
+-- Using MLIRConfig.cmake in: /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir
+-- Using LLVMConfig.cmake in: /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/llvm
+-- Using ClangConfig.cmake in: 
+-- Linker detection: GNU ld
+-- Performing Test C_SUPPORTS_FPIC
+-- Performing Test C_SUPPORTS_FPIC - Success
+-- Performing Test CXX_SUPPORTS_FPIC
+-- Performing Test CXX_SUPPORTS_FPIC - Success
+-- Building with -fPIC
+-- Performing Test C_SUPPORTS_FNO_SEMANTIC_INTERPOSITION
+-- Performing Test C_SUPPORTS_FNO_SEMANTIC_INTERPOSITION - Success
+-- Performing Test CXX_SUPPORTS_FNO_SEMANTIC_INTERPOSITION
+-- Performing Test CXX_SUPPORTS_FNO_SEMANTIC_INTERPOSITION - Success
+-- Performing Test SUPPORTS_FVISIBILITY_INLINES_HIDDEN_FLAG
+-- Performing Test SUPPORTS_FVISIBILITY_INLINES_HIDDEN_FLAG - Success
+-- Performing Test C_SUPPORTS_WERROR_DATE_TIME
+-- Performing Test C_SUPPORTS_WERROR_DATE_TIME - Success
+-- Performing Test CXX_SUPPORTS_WERROR_DATE_TIME
+-- Performing Test CXX_SUPPORTS_WERROR_DATE_TIME - Success
+-- Performing Test C_SUPPORTS_WERROR_UNGUARDED_AVAILABILITY_NEW
+-- Performing Test C_SUPPORTS_WERROR_UNGUARDED_AVAILABILITY_NEW - Failed
+-- Performing Test CXX_SUPPORTS_WERROR_UNGUARDED_AVAILABILITY_NEW
+-- Performing Test CXX_SUPPORTS_WERROR_UNGUARDED_AVAILABILITY_NEW - Failed
+-- Performing Test C_SUPPORTS_CMAKE_CXX_FLAGS
+-- Performing Test C_SUPPORTS_CMAKE_CXX_FLAGS - Success
+-- Performing Test CXX_SUPPORTS_CMAKE_CXX_FLAGS
+-- Performing Test CXX_SUPPORTS_CMAKE_CXX_FLAGS - Success
+-- Performing Test CXX_SUPPORTS_MISSING_FIELD_INITIALIZERS_FLAG
+-- Performing Test CXX_SUPPORTS_MISSING_FIELD_INITIALIZERS_FLAG - Success
+-- Performing Test C_SUPPORTS_IMPLICIT_FALLTHROUGH_FLAG
+-- Performing Test C_SUPPORTS_IMPLICIT_FALLTHROUGH_FLAG - Success
+-- Performing Test CXX_SUPPORTS_IMPLICIT_FALLTHROUGH_FLAG
+-- Performing Test CXX_SUPPORTS_IMPLICIT_FALLTHROUGH_FLAG - Success
+-- Performing Test C_SUPPORTS_COVERED_SWITCH_DEFAULT_FLAG
+-- Performing Test C_SUPPORTS_COVERED_SWITCH_DEFAULT_FLAG - Failed
+-- Performing Test CXX_SUPPORTS_COVERED_SWITCH_DEFAULT_FLAG
+-- Performing Test CXX_SUPPORTS_COVERED_SWITCH_DEFAULT_FLAG - Failed
+-- Performing Test CXX_SUPPORTS_CLASS_MEMACCESS_FLAG
+-- Performing Test CXX_SUPPORTS_CLASS_MEMACCESS_FLAG - Success
+-- Performing Test CXX_SUPPORTS_REDUNDANT_MOVE_FLAG
+-- Performing Test CXX_SUPPORTS_REDUNDANT_MOVE_FLAG - Success
+-- Performing Test CXX_SUPPORTS_PESSIMIZING_MOVE_FLAG
+-- Performing Test CXX_SUPPORTS_PESSIMIZING_MOVE_FLAG - Success
+-- Performing Test CXX_SUPPORTS_NOEXCEPT_TYPE_FLAG
+-- Performing Test CXX_SUPPORTS_NOEXCEPT_TYPE_FLAG - Success
+-- Performing Test CXX_WONT_WARN_ON_FINAL_NONVIRTUALDTOR
+-- Performing Test CXX_WONT_WARN_ON_FINAL_NONVIRTUALDTOR - Failed
+-- Performing Test CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG
+-- Performing Test CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG - Success
+-- Performing Test CXX_WSUGGEST_OVERRIDE_ALLOWS_ONLY_FINAL
+-- Performing Test CXX_WSUGGEST_OVERRIDE_ALLOWS_ONLY_FINAL - Success
+-- Performing Test C_WCOMMENT_ALLOWS_LINE_WRAP
+-- Performing Test C_WCOMMENT_ALLOWS_LINE_WRAP - Failed
+-- Performing Test C_SUPPORTS_STRING_CONVERSION_FLAG
+-- Performing Test C_SUPPORTS_STRING_CONVERSION_FLAG - Failed
+-- Performing Test CXX_SUPPORTS_STRING_CONVERSION_FLAG
+-- Performing Test CXX_SUPPORTS_STRING_CONVERSION_FLAG - Failed
+-- Performing Test CXX_SUPPORTS_MISLEADING_INDENTATION_FLAG
+-- Performing Test CXX_SUPPORTS_MISLEADING_INDENTATION_FLAG - Success
+-- Performing Test C_SUPPORTS_CTAD_MAYBE_UNSPPORTED_FLAG
+-- Performing Test C_SUPPORTS_CTAD_MAYBE_UNSPPORTED_FLAG - Failed
+-- Performing Test CXX_SUPPORTS_CTAD_MAYBE_UNSPPORTED_FLAG
+-- Performing Test CXX_SUPPORTS_CTAD_MAYBE_UNSPPORTED_FLAG - Success
+-- Performing Test LINKER_SUPPORTS_COLOR_DIAGNOSTICS
+-- Performing Test LINKER_SUPPORTS_COLOR_DIAGNOSTICS - Failed
+-- Performing Test C_SUPPORTS_FNO_FUNCTION_SECTIONS
+-- Performing Test C_SUPPORTS_FNO_FUNCTION_SECTIONS - Success
+-- Performing Test C_SUPPORTS_FFUNCTION_SECTIONS
+-- Performing Test C_SUPPORTS_FFUNCTION_SECTIONS - Success
+-- Performing Test CXX_SUPPORTS_FFUNCTION_SECTIONS
+-- Performing Test CXX_SUPPORTS_FFUNCTION_SECTIONS - Success
+-- Performing Test C_SUPPORTS_FDATA_SECTIONS
+-- Performing Test C_SUPPORTS_FDATA_SECTIONS - Success
+-- Performing Test CXX_SUPPORTS_FDATA_SECTIONS
+-- Performing Test CXX_SUPPORTS_FDATA_SECTIONS - Success
+-- Looking for os_signpost_interval_begin
+-- Looking for os_signpost_interval_begin - not found
+-- Configuring done
+CMake Warning (dev) at /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/llvm/TableGen.cmake:101 (add_custom_command):
+  Policy CMP0116 is not set: Ninja generators transform DEPFILEs from
+  add_custom_command().  Run "cmake --help-policy CMP0116" for policy
+  details.  Use the cmake_policy command to set the policy and suppress this
+  warning.
+Call Stack (most recent call first):
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:9 (tablegen)
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:169 (mlir_tablegen)
+  include/polygeist/CMakeLists.txt:1 (add_mlir_dialect)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/llvm/TableGen.cmake:101 (add_custom_command):
+  Policy CMP0116 is not set: Ninja generators transform DEPFILEs from
+  add_custom_command().  Run "cmake --help-policy CMP0116" for policy
+  details.  Use the cmake_policy command to set the policy and suppress this
+  warning.
+Call Stack (most recent call first):
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:9 (tablegen)
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:168 (mlir_tablegen)
+  include/polygeist/CMakeLists.txt:1 (add_mlir_dialect)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/llvm/TableGen.cmake:101 (add_custom_command):
+  Policy CMP0116 is not set: Ninja generators transform DEPFILEs from
+  add_custom_command().  Run "cmake --help-policy CMP0116" for policy
+  details.  Use the cmake_policy command to set the policy and suppress this
+  warning.
+Call Stack (most recent call first):
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:9 (tablegen)
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:173 (mlir_tablegen)
+  include/polygeist/CMakeLists.txt:1 (add_mlir_dialect)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/llvm/TableGen.cmake:101 (add_custom_command):
+  Policy CMP0116 is not set: Ninja generators transform DEPFILEs from
+  add_custom_command().  Run "cmake --help-policy CMP0116" for policy
+  details.  Use the cmake_policy command to set the policy and suppress this
+  warning.
+Call Stack (most recent call first):
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:9 (tablegen)
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:172 (mlir_tablegen)
+  include/polygeist/CMakeLists.txt:1 (add_mlir_dialect)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/llvm/TableGen.cmake:101 (add_custom_command):
+  Policy CMP0116 is not set: Ninja generators transform DEPFILEs from
+  add_custom_command().  Run "cmake --help-policy CMP0116" for policy
+  details.  Use the cmake_policy command to set the policy and suppress this
+  warning.
+Call Stack (most recent call first):
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:9 (tablegen)
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:171 (mlir_tablegen)
+  include/polygeist/CMakeLists.txt:1 (add_mlir_dialect)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/llvm/TableGen.cmake:101 (add_custom_command):
+  Policy CMP0116 is not set: Ninja generators transform DEPFILEs from
+  add_custom_command().  Run "cmake --help-policy CMP0116" for policy
+  details.  Use the cmake_policy command to set the policy and suppress this
+  warning.
+Call Stack (most recent call first):
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:9 (tablegen)
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:170 (mlir_tablegen)
+  include/polygeist/CMakeLists.txt:1 (add_mlir_dialect)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/llvm/TableGen.cmake:101 (add_custom_command):
+  Policy CMP0116 is not set: Ninja generators transform DEPFILEs from
+  add_custom_command().  Run "cmake --help-policy CMP0116" for policy
+  details.  Use the cmake_policy command to set the policy and suppress this
+  warning.
+Call Stack (most recent call first):
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:191 (tablegen)
+  include/polygeist/CMakeLists.txt:2 (add_mlir_doc)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/llvm/TableGen.cmake:101 (add_custom_command):
+  Policy CMP0116 is not set: Ninja generators transform DEPFILEs from
+  add_custom_command().  Run "cmake --help-policy CMP0116" for policy
+  details.  Use the cmake_policy command to set the policy and suppress this
+  warning.
+Call Stack (most recent call first):
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:191 (tablegen)
+  include/polygeist/CMakeLists.txt:3 (add_mlir_doc)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/llvm/TableGen.cmake:101 (add_custom_command):
+  Policy CMP0116 is not set: Ninja generators transform DEPFILEs from
+  add_custom_command().  Run "cmake --help-policy CMP0116" for policy
+  details.  Use the cmake_policy command to set the policy and suppress this
+  warning.
+Call Stack (most recent call first):
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:9 (tablegen)
+  include/polygeist/Passes/CMakeLists.txt:2 (mlir_tablegen)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/llvm/TableGen.cmake:101 (add_custom_command):
+  Policy CMP0116 is not set: Ninja generators transform DEPFILEs from
+  add_custom_command().  Run "cmake --help-policy CMP0116" for policy
+  details.  Use the cmake_policy command to set the policy and suppress this
+  warning.
+Call Stack (most recent call first):
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:191 (tablegen)
+  include/polygeist/Passes/CMakeLists.txt:5 (add_mlir_doc)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/llvm/TableGen.cmake:101 (add_custom_command):
+  Policy CMP0116 is not set: Ninja generators transform DEPFILEs from
+  add_custom_command().  Run "cmake --help-policy CMP0116" for policy
+  details.  Use the cmake_policy command to set the policy and suppress this
+  warning.
+Call Stack (most recent call first):
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:9 (tablegen)
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:169 (mlir_tablegen)
+  include/polygeist/Kernel/CMakeLists.txt:1 (add_mlir_dialect)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/llvm/TableGen.cmake:101 (add_custom_command):
+  Policy CMP0116 is not set: Ninja generators transform DEPFILEs from
+  add_custom_command().  Run "cmake --help-policy CMP0116" for policy
+  details.  Use the cmake_policy command to set the policy and suppress this
+  warning.
+Call Stack (most recent call first):
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:9 (tablegen)
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:168 (mlir_tablegen)
+  include/polygeist/Kernel/CMakeLists.txt:1 (add_mlir_dialect)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/llvm/TableGen.cmake:101 (add_custom_command):
+  Policy CMP0116 is not set: Ninja generators transform DEPFILEs from
+  add_custom_command().  Run "cmake --help-policy CMP0116" for policy
+  details.  Use the cmake_policy command to set the policy and suppress this
+  warning.
+Call Stack (most recent call first):
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:9 (tablegen)
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:173 (mlir_tablegen)
+  include/polygeist/Kernel/CMakeLists.txt:1 (add_mlir_dialect)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/llvm/TableGen.cmake:101 (add_custom_command):
+  Policy CMP0116 is not set: Ninja generators transform DEPFILEs from
+  add_custom_command().  Run "cmake --help-policy CMP0116" for policy
+  details.  Use the cmake_policy command to set the policy and suppress this
+  warning.
+Call Stack (most recent call first):
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:9 (tablegen)
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:172 (mlir_tablegen)
+  include/polygeist/Kernel/CMakeLists.txt:1 (add_mlir_dialect)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/llvm/TableGen.cmake:101 (add_custom_command):
+  Policy CMP0116 is not set: Ninja generators transform DEPFILEs from
+  add_custom_command().  Run "cmake --help-policy CMP0116" for policy
+  details.  Use the cmake_policy command to set the policy and suppress this
+  warning.
+Call Stack (most recent call first):
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:9 (tablegen)
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:171 (mlir_tablegen)
+  include/polygeist/Kernel/CMakeLists.txt:1 (add_mlir_dialect)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/llvm/TableGen.cmake:101 (add_custom_command):
+  Policy CMP0116 is not set: Ninja generators transform DEPFILEs from
+  add_custom_command().  Run "cmake --help-policy CMP0116" for policy
+  details.  Use the cmake_policy command to set the policy and suppress this
+  warning.
+Call Stack (most recent call first):
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:9 (tablegen)
+  /home/arjaiswal/Polygeist/llvm-project/build/lib/cmake/mlir/AddMLIR.cmake:170 (mlir_tablegen)
+  include/polygeist/Kernel/CMakeLists.txt:1 (add_mlir_dialect)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+-- Generating done
+-- Build files have been written to: /tmp/polygeist-section42-build

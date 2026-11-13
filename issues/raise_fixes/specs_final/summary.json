@@ -1,0 +1,854 @@
+{
+ "netlib_daxpy": {
+  "defn": "UNSOUND",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for",
+   "scf.if"
+  ],
+  "status": "PARTIAL",
+  "tv": "NA"
+ },
+ "netlib_daxpy_inc": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_ddot": {
+  "defn": "UNSOUND",
+  "generics": 2,
+  "linalg": "UNSOUND",
+  "loops": [
+   "scf.if"
+  ],
+  "status": "PARTIAL",
+  "tv": "NA"
+ },
+ "netlib_ddot_inc": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemm_nn": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemm_nn_alpha0": {
+  "defn": null,
+  "generics": null,
+  "linalg": null,
+  "loops": null,
+  "status": "FAIL_CGEIST",
+  "tv": "NA"
+ },
+ "netlib_dgemm_nn_alpha0_beta0": {
+  "defn": null,
+  "generics": null,
+  "linalg": null,
+  "loops": null,
+  "status": "FAIL_CGEIST",
+  "tv": "NA"
+ },
+ "netlib_dgemm_nn_beta0": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemm_nn_beta1": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemm_nt": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemm_nt_beta0": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemm_nt_beta1": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemm_tn": {
+  "defn": "WITHIN_1e-12",
+  "generics": 2,
+  "linalg": "WITHIN_1e-12",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemm_tn_beta0": {
+  "defn": "WITHIN_1e-12",
+  "generics": 2,
+  "linalg": "WITHIN_1e-12",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemm_tt": {
+  "defn": "WITHIN_1e-12",
+  "generics": 2,
+  "linalg": "WITHIN_1e-12",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemm_tt_beta0": {
+  "defn": "WITHIN_1e-12",
+  "generics": 2,
+  "linalg": "WITHIN_1e-12",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemv_n": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "LOWER_FAIL",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemv_n_alpha0": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemv_n_alpha0_beta0": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemv_n_beta0": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "LOWER_FAIL",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemv_n_beta1": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "LOWER_FAIL",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemv_n_inc": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "LOWER_FAIL",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemv_t": {
+  "defn": "WITHIN_1e-12",
+  "generics": 2,
+  "linalg": "WITHIN_1e-12",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemv_t_alpha0": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemv_t_alpha0_beta0": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemv_t_beta0": {
+  "defn": "WITHIN_1e-12",
+  "generics": 2,
+  "linalg": "WITHIN_1e-12",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemv_t_beta1": {
+  "defn": "WITHIN_1e-12",
+  "generics": 1,
+  "linalg": "WITHIN_1e-12",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dgemv_t_inc": {
+  "defn": "WITHIN_1e-12",
+  "generics": 2,
+  "linalg": "WITHIN_1e-12",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dger": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "LOWER_FAIL",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dger_inc": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "LOWER_FAIL",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dpotf2_l": {
+  "defn": "EXACT",
+  "generics": 3,
+  "linalg": "LOWER_FAIL",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dpotf2_u": {
+  "defn": "EXACT",
+  "generics": 3,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dscal": {
+  "defn": "UNSOUND",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for",
+   "scf.if"
+  ],
+  "status": "PARTIAL",
+  "tv": "NA"
+ },
+ "netlib_dscal_inc": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsymm_ll": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dsymm_ll_beta0": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dsymm_lu": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dsymm_lu_alpha0": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsymm_lu_alpha0_beta0": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsymm_lu_beta0": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dsymm_rl": {
+  "defn": "RUN_FAIL",
+  "generics": 3,
+  "linalg": "LOWER_FAIL",
+  "loops": [],
+  "status": "UNVALIDATED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsymm_rl_beta0": {
+  "defn": "RUN_FAIL",
+  "generics": 3,
+  "linalg": "LOWER_FAIL",
+  "loops": [],
+  "status": "UNVALIDATED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsymm_ru": {
+  "defn": "RUN_FAIL",
+  "generics": 3,
+  "linalg": "LOWER_FAIL",
+  "loops": [],
+  "status": "UNVALIDATED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsymm_ru_beta0": {
+  "defn": "RUN_FAIL",
+  "generics": 3,
+  "linalg": "LOWER_FAIL",
+  "loops": [],
+  "status": "UNVALIDATED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyr2k_ln": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyr2k_ln_alpha0": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyr2k_ln_alpha0_beta0": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyr2k_ln_beta0": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyr2k_ln_beta1": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyr2k_lt": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyr2k_lt_beta0": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyr2k_un": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyr2k_un_alpha0": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyr2k_un_alpha0_beta0": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyr2k_un_beta0": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyr2k_un_beta1": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyr2k_ut": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyr2k_ut_beta0": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyrk_ln": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyrk_ln_alpha0": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyrk_ln_alpha0_beta0": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyrk_ln_beta0": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyrk_ln_beta1": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyrk_lt": {
+  "defn": "WITHIN_1e-12",
+  "generics": 2,
+  "linalg": "WITHIN_1e-12",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyrk_lt_beta0": {
+  "defn": "WITHIN_1e-12",
+  "generics": 2,
+  "linalg": "WITHIN_1e-12",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyrk_un": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyrk_un_alpha0": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyrk_un_alpha0_beta0": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyrk_un_beta0": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyrk_un_beta1": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyrk_ut": {
+  "defn": "WITHIN_1e-12",
+  "generics": 2,
+  "linalg": "WITHIN_1e-12",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dsyrk_ut_beta0": {
+  "defn": "WITHIN_1e-12",
+  "generics": 2,
+  "linalg": "WITHIN_1e-12",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrmm_llnn": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrmm_llnu": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "NA"
+ },
+ "netlib_dtrmm_lltn": {
+  "defn": "EXACT",
+  "generics": 3,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrmm_lltu": {
+  "defn": "EXACT",
+  "generics": 3,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrmm_lunn": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrmm_lunn_alpha0": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [],
+  "status": "RAISED",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrmm_lunu": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrmm_lutn": {
+  "defn": "EXACT",
+  "generics": 3,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrmm_lutu": {
+  "defn": "EXACT",
+  "generics": 3,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrmm_rlnn": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "LOWER_FAIL",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrmm_rlnu": {
+  "defn": "EXACT",
+  "generics": 2,
+  "linalg": "LOWER_FAIL",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrmm_rltn": {
+  "defn": "UNSOUND",
+  "generics": 2,
+  "linalg": "LOWER_FAIL",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrmm_rltu": {
+  "defn": "UNSOUND",
+  "generics": 2,
+  "linalg": "LOWER_FAIL",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrmm_runn": {
+  "defn": "LOWER_FAIL",
+  "generics": 2,
+  "linalg": "LOWER_FAIL",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrmm_runu": {
+  "defn": "LOWER_FAIL",
+  "generics": 2,
+  "linalg": "LOWER_FAIL",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrmm_rutn": {
+  "defn": "UNSOUND",
+  "generics": 2,
+  "linalg": "LOWER_FAIL",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrmm_rutu": {
+  "defn": "UNSOUND",
+  "generics": 2,
+  "linalg": "LOWER_FAIL",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrsv_lnn": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrsv_lnu": {
+  "defn": "EXACT",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrsv_ltn": {
+  "defn": "LOWER_FAIL",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrsv_ltu": {
+  "defn": "LOWER_FAIL",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrsv_unn": {
+  "defn": "LOWER_FAIL",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrsv_unu": {
+  "defn": "LOWER_FAIL",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrsv_utn": {
+  "defn": "LOWER_FAIL",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ },
+ "netlib_dtrsv_utu": {
+  "defn": "LOWER_FAIL",
+  "generics": 1,
+  "linalg": "EXACT",
+  "loops": [
+   "affine.for"
+  ],
+  "status": "PARTIAL",
+  "tv": "EQUIV"
+ }
+}

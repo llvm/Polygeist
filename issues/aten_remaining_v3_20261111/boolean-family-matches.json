@@ -1,0 +1,729 @@
+[
+  {
+    "name": "eq",
+    "source": "issues/aten_c_kernels/aten_eq.c",
+    "emitted": [
+      "aten_eq_f32"
+    ],
+    "matches": [
+      {
+        "engine": "linalg",
+        "specifications": [
+          "aten_eq_f32"
+        ],
+        "binding": {
+          "%n": "index_cast(%c4096)",
+          "%a": "%2",
+          "%b": "%1",
+          "%output": "%0"
+        },
+        "details": {
+          "spec": "aten_eq_f32",
+          "root": "%7",
+          "func": "aten_eq",
+          "binding": {
+            "%n": "index_cast(%c4096)",
+            "%a": "%2",
+            "%b": "%1",
+            "%output": "%0"
+          },
+          "generics": {
+            "%7": {
+              "pi": [
+                0,
+                1
+              ],
+              "rho": [
+                0
+              ],
+              "sigma": [
+                0
+              ],
+              "app": "%6"
+            }
+          },
+          "consumed_ops": 6
+        },
+        "references": [
+          {
+            "manifest": "generic_solver/lib_v3/manifest/aten_eq.json",
+            "manifest_sha256": "1911411cd80d92f0047c75ed37f9ce6671302f7b1d9bb4321185265a9c733e0c",
+            "reference": "generic_solver/lib_v3/ref_c/aten_eq.c",
+            "reference_sha256": "64aedb880fb9df147fc5bdef7a18a3db3aab0855d77eed9c112188f8b6afe116",
+            "origin": "Pinned ATen floating-input/floating-output scalar implementation",
+            "import_error": null
+          }
+        ],
+        "targets": [
+          {
+            "library": "cuDNN",
+            "call": "cudnnBackendExecute",
+            "backends": [
+              "cuda"
+            ],
+            "runtime_adapter": {
+              "schema": 1,
+              "kind": "pointwise_reference",
+              "extent_arg": "n"
+            }
+          }
+        ]
+      }
+    ],
+    "elapsed_ms": 13364.513
+  },
+  {
+    "name": "ne",
+    "source": "issues/aten_c_kernels/aten_ne.c",
+    "emitted": [
+      "aten_ne_f32"
+    ],
+    "matches": [
+      {
+        "engine": "linalg",
+        "specifications": [
+          "aten_ne_f32"
+        ],
+        "binding": {
+          "%n": "index_cast(%c4096)",
+          "%a": "%2",
+          "%b": "%1",
+          "%output": "%0"
+        },
+        "details": {
+          "spec": "aten_ne_f32",
+          "root": "%7",
+          "func": "aten_ne",
+          "binding": {
+            "%n": "index_cast(%c4096)",
+            "%a": "%2",
+            "%b": "%1",
+            "%output": "%0"
+          },
+          "generics": {
+            "%7": {
+              "pi": [
+                0,
+                1
+              ],
+              "rho": [
+                0
+              ],
+              "sigma": [
+                0
+              ],
+              "app": "%6"
+            }
+          },
+          "consumed_ops": 6
+        },
+        "references": [
+          {
+            "manifest": "generic_solver/lib_v3/manifest/aten_ne.json",
+            "manifest_sha256": "ebe3d043e51b7ffbfb3bcbf10e9b8924b925d1ddcbfc8af2ea5a6f563dc5716d",
+            "reference": "generic_solver/lib_v3/ref_c/aten_ne.c",
+            "reference_sha256": "0ac1aba4ad445e11ea2c9d1b57e7d4cad80997bea981e3c05537f2bc2e1288da",
+            "origin": "Pinned ATen floating-input/floating-output scalar implementation",
+            "import_error": null
+          }
+        ],
+        "targets": [
+          {
+            "library": "cuDNN",
+            "call": "cudnnBackendExecute",
+            "backends": [
+              "cuda"
+            ],
+            "runtime_adapter": {
+              "schema": 1,
+              "kind": "pointwise_reference",
+              "extent_arg": "n"
+            }
+          }
+        ]
+      }
+    ],
+    "elapsed_ms": 13678.062
+  },
+  {
+    "name": "lt",
+    "source": "issues/aten_c_kernels/aten_lt.c",
+    "emitted": [
+      "aten_gt_f32"
+    ],
+    "matches": [
+      {
+        "engine": "linalg",
+        "specifications": [
+          "aten_gt_f32"
+        ],
+        "binding": {
+          "%n": "index_cast(%c4096)",
+          "%a": "%1",
+          "%b": "%2",
+          "%output": "%0"
+        },
+        "details": {
+          "spec": "aten_gt_f32",
+          "root": "%7",
+          "func": "aten_lt",
+          "binding": {
+            "%n": "index_cast(%c4096)",
+            "%a": "%1",
+            "%b": "%2",
+            "%output": "%0"
+          },
+          "generics": {
+            "%7": {
+              "pi": [
+                1,
+                0
+              ],
+              "rho": [
+                0
+              ],
+              "sigma": [
+                0
+              ],
+              "app": "%6"
+            }
+          },
+          "consumed_ops": 6
+        },
+        "references": [
+          {
+            "manifest": "generic_solver/lib_v3/manifest/aten_gt.json",
+            "manifest_sha256": "a9399c9b5d77399a0f0d8a18e098164290998f3a1d9cbdfe69a68238ea7a979c",
+            "reference": "generic_solver/lib_v3/ref_c/aten_gt.c",
+            "reference_sha256": "54810333831912f598d175a2a248eba6f45f1357ac0b7b6c318a3472d5384dc3",
+            "origin": "Pinned ATen floating-input/floating-output scalar implementation",
+            "import_error": null
+          }
+        ],
+        "targets": [
+          {
+            "library": "cuDNN",
+            "call": "cudnnBackendExecute",
+            "backends": [
+              "cuda"
+            ],
+            "runtime_adapter": {
+              "schema": 1,
+              "kind": "pointwise_reference",
+              "extent_arg": "n"
+            }
+          }
+        ]
+      }
+    ],
+    "elapsed_ms": 14437.233
+  },
+  {
+    "name": "le",
+    "source": "issues/aten_c_kernels/aten_le.c",
+    "emitted": [
+      "aten_ge_f32"
+    ],
+    "matches": [
+      {
+        "engine": "linalg",
+        "specifications": [
+          "aten_ge_f32"
+        ],
+        "binding": {
+          "%n": "index_cast(%c4096)",
+          "%a": "%1",
+          "%b": "%2",
+          "%output": "%0"
+        },
+        "details": {
+          "spec": "aten_ge_f32",
+          "root": "%7",
+          "func": "aten_le",
+          "binding": {
+            "%n": "index_cast(%c4096)",
+            "%a": "%1",
+            "%b": "%2",
+            "%output": "%0"
+          },
+          "generics": {
+            "%7": {
+              "pi": [
+                1,
+                0
+              ],
+              "rho": [
+                0
+              ],
+              "sigma": [
+                0
+              ],
+              "app": "%6"
+            }
+          },
+          "consumed_ops": 6
+        },
+        "references": [
+          {
+            "manifest": "generic_solver/lib_v3/manifest/aten_ge.json",
+            "manifest_sha256": "215fc004fab1118ea0a7a9ce72b713ba8d29d26c174e8d6d80eed0f14bcb6c13",
+            "reference": "generic_solver/lib_v3/ref_c/aten_ge.c",
+            "reference_sha256": "4a5c4d85f2f7ab0b723b8ec1117c0834fd12ff8d6d41c8f79aabb3098a67cf53",
+            "origin": "Pinned ATen floating-input/floating-output scalar implementation",
+            "import_error": null
+          }
+        ],
+        "targets": [
+          {
+            "library": "cuDNN",
+            "call": "cudnnBackendExecute",
+            "backends": [
+              "cuda"
+            ],
+            "runtime_adapter": {
+              "schema": 1,
+              "kind": "pointwise_reference",
+              "extent_arg": "n"
+            }
+          }
+        ]
+      }
+    ],
+    "elapsed_ms": 1458.041
+  },
+  {
+    "name": "gt",
+    "source": "issues/aten_c_kernels/aten_gt.c",
+    "emitted": [
+      "aten_gt_f32"
+    ],
+    "matches": [
+      {
+        "engine": "linalg",
+        "specifications": [
+          "aten_gt_f32"
+        ],
+        "binding": {
+          "%n": "index_cast(%c4096)",
+          "%a": "%2",
+          "%b": "%1",
+          "%output": "%0"
+        },
+        "details": {
+          "spec": "aten_gt_f32",
+          "root": "%7",
+          "func": "aten_gt",
+          "binding": {
+            "%n": "index_cast(%c4096)",
+            "%a": "%2",
+            "%b": "%1",
+            "%output": "%0"
+          },
+          "generics": {
+            "%7": {
+              "pi": [
+                0,
+                1
+              ],
+              "rho": [
+                0
+              ],
+              "sigma": [
+                0
+              ],
+              "app": "%6"
+            }
+          },
+          "consumed_ops": 6
+        },
+        "references": [
+          {
+            "manifest": "generic_solver/lib_v3/manifest/aten_gt.json",
+            "manifest_sha256": "a9399c9b5d77399a0f0d8a18e098164290998f3a1d9cbdfe69a68238ea7a979c",
+            "reference": "generic_solver/lib_v3/ref_c/aten_gt.c",
+            "reference_sha256": "54810333831912f598d175a2a248eba6f45f1357ac0b7b6c318a3472d5384dc3",
+            "origin": "Pinned ATen floating-input/floating-output scalar implementation",
+            "import_error": null
+          }
+        ],
+        "targets": [
+          {
+            "library": "cuDNN",
+            "call": "cudnnBackendExecute",
+            "backends": [
+              "cuda"
+            ],
+            "runtime_adapter": {
+              "schema": 1,
+              "kind": "pointwise_reference",
+              "extent_arg": "n"
+            }
+          }
+        ]
+      }
+    ],
+    "elapsed_ms": 1461.554
+  },
+  {
+    "name": "ge",
+    "source": "issues/aten_c_kernels/aten_ge.c",
+    "emitted": [
+      "aten_ge_f32"
+    ],
+    "matches": [
+      {
+        "engine": "linalg",
+        "specifications": [
+          "aten_ge_f32"
+        ],
+        "binding": {
+          "%n": "index_cast(%c4096)",
+          "%a": "%2",
+          "%b": "%1",
+          "%output": "%0"
+        },
+        "details": {
+          "spec": "aten_ge_f32",
+          "root": "%7",
+          "func": "aten_ge",
+          "binding": {
+            "%n": "index_cast(%c4096)",
+            "%a": "%2",
+            "%b": "%1",
+            "%output": "%0"
+          },
+          "generics": {
+            "%7": {
+              "pi": [
+                0,
+                1
+              ],
+              "rho": [
+                0
+              ],
+              "sigma": [
+                0
+              ],
+              "app": "%6"
+            }
+          },
+          "consumed_ops": 6
+        },
+        "references": [
+          {
+            "manifest": "generic_solver/lib_v3/manifest/aten_ge.json",
+            "manifest_sha256": "215fc004fab1118ea0a7a9ce72b713ba8d29d26c174e8d6d80eed0f14bcb6c13",
+            "reference": "generic_solver/lib_v3/ref_c/aten_ge.c",
+            "reference_sha256": "4a5c4d85f2f7ab0b723b8ec1117c0834fd12ff8d6d41c8f79aabb3098a67cf53",
+            "origin": "Pinned ATen floating-input/floating-output scalar implementation",
+            "import_error": null
+          }
+        ],
+        "targets": [
+          {
+            "library": "cuDNN",
+            "call": "cudnnBackendExecute",
+            "backends": [
+              "cuda"
+            ],
+            "runtime_adapter": {
+              "schema": 1,
+              "kind": "pointwise_reference",
+              "extent_arg": "n"
+            }
+          }
+        ]
+      }
+    ],
+    "elapsed_ms": 1392.207
+  },
+  {
+    "name": "logical_and",
+    "source": "issues/aten_c_kernels/aten_logical_and.c",
+    "emitted": [
+      "aten_logical_and_f32"
+    ],
+    "matches": [
+      {
+        "engine": "linalg",
+        "specifications": [
+          "aten_logical_and_f32"
+        ],
+        "binding": {
+          "%n": "index_cast(%c4096)",
+          "%a": "%2",
+          "%b": "%1",
+          "%output": "%0"
+        },
+        "details": {
+          "spec": "aten_logical_and_f32",
+          "root": "%7",
+          "func": "aten_logical_and",
+          "binding": {
+            "%n": "index_cast(%c4096)",
+            "%a": "%2",
+            "%b": "%1",
+            "%output": "%0"
+          },
+          "generics": {
+            "%7": {
+              "pi": [
+                0,
+                1
+              ],
+              "rho": [
+                0
+              ],
+              "sigma": [
+                0
+              ],
+              "app": "%6"
+            }
+          },
+          "consumed_ops": 6
+        },
+        "references": [
+          {
+            "manifest": "generic_solver/lib_v3/manifest/aten_logical_and.json",
+            "manifest_sha256": "3a3455bf2b2d423b20d5f0d164ed4360a2b3f4bd491f50ce8c079cae2a7fd21c",
+            "reference": "generic_solver/lib_v3/ref_c/aten_logical_and.c",
+            "reference_sha256": "2dee042868d086c81438e0e29a5a52bb7f48fcb73fa4b835afbd552b569d137f",
+            "origin": "Pinned ATen floating-input/floating-output scalar implementation",
+            "import_error": null
+          }
+        ],
+        "targets": [
+          {
+            "library": "cuDNN",
+            "call": "cudnnBackendExecute",
+            "backends": [
+              "cuda"
+            ],
+            "runtime_adapter": {
+              "schema": 1,
+              "kind": "pointwise_reference",
+              "extent_arg": "n"
+            }
+          }
+        ]
+      }
+    ],
+    "elapsed_ms": 1582.487
+  },
+  {
+    "name": "logical_or",
+    "source": "issues/aten_c_kernels/aten_logical_or.c",
+    "emitted": [
+      "aten_logical_or_f32"
+    ],
+    "matches": [
+      {
+        "engine": "linalg",
+        "specifications": [
+          "aten_logical_or_f32"
+        ],
+        "binding": {
+          "%n": "index_cast(%c4096)",
+          "%a": "%2",
+          "%b": "%1",
+          "%output": "%0"
+        },
+        "details": {
+          "spec": "aten_logical_or_f32",
+          "root": "%7",
+          "func": "aten_logical_or",
+          "binding": {
+            "%n": "index_cast(%c4096)",
+            "%a": "%2",
+            "%b": "%1",
+            "%output": "%0"
+          },
+          "generics": {
+            "%7": {
+              "pi": [
+                0,
+                1
+              ],
+              "rho": [
+                0
+              ],
+              "sigma": [
+                0
+              ],
+              "app": "%6"
+            }
+          },
+          "consumed_ops": 6
+        },
+        "references": [
+          {
+            "manifest": "generic_solver/lib_v3/manifest/aten_logical_or.json",
+            "manifest_sha256": "7178ca07fe63e7f8d710d593273eb20abd3df0583aa1f38840353338cb6fbd00",
+            "reference": "generic_solver/lib_v3/ref_c/aten_logical_or.c",
+            "reference_sha256": "ccb4d0cae0475cde27758151d5057cda6e64f0c72662564120ba3c80a441efd0",
+            "origin": "Pinned ATen floating-input/floating-output scalar implementation",
+            "import_error": null
+          }
+        ],
+        "targets": [
+          {
+            "library": "cuDNN",
+            "call": "cudnnBackendExecute",
+            "backends": [
+              "cuda"
+            ],
+            "runtime_adapter": {
+              "schema": 1,
+              "kind": "pointwise_reference",
+              "extent_arg": "n"
+            }
+          }
+        ]
+      }
+    ],
+    "elapsed_ms": 1639.305
+  },
+  {
+    "name": "logical_xor",
+    "source": "issues/aten_c_kernels/aten_logical_xor.c",
+    "emitted": [
+      "aten_logical_xor_f32"
+    ],
+    "matches": [
+      {
+        "engine": "linalg",
+        "specifications": [
+          "aten_logical_xor_f32"
+        ],
+        "binding": {
+          "%n": "index_cast(%c4096)",
+          "%a": "%2",
+          "%b": "%1",
+          "%output": "%0"
+        },
+        "details": {
+          "spec": "aten_logical_xor_f32",
+          "root": "%7",
+          "func": "aten_logical_xor",
+          "binding": {
+            "%n": "index_cast(%c4096)",
+            "%a": "%2",
+            "%b": "%1",
+            "%output": "%0"
+          },
+          "generics": {
+            "%7": {
+              "pi": [
+                0,
+                1
+              ],
+              "rho": [
+                0
+              ],
+              "sigma": [
+                0
+              ],
+              "app": "%6"
+            }
+          },
+          "consumed_ops": 6
+        },
+        "references": [
+          {
+            "manifest": "generic_solver/lib_v3/manifest/aten_logical_xor.json",
+            "manifest_sha256": "11d8da8c37cf66a550fa6b12a16ded3a672fa69db127acc33b4cd6da94dc78c8",
+            "reference": "generic_solver/lib_v3/ref_c/aten_logical_xor.c",
+            "reference_sha256": "7ba892622080b28e2577d371089d93c13a8e9b94733261bcae427e4488fcea98",
+            "origin": "Pinned ATen floating-input/floating-output scalar implementation",
+            "import_error": null
+          }
+        ],
+        "targets": [
+          {
+            "library": "cuDNN",
+            "call": "cudnnBackendExecute",
+            "backends": [
+              "cuda"
+            ],
+            "runtime_adapter": {
+              "schema": 1,
+              "kind": "pointwise_reference",
+              "extent_arg": "n"
+            }
+          }
+        ]
+      }
+    ],
+    "elapsed_ms": 1575.961
+  },
+  {
+    "name": "logical_not_f32",
+    "source": "issues/aten_c_kernels/aten_logical_not_f32.c",
+    "emitted": [
+      "aten_logical_not_f32"
+    ],
+    "matches": [
+      {
+        "engine": "linalg",
+        "specifications": [
+          "aten_logical_not_f32"
+        ],
+        "binding": {
+          "%n": "index_cast(%c4096)",
+          "%a": "%1",
+          "%output": "%0"
+        },
+        "details": {
+          "spec": "aten_logical_not_f32",
+          "root": "%5",
+          "func": "aten_logical_not_f32",
+          "binding": {
+            "%n": "index_cast(%c4096)",
+            "%a": "%1",
+            "%output": "%0"
+          },
+          "generics": {
+            "%5": {
+              "pi": [
+                0
+              ],
+              "rho": [
+                0
+              ],
+              "sigma": [
+                0
+              ],
+              "app": "%4"
+            }
+          },
+          "consumed_ops": 5
+        },
+        "references": [
+          {
+            "manifest": "generic_solver/lib_v3/manifest/aten_logical_not.json",
+            "manifest_sha256": "daea1f4a0af2decdbe7c6b15398943dcd4165fbed8045d7823c137f2707e2936",
+            "reference": "generic_solver/lib_v3/ref_c/aten_logical_not.c",
+            "reference_sha256": "8de24943dd41e602518603beddbee974631f44abe467240e4df9d91f644a8514",
+            "origin": "Pinned ATen floating-input/floating-output scalar implementation",
+            "import_error": null
+          }
+        ],
+        "targets": [
+          {
+            "library": "cuDNN",
+            "call": "cudnnBackendExecute",
+            "backends": [
+              "cuda"
+            ],
+            "runtime_adapter": {
+              "schema": 1,
+              "kind": "pointwise_reference",
+              "extent_arg": "n"
+            }
+          }
+        ]
+      }
+    ],
+    "elapsed_ms": 1588.394
+  }
+]

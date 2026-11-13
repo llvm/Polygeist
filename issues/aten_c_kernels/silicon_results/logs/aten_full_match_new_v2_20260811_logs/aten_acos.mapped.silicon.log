@@ -1,0 +1,8 @@
+kernel=aten_acos correctness=PASS max_abs=1.1920928955078125e-07 max_rel=7.3170660321307004e-08
+kernel=aten_acos iterations=5 raised_gpu_us=1474.790415
+kernel=aten_acos correctness=PASS max_abs=1.1920928955078125e-07 max_rel=7.3170660321307004e-08
+kernel=aten_acos iterations=5 raised_gpu_us=1511.315210
+kernel=aten_acos correctness=PASS max_abs=1.1920928955078125e-07 max_rel=7.3170660321307004e-08
+kernel=aten_acos iterations=5 raised_gpu_us=1471.712021
+kernel=aten_acos correctness=PASS max_abs=1.1920928955078125e-07 max_rel=7.3170660321307004e-08
+kernel=aten_acos iterations=5 raised_gpu_us=1518.086391

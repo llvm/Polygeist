@@ -1,0 +1,54 @@
+{
+ "launches": [],
+ "literal_policy_rejections": [],
+ "alternatives": [],
+ "rejected": [],
+ "residual_generics": [
+  {
+   "app_generic": "%23",
+   "func": "kernel_heat_3d",
+   "iters": [
+    "parallel",
+    "parallel",
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_dgemm_nn",
+     "netlib_dgemm_nn_beta0",
+     "netlib_dgemm_nn_beta1",
+     "netlib_dgemm_nt",
+     "netlib_dgemm_nt_beta0",
+     "netlib_dgemm_nt_beta1"
+    ]
+   }
+  },
+  {
+   "app_generic": "%36",
+   "func": "kernel_heat_3d",
+   "iters": [
+    "parallel",
+    "parallel",
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_dgemm_nn",
+     "netlib_dgemm_nn_beta0",
+     "netlib_dgemm_nn_beta1",
+     "netlib_dgemm_nt",
+     "netlib_dgemm_nt_beta0",
+     "netlib_dgemm_nt_beta1"
+    ]
+   }
+  }
+ ]
+}

@@ -1,0 +1,47 @@
+{
+  "routine": "aten_sqrt",
+  "source": "Pinned ATen scalar implementation; contiguous FP32 specialization",
+  "upstream_files": [
+    {
+      "path": "third_party/pytorch/aten/src/ATen/native/cpu/UnaryOpsKernel.cpp",
+      "sha256": "15cf2f206fc3274a2c263ce279984e5a425ac573082032367dd415e747eff637"
+    },
+    {
+      "path": "third_party/pytorch/aten/src/ATen/cpu/vml.h",
+      "sha256": "afabdaa6834d43716e375e030a959a9bc1d23dc17fb2afea575dfdc32580a469"
+    },
+    {
+      "path": "third_party/pytorch/aten/src/ATen/cpu/vec/vec_base.h",
+      "sha256": "58ec91e4c6782ef7d9c9f90e4177d8bb5fffc24b667891559817eb7a97f4802a"
+    }
+  ],
+  "specs": [
+    {
+      "name": "aten_sqrt_f32",
+      "target": {
+        "library": "cuDNN",
+        "call": "cudnnBackendExecute",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "pointwise_reference",
+          "extent_arg": "n"
+        }
+      },
+      "args": [
+        "n",
+        "x",
+        "output"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX",
+        "contiguous nonoverlapping FP32 arrays",
+        "errno and floating exception flags are not observed",
+        "floating reorderings require the relaxed model"
+      ],
+      "deviations": []
+    }
+  ]
+}

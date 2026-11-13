@@ -1,0 +1,11 @@
+{
+  "name": "convection_apply_2d",
+  "rc": 0,
+  "passed": true,
+  "actual_vendor_invocations": 3074,
+  "calls": [
+    "cublasDgemm"
+  ],
+  "program_sha256": "9c28e0c04c6e6dee5d0ae7d5615ef51895ee2260ae8e5585f743d7528de45325",
+  "command": "LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-convection_apply_2d-20261111"
+}

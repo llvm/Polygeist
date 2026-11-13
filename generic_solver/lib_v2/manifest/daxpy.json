@@ -1,0 +1,67 @@
+{
+  "routine": "daxpy",
+  "source": "BLAS/SRC/daxpy.f:L88-L153 (executable L111-L149)",
+  "specs": [
+    {
+      "name": "netlib_daxpy",
+      "defines": {
+        "INC_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDaxpy",
+        "fixed_args": {
+          "incx": 1,
+          "incy": 1
+        },
+        "arg_map": {
+          "alpha": "da",
+          "x": "dx",
+          "y": "dy"
+        }
+      },
+      "args": [
+        "n",
+        "da",
+        "dx",
+        "dy"
+      ],
+      "assumptions": [
+        "da != 0 (quick return L112)",
+        "incx == 1, incy == 1"
+      ],
+      "deviations": [],
+      "fortran_lines": "L120-L133"
+    },
+    {
+      "name": "netlib_daxpy_inc",
+      "defines": {
+        "INC_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDaxpy",
+        "fixed_args": {},
+        "arg_map": {
+          "alpha": "da",
+          "x": "dx",
+          "y": "dy"
+        }
+      },
+      "args": [
+        "n",
+        "da",
+        "dx",
+        "incx",
+        "dy",
+        "incy"
+      ],
+      "assumptions": [
+        "da != 0 (quick return L112)",
+        "incx > 0, incy > 0. Valid for unit increments too: for incx == incy == 1 the reference takes its unit-stride branch, which performs the same per-element arithmetic in the same order (by inspection of the Fortran)"
+      ],
+      "deviations": [],
+      "fortran_lines": "L139-L147"
+    }
+  ]
+}

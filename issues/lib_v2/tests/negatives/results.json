@@ -1,0 +1,2528 @@
+{
+ "suite": "negatives",
+ "finished": "2026-10-28T00:20:13",
+ "seconds": 416.2,
+ "summary": {
+  "kernels": 70,
+  "near_misses": 61,
+  "positive_controls": 9,
+  "verdicts": {
+   "PASS_NO_MATCH": 47,
+   "PASS_EQUIVALENT_MATCH": 9,
+   "PASS_MATCH": 5,
+   "NUMERIC_FAIL_PIPELINE": 3,
+   "MATCH_NUMERIC_INCONCLUSIVE": 4,
+   "MISS": 2
+  },
+  "near_miss_pass": 56,
+  "false_positives": [],
+  "matcher_crashes": [],
+  "equivalent_matches": {
+   "axpy__missing_alpha": [
+    "netlib_daxpy_inc"
+   ],
+   "axpy__partial_range": [
+    "netlib_daxpy_inc"
+   ],
+   "gemm__missing_beta": [
+    "netlib_dgemm_nn_beta1"
+   ],
+   "gemv_n__missing_beta": [
+    "netlib_dgemv_t_beta1"
+   ],
+   "gemv_n__wrong_index_transposed": [
+    "netlib_dgemv_n"
+   ],
+   "gemv_t__missing_beta": [
+    "netlib_dgemv_n_beta1"
+   ],
+   "gemv_t__off_by_one": [
+    "netlib_dgemv_n_beta1"
+   ],
+   "gemv_t__partial_range": [
+    "netlib_dgemv_n"
+   ],
+   "ger__missing_alpha": [
+    "netlib_dger"
+   ]
+  },
+  "positive_controls_matched": {
+   "axpy__pos": [
+    "netlib_daxpy_inc"
+   ],
+   "gemm__pos": [
+    "netlib_dgemm_nn"
+   ],
+   "gemv_n__pos": [
+    "netlib_dgemv_t"
+   ],
+   "gemv_t__pos": [
+    "netlib_dgemv_n"
+   ],
+   "ger__pos": [
+    "netlib_dger"
+   ],
+   "symm__pos": [
+    "netlib_dsymm_ru"
+   ],
+   "syr2k__pos": [],
+   "syrk__pos": [
+    "netlib_dsyrk_ut"
+   ],
+   "trmm__pos": []
+  },
+  "by_kind": {
+   "extra_term": {
+    "PASS_NO_MATCH": 9
+   },
+   "missing_beta": {
+    "PASS_EQUIVALENT_MATCH": 5,
+    "MATCH_NUMERIC_INCONCLUSIVE": 1,
+    "PASS_NO_MATCH": 3
+   },
+   "off_by_one": {
+    "PASS_NO_MATCH": 8,
+    "PASS_EQUIVALENT_MATCH": 1
+   },
+   "partial_range": {
+    "PASS_EQUIVALENT_MATCH": 2,
+    "PASS_NO_MATCH": 7
+   },
+   "read_before_final": {
+    "PASS_NO_MATCH": 6,
+    "NUMERIC_FAIL_PIPELINE": 3
+   },
+   "wrong_index": {
+    "PASS_NO_MATCH": 9,
+    "MATCH_NUMERIC_INCONCLUSIVE": 1,
+    "PASS_EQUIVALENT_MATCH": 1
+   },
+   "wrong_triangle": {
+    "PASS_NO_MATCH": 5
+   }
+  },
+  "rtol": 1e-12,
+  "seeds": [
+   1,
+   2,
+   3,
+   4,
+   5
+  ]
+ },
+ "cases": [
+  {
+   "case": "axpy__extra_term",
+   "routine": "axpy",
+   "kind": "extra_term",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/axpy__extra_term.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 3.99,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage shapex1 || region: window 5-8: no specification matched (142 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "axpy__missing_alpha",
+   "routine": "axpy",
+   "kind": "missing_beta",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/axpy__missing_alpha.c",
+   "launches": [
+    "netlib_daxpy_inc"
+   ],
+   "linalg": [
+    "netlib_daxpy_inc"
+   ],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 0.66,
+   "region_evidence": [],
+   "linalg_bindings": [
+    {
+     "spec": "netlib_daxpy_inc",
+     "binding": {
+      "%n": "%arg0",
+      "%da": "literal 1.0",
+      "%dx": "%0",
+      "%incx": "literal 1",
+      "%dy": "%1",
+      "%incy": "literal 1"
+     }
+    }
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1
+      ],
+      "n2": [
+       2
+      ],
+      "nonsquare": [
+       7
+      ],
+      "medium": [
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.7,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_daxpy_inc"
+     ]
+    }
+   },
+   "numeric_verdict": "PASS",
+   "verdict": "PASS_EQUIVALENT_MATCH"
+  },
+  {
+   "case": "axpy__off_by_one",
+   "routine": "axpy",
+   "kind": "off_by_one",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/axpy__off_by_one.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 0.34,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1 || region: window 6-9: no specification matched (0 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "axpy__partial_range",
+   "routine": "axpy",
+   "kind": "partial_range",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/axpy__partial_range.c",
+   "launches": [
+    "netlib_daxpy_inc"
+   ],
+   "linalg": [
+    "netlib_daxpy_inc"
+   ],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 0.51,
+   "region_evidence": [],
+   "linalg_bindings": [
+    {
+     "spec": "netlib_daxpy_inc",
+     "binding": {
+      "%n": "%2",
+      "%da": "%arg1",
+      "%dx": "%0",
+      "%incx": "literal 1",
+      "%dy": "%1",
+      "%incy": "literal 1"
+     }
+    }
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1
+      ],
+      "n2": [
+       2
+      ],
+      "nonsquare": [
+       7
+      ],
+      "medium": [
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.8,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_daxpy_inc"
+     ]
+    }
+   },
+   "numeric_verdict": "PASS",
+   "verdict": "PASS_EQUIVALENT_MATCH"
+  },
+  {
+   "case": "axpy__pos",
+   "routine": "axpy",
+   "kind": "positive_control",
+   "expect": "match",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/axpy__pos.c",
+   "launches": [
+    "netlib_daxpy_inc"
+   ],
+   "linalg": [
+    "netlib_daxpy_inc"
+   ],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 0.56,
+   "region_evidence": [],
+   "linalg_bindings": [
+    {
+     "spec": "netlib_daxpy_inc",
+     "binding": {
+      "%n": "%arg0",
+      "%da": "%arg1",
+      "%dx": "%0",
+      "%incx": "literal 1",
+      "%dy": "%1",
+      "%incy": "literal 1"
+     }
+    }
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1
+      ],
+      "n2": [
+       2
+      ],
+      "nonsquare": [
+       7
+      ],
+      "medium": [
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.9,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_daxpy_inc"
+     ]
+    }
+   },
+   "numeric_verdict": "PASS",
+   "verdict": "PASS_MATCH"
+  },
+  {
+   "case": "axpy__read_before_final",
+   "routine": "axpy",
+   "kind": "read_before_final",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/axpy__read_before_final.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 0.34,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1 || region: window 4-7: dependence check failed: read of %arg3[p%arg0 - v0 - 1] at [16, v0, 0] observes an intermediate value (written both before and after)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "axpy__wrong_index",
+   "routine": "axpy",
+   "kind": "wrong_index",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/axpy__wrong_index.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 0.83,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1 || region: window 5-8: no specification matched (142 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "gemm__extra_term",
+   "routine": "gemm",
+   "kind": "extra_term",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemm__extra_term.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 99.05,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage matchedx1, shapex1 || Linalg rejections: netlib_dsymm_lu_alpha0: unbound parameters ['%lda', '%A', '%ldb', '%B'] || region: window 7-15: no specification matched (51840 bindings tried) | window 12-15: no specification matched (10800 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "gemm__missing_beta",
+   "routine": "gemm",
+   "kind": "missing_beta",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemm__missing_beta.c",
+   "launches": [
+    "netlib_dgemm_nn_beta1"
+   ],
+   "linalg": [
+    "netlib_dgemm_nn_beta1"
+   ],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 3.42,
+   "region_evidence": [],
+   "linalg_bindings": [
+    {
+     "spec": "netlib_dgemm_nn_beta1",
+     "binding": {
+      "%m": "%arg1",
+      "%n": "%arg0",
+      "%k": "%arg2",
+      "%alpha": "%arg3",
+      "%lda": "dim(%2, 1)",
+      "%A": "%2",
+      "%ldb": "dim(%1, 1)",
+      "%B": "%1",
+      "%ldc": "dim(%0, 1)",
+      "%C": "%0"
+     }
+    }
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1,
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2,
+       2
+      ],
+      "nonsquare": [
+       7,
+       5,
+       11
+      ],
+      "medium": [
+       23,
+       19,
+       29
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.8,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemm_nn_beta1"
+     ]
+    }
+   },
+   "numeric_verdict": "PASS",
+   "verdict": "PASS_EQUIVALENT_MATCH"
+  },
+  {
+   "case": "gemm__off_by_one",
+   "routine": "gemm",
+   "kind": "off_by_one",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemm__off_by_one.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 93.49,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage dataflowx1, matchedx1 || Linalg rejections: netlib_dsymm_lu_alpha0: unbound parameters ['%lda', '%A', '%ldb', '%B'] || region: window 7-16: no specification matched (67968 bindings tried) | window 13-16: no specification matched (0 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "gemm__partial_range",
+   "routine": "gemm",
+   "kind": "partial_range",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemm__partial_range.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 86.16,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx2 || region: window 9-18: no specification matched (0 bindings tried) | window 15-18: no specification matched (0 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "gemm__pos",
+   "routine": "gemm",
+   "kind": "positive_control",
+   "expect": "match",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemm__pos.c",
+   "launches": [
+    "netlib_dgemm_nn"
+   ],
+   "linalg": [
+    "netlib_dgemm_nn"
+   ],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 7.15,
+   "region_evidence": [],
+   "linalg_bindings": [
+    {
+     "spec": "netlib_dgemm_nn",
+     "binding": {
+      "%m": "%arg1",
+      "%n": "%arg0",
+      "%k": "%arg2",
+      "%alpha": "%arg3",
+      "%lda": "dim(%2, 1)",
+      "%A": "%2",
+      "%ldb": "dim(%1, 1)",
+      "%B": "%1",
+      "%beta": "%arg4",
+      "%ldc": "dim(%0, 1)",
+      "%C": "%0"
+     }
+    }
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1,
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2,
+       2
+      ],
+      "nonsquare": [
+       7,
+       5,
+       11
+      ],
+      "medium": [
+       23,
+       19,
+       29
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.7,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemm_nn"
+     ]
+    }
+   },
+   "numeric_verdict": "PASS",
+   "verdict": "PASS_MATCH"
+  },
+  {
+   "case": "gemm__read_before_final",
+   "routine": "gemm",
+   "kind": "read_before_final",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemm__read_before_final.c",
+   "launches": [
+    "netlib_dgemm_nn"
+   ],
+   "linalg": [
+    "netlib_dgemm_nn"
+   ],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 1.86,
+   "region_evidence": [],
+   "linalg_bindings": [
+    {
+     "spec": "netlib_dgemm_nn",
+     "binding": {
+      "%m": "%arg0",
+      "%n": "%arg0",
+      "%k": "%arg0",
+      "%alpha": "%arg1",
+      "%lda": "dim(%1, 1)",
+      "%A": "%1",
+      "%ldb": "dim(%5, 1)",
+      "%B": "%5",
+      "%beta": "%arg2",
+      "%ldc": "dim(%0, 1)",
+      "%C": "%0"
+     }
+    }
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "FAIL",
+     "runs": 20,
+     "max_err": 1.5062686186160874,
+     "bit_exact": false,
+     "fails": [
+      {
+       "config": "n2",
+       "seed": 1,
+       "array": "C",
+       "max_abs": 0.2588403,
+       "max_ref": 0.9905029,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 34300002267584731,
+       "err": 0.2613221021361977
+      },
+      {
+       "config": "n2",
+       "seed": 2,
+       "array": "C",
+       "max_abs": 0.04732701,
+       "max_ref": 0.9718753,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 1174091546523428,
+       "err": 0.04869658689751659
+      },
+      {
+       "config": "n2",
+       "seed": 3,
+       "array": "C",
+       "max_abs": 0.01705313,
+       "max_ref": 0.9700267,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 614403720252804,
+       "err": 0.01758006248693979
+      },
+      {
+       "config": "n2",
+       "seed": 4,
+       "array": "C",
+       "max_abs": 0.02620336,
+       "max_ref": 0.9935526,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 1888151004666061,
+       "err": 0.026373399858246053
+      },
+      {
+       "config": "n2",
+       "seed": 5,
+       "array": "C",
+       "max_abs": 0.6971116,
+       "max_ref": 0.9983338,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 14043265594355192,
+       "err": 0.6982750659148274
+      },
+      {
+       "config": "n7",
+       "seed": 1,
+       "array": "C",
+       "max_abs": 2.50187,
+       "max_ref": 1.660972,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 9216625060672807688,
+       "err": 1.5062686186160874
+      }
+     ],
+     "n_fail": 15,
+     "configs": {
+      "n1": [
+       1
+      ],
+      "n2": [
+       2
+      ],
+      "n7": [
+       7
+      ],
+      "n23": [
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "residual_control": {
+      "verdict": "FAIL",
+      "max_err": 1.5062686186160874,
+      "n_fail": 15,
+      "why": null
+     },
+     "seconds": 1.1,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemm_nn"
+     ]
+    }
+   },
+   "numeric_verdict": "FAIL",
+   "verdict": "NUMERIC_FAIL_PIPELINE",
+   "culprit": "pipeline (residual control also fails)",
+   "reproducer": {
+    "c_source": "/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/tests_v2/cases/negatives/gemm__read_before_final.c",
+    "raised_debuf": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/gemm__read_before_final/k_debuf.mlir",
+    "matched": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/gemm__read_before_final/m/matched.mlir",
+    "report": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/gemm__read_before_final/m/report.json",
+    "commands": [
+     "/home/arjaiswal/Polygeist/build/bin/cgeist /home/arjaiswal/Polygeist/scripts/correctness/lib_v2/tests_v2/cases/negatives/gemm__read_before_final.c --function=gemm__read_before_final --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/gemm__read_before_final/k.mlir",
+     "/home/arjaiswal/Polygeist/build/bin/polygeist-opt '--select-func=func-name=gemm__read_before_final externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/gemm__read_before_final/k.mlir -o /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/gemm__read_before_final/k_linalg.mlir",
+     "/home/arjaiswal/Polygeist/build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/gemm__read_before_final/k_linalg.mlir -o /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/gemm__read_before_final/k_debuf.mlir",
+     "/usr/bin/python3 scripts/correctness/lib_v2/match_v2.py /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/gemm__read_before_final/k_debuf.mlir -o /tmp/m.mlir --report /tmp/r.json"
+    ]
+   }
+  },
+  {
+   "case": "gemm__wrong_index",
+   "routine": "gemm",
+   "kind": "wrong_index",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemm__wrong_index.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 81.13,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1, matchedx1 || Linalg rejections: netlib_dsymm_lu_alpha0: unbound parameters ['%lda', '%A', '%ldb', '%B'] || region: window 5-13: no specification matched (0 bindings tried) | window 10-13: no specification matched (0 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "gemm__wrong_index_transposed",
+   "routine": "gemm",
+   "kind": "wrong_index",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemm__wrong_index_transposed.c",
+   "launches": [
+    "netlib_dgemm_tn"
+   ],
+   "linalg": [],
+   "region": [
+    "netlib_dgemm_tn"
+   ],
+   "match_status": "ok",
+   "match_seconds": 5.3,
+   "region_evidence": [
+    "netlib_dgemm_tn: 1 element equation(s), 1 domain piece(s) equal under binding {'m': '%arg1', 'n': '%arg0', 'k': '%arg2', 'alpha': '%arg3', 'lda': 'stride0(%arg7)', 'A': '%arg7', 'ldb': 'stride0(%arg6)', 'B': '%arg6', 'beta': '%arg4', 'ldc': 'stride0(%arg5)', 'C': '%arg5 (in-place)'}; e-graph max 77 nodes, egglog 21.9 ms; dependence checks 7 (reads: input 2, final 0, accumulator 2, scratch-inlined "
+   ],
+   "linalg_bindings": [],
+   "numeric": {
+    "region0": {
+     "verdict": "NOT_CHECKABLE",
+     "why": "cannot interpret launch operand %rm7_15_ld2",
+     "spec": "netlib_dgemm_tn"
+    }
+   },
+   "numeric_verdict": "INCONCLUSIVE(NOT_CHECKABLE)",
+   "verdict": "MATCH_NUMERIC_INCONCLUSIVE"
+  },
+  {
+   "case": "gemv_n__extra_term",
+   "routine": "gemv_n",
+   "kind": "extra_term",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemv_n__extra_term.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 47.12,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage matchedx1, shapex1 || Linalg rejections: netlib_dgemv_n_alpha0: unbound parameters ['%n', '%lda', '%A', '%x']; netlib_dgemv_t_alpha0: unbound parameters ['%m', '%lda', '%A', '%x'] || region: window 6-14: no specification matched (5840 bindings tried) | window 11-14: no specification matched (72 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "gemv_n__missing_beta",
+   "routine": "gemv_n",
+   "kind": "missing_beta",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemv_n__missing_beta.c",
+   "launches": [
+    "netlib_dgemv_t_beta1"
+   ],
+   "linalg": [
+    "netlib_dgemv_t_beta1"
+   ],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 2.34,
+   "region_evidence": [],
+   "linalg_bindings": [
+    {
+     "spec": "netlib_dgemv_t_beta1",
+     "binding": {
+      "%m": "%arg1",
+      "%n": "%arg0",
+      "%alpha": "%arg2",
+      "%lda": "dim(%0, 1)",
+      "%A": "%0",
+      "%x": "%1",
+      "%y": "%2"
+     }
+    }
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 3.45688730125431e-16,
+     "bit_exact": false,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2
+      ],
+      "nonsquare": [
+       7,
+       5
+      ],
+      "medium": [
+       23,
+       19
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.6,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemv_t_beta1"
+     ]
+    }
+   },
+   "numeric_verdict": "PASS",
+   "verdict": "PASS_EQUIVALENT_MATCH"
+  },
+  {
+   "case": "gemv_n__off_by_one",
+   "routine": "gemv_n",
+   "kind": "off_by_one",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemv_n__off_by_one.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 47.41,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1, matchedx1 || Linalg rejections: netlib_dgemv_n_alpha0: unbound parameters ['%n', '%lda', '%A', '%x']; netlib_dgemv_t_alpha0: unbound parameters ['%m', '%lda', '%A', '%x'] || region: window 8-16: no specification matched (3920 bindings tried) | window 13-16: no specification matched (0 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "gemv_n__partial_range",
+   "routine": "gemv_n",
+   "kind": "partial_range",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemv_n__partial_range.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 20.81,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage dataflowx1, matchedx1 || Linalg rejections: netlib_dgemv_n_alpha0: unbound parameters ['%n', '%lda', '%A', '%x']; netlib_dgemv_t_alpha0: unbound parameters ['%m', '%lda', '%A', '%x'] || region: window 5-15: no specification matched (15616 bindings tried) | window 12-15: no specification matched (0 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "gemv_n__pos",
+   "routine": "gemv_n",
+   "kind": "positive_control",
+   "expect": "match",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemv_n__pos.c",
+   "launches": [
+    "netlib_dgemv_t"
+   ],
+   "linalg": [
+    "netlib_dgemv_t"
+   ],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 1.56,
+   "region_evidence": [],
+   "linalg_bindings": [
+    {
+     "spec": "netlib_dgemv_t",
+     "binding": {
+      "%m": "%arg1",
+      "%n": "%arg0",
+      "%alpha": "%arg2",
+      "%lda": "dim(%0, 1)",
+      "%A": "%0",
+      "%x": "%1",
+      "%beta": "%arg3",
+      "%y": "%2"
+     }
+    }
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 3.2188237901555354e-16,
+     "bit_exact": false,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2
+      ],
+      "nonsquare": [
+       7,
+       5
+      ],
+      "medium": [
+       23,
+       19
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.6,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemv_t"
+     ]
+    }
+   },
+   "numeric_verdict": "PASS",
+   "verdict": "PASS_MATCH"
+  },
+  {
+   "case": "gemv_n__read_before_final",
+   "routine": "gemv_n",
+   "kind": "read_before_final",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemv_n__read_before_final.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 0.56,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage shapex1 || region: window 3-5: dependence check failed: read of %arg5[g1_0] at [13, v0, 25, g1_0, 0] observes an intermediate value (written both before and after)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "gemv_n__wrong_index",
+   "routine": "gemv_n",
+   "kind": "wrong_index",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemv_n__wrong_index.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 16.67,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1, matchedx1 || Linalg rejections: netlib_dgemv_n_alpha0: unbound parameters ['%n', '%lda', '%A', '%x']; netlib_dgemv_t_alpha0: unbound parameters ['%m', '%lda', '%A', '%x'] || region: window 5-13: no specification matched (0 bindings tried) | window 10-13: no specification matched (170 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "gemv_n__wrong_index_transposed",
+   "routine": "gemv_n",
+   "kind": "wrong_index",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemv_n__wrong_index_transposed.c",
+   "launches": [
+    "netlib_dgemv_n"
+   ],
+   "linalg": [
+    "netlib_dgemv_n"
+   ],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 6.29,
+   "region_evidence": [],
+   "linalg_bindings": [
+    {
+     "spec": "netlib_dgemv_n",
+     "binding": {
+      "%m": "%arg0",
+      "%n": "%arg0",
+      "%alpha": "%arg1",
+      "%lda": "dim(%0, 1)",
+      "%A": "%0",
+      "%x": "%1",
+      "%beta": "%arg2",
+      "%y": "%2"
+     }
+    }
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 3.005170921932703e-16,
+     "bit_exact": false,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1
+      ],
+      "n2": [
+       2
+      ],
+      "n7": [
+       7
+      ],
+      "n23": [
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.5,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemv_n"
+     ]
+    }
+   },
+   "numeric_verdict": "PASS",
+   "verdict": "PASS_EQUIVALENT_MATCH"
+  },
+  {
+   "case": "gemv_t__extra_term",
+   "routine": "gemv_t",
+   "kind": "extra_term",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemv_t__extra_term.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 54.1,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage matchedx1, shapex1 || Linalg rejections: netlib_dgemv_n_alpha0: unbound parameters ['%n', '%lda', '%A', '%x']; netlib_dgemv_t_alpha0: unbound parameters ['%m', '%lda', '%A', '%x'] || region: window 5-14: no specification matched (3072 bindings tried) | window 11-14: no specification matched (72 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "gemv_t__missing_beta",
+   "routine": "gemv_t",
+   "kind": "missing_beta",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemv_t__missing_beta.c",
+   "launches": [
+    "netlib_dgemv_n_beta1"
+   ],
+   "linalg": [
+    "netlib_dgemv_n_beta1"
+   ],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 1.92,
+   "region_evidence": [],
+   "linalg_bindings": [
+    {
+     "spec": "netlib_dgemv_n_beta1",
+     "binding": {
+      "%m": "%arg1",
+      "%n": "%arg0",
+      "%alpha": "%arg2",
+      "%lda": "dim(%0, 1)",
+      "%A": "%0",
+      "%x": "%1",
+      "%y": "%2"
+     }
+    }
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 3.306670593169337e-16,
+     "bit_exact": false,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2
+      ],
+      "nonsquare": [
+       7,
+       5
+      ],
+      "medium": [
+       23,
+       19
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.6,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemv_n_beta1"
+     ]
+    }
+   },
+   "numeric_verdict": "PASS",
+   "verdict": "PASS_EQUIVALENT_MATCH"
+  },
+  {
+   "case": "gemv_t__off_by_one",
+   "routine": "gemv_t",
+   "kind": "off_by_one",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemv_t__off_by_one.c",
+   "launches": [
+    "netlib_dgemv_n_beta1"
+   ],
+   "linalg": [
+    "netlib_dgemv_n_beta1"
+   ],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 2.61,
+   "region_evidence": [],
+   "linalg_bindings": [
+    {
+     "spec": "netlib_dgemv_n_beta1",
+     "binding": {
+      "%m": "%arg1",
+      "%n": "%arg0",
+      "%alpha": "%arg2",
+      "%lda": "dim(%0, 1)",
+      "%A": "%0",
+      "%x": "%1",
+      "%y": "%7"
+     }
+    }
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 3.306670593169337e-16,
+     "bit_exact": false,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2
+      ],
+      "nonsquare": [
+       7,
+       5
+      ],
+      "medium": [
+       23,
+       19
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.5,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemv_n_beta1"
+     ]
+    }
+   },
+   "numeric_verdict": "PASS",
+   "verdict": "PASS_EQUIVALENT_MATCH"
+  },
+  {
+   "case": "gemv_t__partial_range",
+   "routine": "gemv_t",
+   "kind": "partial_range",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemv_t__partial_range.c",
+   "launches": [
+    "netlib_dgemv_n"
+   ],
+   "linalg": [
+    "netlib_dgemv_n"
+   ],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 1.13,
+   "region_evidence": [],
+   "linalg_bindings": [
+    {
+     "spec": "netlib_dgemv_n",
+     "binding": {
+      "%m": "%3",
+      "%n": "%arg0",
+      "%alpha": "%arg2",
+      "%lda": "dim(%0, 1)",
+      "%A": "%0",
+      "%x": "%1",
+      "%beta": "%arg3",
+      "%y": "%2"
+     }
+    }
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 2.3592862191383407e-16,
+     "bit_exact": false,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2
+      ],
+      "nonsquare": [
+       7,
+       5
+      ],
+      "medium": [
+       23,
+       19
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.7,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemv_n"
+     ]
+    }
+   },
+   "numeric_verdict": "PASS",
+   "verdict": "PASS_EQUIVALENT_MATCH"
+  },
+  {
+   "case": "gemv_t__pos",
+   "routine": "gemv_t",
+   "kind": "positive_control",
+   "expect": "match",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemv_t__pos.c",
+   "launches": [
+    "netlib_dgemv_n"
+   ],
+   "linalg": [
+    "netlib_dgemv_n"
+   ],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 1.88,
+   "region_evidence": [],
+   "linalg_bindings": [
+    {
+     "spec": "netlib_dgemv_n",
+     "binding": {
+      "%m": "%arg1",
+      "%n": "%arg0",
+      "%alpha": "%arg2",
+      "%lda": "dim(%0, 1)",
+      "%A": "%0",
+      "%x": "%1",
+      "%beta": "%arg3",
+      "%y": "%2"
+     }
+    }
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 3.328122944931759e-16,
+     "bit_exact": false,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2
+      ],
+      "nonsquare": [
+       7,
+       5
+      ],
+      "medium": [
+       23,
+       19
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.7,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemv_n"
+     ]
+    }
+   },
+   "numeric_verdict": "PASS",
+   "verdict": "PASS_MATCH"
+  },
+  {
+   "case": "gemv_t__read_before_final",
+   "routine": "gemv_t",
+   "kind": "read_before_final",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemv_t__read_before_final.c",
+   "launches": [
+    "netlib_dgemv_n"
+   ],
+   "linalg": [
+    "netlib_dgemv_n"
+   ],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 1.47,
+   "region_evidence": [],
+   "linalg_bindings": [
+    {
+     "spec": "netlib_dgemv_n",
+     "binding": {
+      "%m": "%arg0",
+      "%n": "%arg0",
+      "%alpha": "%arg1",
+      "%lda": "dim(%0, 1)",
+      "%A": "%0",
+      "%x": "%5",
+      "%beta": "%arg2",
+      "%y": "%1"
+     }
+    }
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "FAIL",
+     "runs": 20,
+     "max_err": 1.0792813444986251,
+     "bit_exact": false,
+     "fails": [
+      {
+       "config": "n2",
+       "seed": 1,
+       "array": "y",
+       "max_abs": 0.2114368,
+       "max_ref": 0.9953712,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 9179262464666439459,
+       "err": 0.2124200499271026
+      },
+      {
+       "config": "n2",
+       "seed": 2,
+       "array": "y",
+       "max_abs": 0.02858286,
+       "max_ref": 0.9891508,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 860108747344761,
+       "err": 0.028896362415114056
+      },
+      {
+       "config": "n2",
+       "seed": 3,
+       "array": "y",
+       "max_abs": 0.3392263,
+       "max_ref": 0.9845831,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 9174813845952527491,
+       "err": 0.34453800801577844
+      },
+      {
+       "config": "n2",
+       "seed": 4,
+       "array": "y",
+       "max_abs": 0.05918626,
+       "max_ref": 0.9930606,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 4940567243784549,
+       "err": 0.059599847179517544
+      },
+      {
+       "config": "n2",
+       "seed": 5,
+       "array": "y",
+       "max_abs": 0.005669136,
+       "max_ref": 0.9858898,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 151552362078427,
+       "err": 0.005750273509270509
+      },
+      {
+       "config": "n7",
+       "seed": 1,
+       "array": "y",
+       "max_abs": 0.780825,
+       "max_ref": 1.190854,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 14803767236021614,
+       "err": 0.6556849118363796
+      }
+     ],
+     "n_fail": 15,
+     "configs": {
+      "n1": [
+       1
+      ],
+      "n2": [
+       2
+      ],
+      "n7": [
+       7
+      ],
+      "n23": [
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "residual_control": {
+      "verdict": "FAIL",
+      "max_err": 1.0792813444986251,
+      "n_fail": 15,
+      "why": null
+     },
+     "seconds": 1.2,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemv_n"
+     ]
+    }
+   },
+   "numeric_verdict": "FAIL",
+   "verdict": "NUMERIC_FAIL_PIPELINE",
+   "culprit": "pipeline (residual control also fails)",
+   "reproducer": {
+    "c_source": "/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/tests_v2/cases/negatives/gemv_t__read_before_final.c",
+    "raised_debuf": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/gemv_t__read_before_final/k_debuf.mlir",
+    "matched": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/gemv_t__read_before_final/m/matched.mlir",
+    "report": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/gemv_t__read_before_final/m/report.json",
+    "commands": [
+     "/home/arjaiswal/Polygeist/build/bin/cgeist /home/arjaiswal/Polygeist/scripts/correctness/lib_v2/tests_v2/cases/negatives/gemv_t__read_before_final.c --function=gemv_t__read_before_final --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/gemv_t__read_before_final/k.mlir",
+     "/home/arjaiswal/Polygeist/build/bin/polygeist-opt '--select-func=func-name=gemv_t__read_before_final externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/gemv_t__read_before_final/k.mlir -o /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/gemv_t__read_before_final/k_linalg.mlir",
+     "/home/arjaiswal/Polygeist/build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/gemv_t__read_before_final/k_linalg.mlir -o /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/gemv_t__read_before_final/k_debuf.mlir",
+     "/usr/bin/python3 scripts/correctness/lib_v2/match_v2.py /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/gemv_t__read_before_final/k_debuf.mlir -o /tmp/m.mlir --report /tmp/r.json"
+    ]
+   }
+  },
+  {
+   "case": "gemv_t__wrong_index",
+   "routine": "gemv_t",
+   "kind": "wrong_index",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/gemv_t__wrong_index.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 8.3,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1, matchedx1 || Linalg rejections: netlib_dgemv_n_alpha0: unbound parameters ['%n', '%lda', '%A', '%x']; netlib_dgemv_t_alpha0: unbound parameters ['%m', '%lda', '%A', '%x'] || region: window 5-13: no specification matched (0 bindings tried) | window 10-13: no specification matched (170 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "ger__extra_term",
+   "routine": "ger",
+   "kind": "extra_term",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/ger__extra_term.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 10.4,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage shapex1 || region: window 8-11: no specification matched (750 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "ger__missing_alpha",
+   "routine": "ger",
+   "kind": "missing_beta",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/ger__missing_alpha.c",
+   "launches": [
+    "netlib_dger"
+   ],
+   "linalg": [
+    "netlib_dger"
+   ],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 1.91,
+   "region_evidence": [],
+   "linalg_bindings": [
+    {
+     "spec": "netlib_dger",
+     "binding": {
+      "%m": "%arg1",
+      "%n": "%arg0",
+      "%alpha": "literal 1.0",
+      "%x": "%2",
+      "%y": "%1",
+      "%lda": "dim(%0, 1)",
+      "%A": "%0"
+     }
+    }
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2
+      ],
+      "nonsquare": [
+       7,
+       5
+      ],
+      "medium": [
+       23,
+       19
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.6,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dger"
+     ]
+    }
+   },
+   "numeric_verdict": "PASS",
+   "verdict": "PASS_EQUIVALENT_MATCH"
+  },
+  {
+   "case": "ger__off_by_one",
+   "routine": "ger",
+   "kind": "off_by_one",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/ger__off_by_one.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 2.97,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1 || region: window 9-12: no specification matched (0 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "ger__partial_range",
+   "routine": "ger",
+   "kind": "partial_range",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/ger__partial_range.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 1.94,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1 || region: window 10-13: no specification matched (0 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "ger__pos",
+   "routine": "ger",
+   "kind": "positive_control",
+   "expect": "match",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/ger__pos.c",
+   "launches": [
+    "netlib_dger"
+   ],
+   "linalg": [
+    "netlib_dger"
+   ],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 1.41,
+   "region_evidence": [],
+   "linalg_bindings": [
+    {
+     "spec": "netlib_dger",
+     "binding": {
+      "%m": "%arg1",
+      "%n": "%arg0",
+      "%alpha": "%arg2",
+      "%x": "%2",
+      "%y": "%1",
+      "%lda": "dim(%0, 1)",
+      "%A": "%0"
+     }
+    }
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2
+      ],
+      "nonsquare": [
+       7,
+       5
+      ],
+      "medium": [
+       23,
+       19
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.7,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dger"
+     ]
+    }
+   },
+   "numeric_verdict": "PASS",
+   "verdict": "PASS_MATCH"
+  },
+  {
+   "case": "ger__read_before_final",
+   "routine": "ger",
+   "kind": "read_before_final",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/ger__read_before_final.c",
+   "launches": [
+    "netlib_dger"
+   ],
+   "linalg": [
+    "netlib_dger"
+   ],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 0.77,
+   "region_evidence": [],
+   "linalg_bindings": [
+    {
+     "spec": "netlib_dger",
+     "binding": {
+      "%m": "%arg1",
+      "%n": "%arg0",
+      "%alpha": "%arg2",
+      "%x": "%0[0, :]  (rank-reducing extract_slice)",
+      "%y": "%1",
+      "%lda": "dim(%0, 1)",
+      "%A": "%0"
+     }
+    }
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "FAIL",
+     "runs": 20,
+     "max_err": 1.1558898233893045,
+     "bit_exact": false,
+     "fails": [
+      {
+       "config": "n2",
+       "seed": 1,
+       "array": "A",
+       "max_abs": 0.1557411,
+       "max_ref": 1.183341,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 17276038123057232,
+       "err": 0.13161134448988077
+      },
+      {
+       "config": "n2",
+       "seed": 2,
+       "array": "A",
+       "max_abs": 0.2127331,
+       "max_ref": 1.35071,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 3459288884610652,
+       "err": 0.15749724219114392
+      },
+      {
+       "config": "n2",
+       "seed": 3,
+       "array": "A",
+       "max_abs": 0.1119046,
+       "max_ref": 0.9700267,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 4284112361192104,
+       "err": 0.11536239157128356
+      },
+      {
+       "config": "n2",
+       "seed": 4,
+       "array": "A",
+       "max_abs": 0.003580721,
+       "max_ref": 0.9935526,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 140186426860917,
+       "err": 0.003603957153350512
+      },
+      {
+       "config": "n2",
+       "seed": 5,
+       "array": "A",
+       "max_abs": 0.6527116,
+       "max_ref": 0.9983338,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 21658245748355162,
+       "err": 0.6538009631648252
+      },
+      {
+       "config": "nonsquare",
+       "seed": 1,
+       "array": "A",
+       "max_abs": 0.2592654,
+       "max_ref": 1.472655,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 9180066427368067901,
+       "err": 0.17605304704767918
+      }
+     ],
+     "n_fail": 15,
+     "configs": {
+      "n1": [
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2
+      ],
+      "nonsquare": [
+       7,
+       5
+      ],
+      "medium": [
+       23,
+       19
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "residual_control": {
+      "verdict": "FAIL",
+      "max_err": 1.1558898233893045,
+      "n_fail": 15,
+      "why": null
+     },
+     "seconds": 1.2,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dger"
+     ]
+    }
+   },
+   "numeric_verdict": "FAIL",
+   "verdict": "NUMERIC_FAIL_PIPELINE",
+   "culprit": "pipeline (residual control also fails)",
+   "reproducer": {
+    "c_source": "/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/tests_v2/cases/negatives/ger__read_before_final.c",
+    "raised_debuf": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/ger__read_before_final/k_debuf.mlir",
+    "matched": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/ger__read_before_final/m/matched.mlir",
+    "report": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/ger__read_before_final/m/report.json",
+    "commands": [
+     "/home/arjaiswal/Polygeist/build/bin/cgeist /home/arjaiswal/Polygeist/scripts/correctness/lib_v2/tests_v2/cases/negatives/ger__read_before_final.c --function=ger__read_before_final --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/ger__read_before_final/k.mlir",
+     "/home/arjaiswal/Polygeist/build/bin/polygeist-opt '--select-func=func-name=ger__read_before_final externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/ger__read_before_final/k.mlir -o /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/ger__read_before_final/k_linalg.mlir",
+     "/home/arjaiswal/Polygeist/build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/ger__read_before_final/k_linalg.mlir -o /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/ger__read_before_final/k_debuf.mlir",
+     "/usr/bin/python3 scripts/correctness/lib_v2/match_v2.py /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/negatives/ger__read_before_final/k_debuf.mlir -o /tmp/m.mlir --report /tmp/r.json"
+    ]
+   }
+  },
+  {
+   "case": "ger__wrong_index",
+   "routine": "ger",
+   "kind": "wrong_index",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/ger__wrong_index.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 1.28,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1 || region: window 7-10: no specification matched (0 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "ger__wrong_triangle",
+   "routine": "ger",
+   "kind": "wrong_triangle",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/ger__wrong_triangle.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 1.07,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage shapex1 || region: window 10-13: no specification matched (4 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "symm__extra_term",
+   "routine": "symm",
+   "kind": "extra_term",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/symm__extra_term.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 46.12,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage nonex2 || region: window 6-6: no specification matched (1728 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "symm__missing_beta",
+   "routine": "symm",
+   "kind": "missing_beta",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/symm__missing_beta.c",
+   "launches": [
+    "netlib_dsymm_ru"
+   ],
+   "linalg": [],
+   "region": [
+    "netlib_dsymm_ru"
+   ],
+   "match_status": "ok",
+   "match_seconds": 12.6,
+   "region_evidence": [
+    "netlib_dsymm_ru: 2 element equation(s), 2 domain piece(s) equal under binding {'m': '%arg1', 'n': '%arg0', 'alpha': '%arg2', 'lda': 'stride0(%arg5)', 'A': '%arg5', 'ldb': 'stride0(%arg6)', 'B': '%arg6', 'beta': 'literal 1.0', 'ldc': 'stride0(%arg4)', 'C': '%arg4 (in-place)'}; e-graph max 167 nodes, egglog 276.6 ms; dependence checks 21 (reads: input 8, final 0, accumulator 4, scratch-inlined 2); s"
+   ],
+   "linalg_bindings": [],
+   "numeric": {
+    "region0": {
+     "verdict": "NOT_CHECKABLE",
+     "why": "cannot interpret launch operand %rm6_6_ld2",
+     "spec": "netlib_dsymm_ru"
+    }
+   },
+   "numeric_verdict": "INCONCLUSIVE(NOT_CHECKABLE)",
+   "verdict": "MATCH_NUMERIC_INCONCLUSIVE"
+  },
+  {
+   "case": "symm__off_by_one",
+   "routine": "symm",
+   "kind": "off_by_one",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/symm__off_by_one.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 1.04,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage nonex2 || region: window 8-8: writes to an element interleave between statements",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "symm__partial_range",
+   "routine": "symm",
+   "kind": "partial_range",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/symm__partial_range.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 40.89,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage nonex2 || region: window 6-6: no specification matched (0 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "symm__pos",
+   "routine": "symm",
+   "kind": "positive_control",
+   "expect": "match",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/symm__pos.c",
+   "launches": [
+    "netlib_dsymm_ru"
+   ],
+   "linalg": [],
+   "region": [
+    "netlib_dsymm_ru"
+   ],
+   "match_status": "ok",
+   "match_seconds": 7.42,
+   "region_evidence": [
+    "netlib_dsymm_ru: 2 element equation(s), 2 domain piece(s) equal under binding {'m': '%arg1', 'n': '%arg0', 'alpha': '%arg2', 'lda': 'stride0(%arg5)', 'A': '%arg5', 'ldb': 'stride0(%arg6)', 'B': '%arg6', 'beta': '%arg3', 'ldc': 'stride0(%arg4)', 'C': '%arg4 (in-place)'}; e-graph max 164 nodes, egglog 116.7 ms; dependence checks 21 (reads: input 8, final 0, accumulator 4, scratch-inlined 2); spec se"
+   ],
+   "linalg_bindings": [],
+   "numeric": {
+    "region0": {
+     "verdict": "NOT_CHECKABLE",
+     "why": "cannot interpret launch operand %rm6_6_ld2",
+     "spec": "netlib_dsymm_ru"
+    }
+   },
+   "numeric_verdict": "INCONCLUSIVE(NOT_CHECKABLE)",
+   "verdict": "MATCH_NUMERIC_INCONCLUSIVE"
+  },
+  {
+   "case": "symm__read_before_final",
+   "routine": "symm",
+   "kind": "read_before_final",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/symm__read_before_final.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 0.43,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage nonex3 || region: window 5-5: dependence check failed: read of %arg4[g2_1, v1] at [21, v0, 33, v1, g2_1, 0] observes an intermediate value (written both before and afte",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "symm__wrong_index",
+   "routine": "symm",
+   "kind": "wrong_index",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/symm__wrong_index.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 42.4,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage nonex2 || region: window 6-6: no specification matched (1728 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "symm__wrong_triangle",
+   "routine": "symm",
+   "kind": "wrong_triangle",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/symm__wrong_triangle.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 46.76,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage nonex2 || region: window 6-6: no specification matched (1728 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "syr2k__extra_term",
+   "routine": "syr2k",
+   "kind": "extra_term",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/syr2k__extra_term.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 99.24,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage matchedx1, shapex1 || Linalg rejections: netlib_dsyr2k_un_alpha0: unbound parameters ['%k', '%lda', '%A', '%ldb', '%B']; netlib_dsyrk_un_alpha0: unbound parameters ['%k', '%lda', '%A'] || region: window 9-21: no specification matched (1008 bindings tried) | window 18-21: no specification matched (252 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "syr2k__missing_beta",
+   "routine": "syr2k",
+   "kind": "missing_beta",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/syr2k__missing_beta.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 3.43,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage shapex1 || region: window 13-16: netlib_dsyr2k_ln_beta1 matched but binding needs a layout transpose and manifest of dsyr2k has no layout_transpose metadata",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "syr2k__off_by_one",
+   "routine": "syr2k",
+   "kind": "off_by_one",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/syr2k__off_by_one.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 86.71,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage matchedx1, shapex1 || Linalg rejections: netlib_dsyr2k_un_alpha0: unbound parameters ['%k', '%lda', '%A', '%ldb', '%B']; netlib_dsyrk_un_alpha0: unbound parameters ['%k', '%lda', '%A'] || region: window 9-20: no specification matched (1008 bindings tried) | window 17-20: no specification matched (0 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "syr2k__partial_range",
+   "routine": "syr2k",
+   "kind": "partial_range",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/syr2k__partial_range.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 93.94,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage matchedx1, shapex1 || Linalg rejections: netlib_dsyr2k_un_alpha0: unbound parameters ['%k', '%lda', '%A', '%ldb', '%B']; netlib_dsyrk_un_alpha0: unbound parameters ['%k', '%lda', '%A'] || region: window 9-22: no specification matched (1008 bindings tried) | window 19-22: no specification matched (0 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "syr2k__pos",
+   "routine": "syr2k",
+   "kind": "positive_control",
+   "expect": "match",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/syr2k__pos.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 13.16,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage matchedx1, shapex1 || Linalg rejections: netlib_dsyr2k_un_alpha0: unbound parameters ['%k', '%lda', '%A', '%ldb', '%B']; netlib_dsyrk_un_alpha0: unbound parameters ['%k', '%lda', '%A'] || region: window 9-21: netlib_dsyr2k_ln matched but binding needs a layout transpose and manifest of dsyr2k has no layout_transpose metadata | window 18-21: netlib_dsyr2k_ln_beta1 matched but binding needs a layout transpose and manifest of dsyr2k has no layout_transpose metadata",
+   "verdict": "MISS"
+  },
+  {
+   "case": "syr2k__read_before_final",
+   "routine": "syr2k",
+   "kind": "read_before_final",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/syr2k__read_before_final.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 4.02,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage matchedx1, shapex1 || Linalg rejections: netlib_dsyr2k_un_alpha0: unbound parameters ['%k', '%lda', '%A', '%ldb', '%B']; netlib_dsyrk_un_alpha0: unbound parameters ['%k', '%lda', '%A'] || region: window 8-20: dependence check failed: read of %arg3[v0, g2_1] at [68, v0, g2_1, v1, 0] observes an intermediate value (written both before and after) | window 17-20: dependence check failed: read of %arg3[v0, g2_1] at [68, v0, g2_1, v1, 0] observes an intermediate value (written both before and after)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "syr2k__wrong_index",
+   "routine": "syr2k",
+   "kind": "wrong_index",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/syr2k__wrong_index.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 81.81,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage matchedx1, shapex1 || Linalg rejections: netlib_dsyr2k_un_alpha0: unbound parameters ['%k', '%lda', '%A', '%ldb', '%B']; netlib_dsyrk_un_alpha0: unbound parameters ['%k', '%lda', '%A'] || region: window 9-20: no specification matched (1008 bindings tried) | window 17-20: no specification matched (252 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "syr2k__wrong_triangle",
+   "routine": "syr2k",
+   "kind": "wrong_triangle",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/syr2k__wrong_triangle.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 44.83,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage matchedx1, shapex1 || Linalg rejections: netlib_dsyr2k_un_alpha0: unbound parameters ['%k', '%lda', '%A', '%ldb', '%B']; netlib_dsyrk_un_alpha0: unbound parameters ['%k', '%lda', '%A'] || region: window 9-19: no specification matched (0 bindings tried) | window 16-19: netlib_dsyr2k_un_beta1 matched but binding needs a layout transpose and manifest of dsyr2k has no layout_transpose metadata",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "syrk__extra_term",
+   "routine": "syrk",
+   "kind": "extra_term",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/syrk__extra_term.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 84.45,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage matchedx1, shapex1 || Linalg rejections: netlib_dsyr2k_un_alpha0: unbound parameters ['%k', '%lda', '%A', '%ldb', '%B']; netlib_dsyrk_un_alpha0: unbound parameters ['%k', '%lda', '%A'] || region: window 8-18: no specification matched (320 bindings tried) | window 15-18: no specification matched (80 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "syrk__missing_beta",
+   "routine": "syrk",
+   "kind": "missing_beta",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/syrk__missing_beta.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 1.25,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1 || region: window 10-13: netlib_dsyrk_ln_beta1 matched but binding needs a layout transpose and manifest of dsyrk has no layout_transpose metadata",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "syrk__off_by_one",
+   "routine": "syrk",
+   "kind": "off_by_one",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/syrk__off_by_one.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 83.86,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1, matchedx1 || Linalg rejections: netlib_dsyr2k_un_alpha0: unbound parameters ['%k', '%lda', '%A', '%ldb', '%B']; netlib_dsyrk_un_alpha0: unbound parameters ['%k', '%lda', '%A'] || region: window 8-17: no specification matched (320 bindings tried) | window 14-17: no specification matched (0 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "syrk__partial_range",
+   "routine": "syrk",
+   "kind": "partial_range",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/syrk__partial_range.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 90.96,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1, matchedx1 || Linalg rejections: netlib_dsyr2k_un_alpha0: unbound parameters ['%k', '%lda', '%A', '%ldb', '%B']; netlib_dsyrk_un_alpha0: unbound parameters ['%k', '%lda', '%A'] || region: window 8-19: no specification matched (320 bindings tried) | window 16-19: no specification matched (0 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "syrk__pos",
+   "routine": "syrk",
+   "kind": "positive_control",
+   "expect": "match",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/syrk__pos.c",
+   "launches": [
+    "netlib_dsyrk_ut"
+   ],
+   "linalg": [],
+   "region": [
+    "netlib_dsyrk_ut"
+   ],
+   "match_status": "ok",
+   "match_seconds": 3.57,
+   "region_evidence": [
+    "netlib_dsyrk_ut: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'k': '%arg1', 'alpha': '%arg2', 'lda': 'stride0(%arg5)', 'A': '%arg5', 'beta': '%arg3', 'ldc': 'stride0(%arg4)', 'C': '%arg4 (in-place)'}; e-graph max 69 nodes, egglog 46.3 ms; dependence checks 7 (reads: input 2, final 0, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debuffer"
+   ],
+   "linalg_bindings": [],
+   "numeric": {
+    "region0": {
+     "verdict": "NOT_CHECKABLE",
+     "why": "cannot interpret launch operand %rm8_18_ld2",
+     "spec": "netlib_dsyrk_ut"
+    }
+   },
+   "numeric_verdict": "INCONCLUSIVE(NOT_CHECKABLE)",
+   "verdict": "MATCH_NUMERIC_INCONCLUSIVE"
+  },
+  {
+   "case": "syrk__read_before_final",
+   "routine": "syrk",
+   "kind": "read_before_final",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/syrk__read_before_final.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 0.61,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage shapex2 || region: window 8-10: dependence check failed: read of %arg3[v1, g2_0] at [33, v0, 25, g2_0, v1, 0] observes an intermediate value (written both before and aft",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "syrk__wrong_index",
+   "routine": "syrk",
+   "kind": "wrong_index",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/syrk__wrong_index.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 82.44,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage matchedx1, shapex1 || Linalg rejections: netlib_dsyr2k_un_alpha0: unbound parameters ['%k', '%lda', '%A', '%ldb', '%B']; netlib_dsyrk_un_alpha0: unbound parameters ['%k', '%lda', '%A'] || region: window 8-17: no specification matched (320 bindings tried) | window 14-17: no specification matched (80 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "syrk__wrong_triangle",
+   "routine": "syrk",
+   "kind": "wrong_triangle",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/syrk__wrong_triangle.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 42.16,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1, matchedx1 || Linalg rejections: netlib_dsyr2k_un_alpha0: unbound parameters ['%k', '%lda', '%A', '%ldb', '%B']; netlib_dsyrk_un_alpha0: unbound parameters ['%k', '%lda', '%A'] || region: window 8-16: no specification matched (0 bindings tried) | window 13-16: netlib_dsyrk_un_beta1 matched but binding needs a layout transpose and manifest of dsyrk has no layout_transpose metadata",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "trmm__extra_term",
+   "routine": "trmm",
+   "kind": "extra_term",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/trmm__extra_term.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 42.47,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1, shapex1 || region: window 4-6: no specification matched (1140 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "trmm__missing_alpha",
+   "routine": "trmm",
+   "kind": "missing_beta",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/trmm__missing_alpha.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 41.12,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage extentsx1 || region: window 7-10: no specification matched (0 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "trmm__off_by_one",
+   "routine": "trmm",
+   "kind": "off_by_one",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/trmm__off_by_one.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 45.05,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1, shapex1 || region: window 4-6: no specification matched (1140 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "trmm__partial_range",
+   "routine": "trmm",
+   "kind": "partial_range",
+   "expect": "nomatch_or_equivalent",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/trmm__partial_range.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 42.66,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1, shapex1 || region: window 7-9: no specification matched (0 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "trmm__pos",
+   "routine": "trmm",
+   "kind": "positive_control",
+   "expect": "match",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/trmm__pos.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 4.68,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1, shapex1 || region: window 4-6: netlib_dtrmm_lltu matched but binding needs a layout transpose and manifest of dtrmm has no layout_transpose metadata",
+   "verdict": "MISS"
+  },
+  {
+   "case": "trmm__read_before_final",
+   "routine": "trmm",
+   "kind": "read_before_final",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/trmm__read_before_final.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 44.64,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1, shapex1 || region: window 4-6: no specification matched (1140 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "trmm__wrong_index",
+   "routine": "trmm",
+   "kind": "wrong_index",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/trmm__wrong_index.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 43.1,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1, shapex1 || region: window 4-6: no specification matched (1140 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  },
+  {
+   "case": "trmm__wrong_triangle",
+   "routine": "trmm",
+   "kind": "wrong_triangle",
+   "expect": "nomatch",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/negatives/trmm__wrong_triangle.c",
+   "launches": [],
+   "linalg": [],
+   "region": [],
+   "match_status": "ok",
+   "match_seconds": 41.65,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1, shapex1 || region: window 6-8: no specification matched (1140 bindings tried)",
+   "verdict": "PASS_NO_MATCH"
+  }
+ ]
+}

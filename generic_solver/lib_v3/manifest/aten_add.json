@@ -1,0 +1,40 @@
+{
+  "routine": "aten_add",
+  "source": "Pinned upstream scalar implementation; documented adaptations in ref_c/aten_add.c",
+  "upstream_files": [
+    {
+      "path": "third_party/pytorch/aten/src/ATen/native/ufunc/add.h",
+      "sha256": "a277e74e7e35497127da9e24ae91b2be38e01e3d6f0e8c8b1834c10d72870f4c"
+    }
+  ],
+  "specs": [
+    {
+      "name": "aten_add_f32",
+      "target": {
+        "library": "cuDNN",
+        "call": "cudnnBackendExecute",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "pointwise_reference",
+          "alias_policy": "exact_or_disjoint",
+          "extent_arg": "n"
+        }
+      },
+      "args": [
+        "n",
+        "x",
+        "y",
+        "output"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX",
+        "contiguous FP32 arrays; output is disjoint from or exactly aliases an input with the same extent; no partial overlap",
+        "finite inputs; floating reorderings only under relaxed model"
+      ],
+      "deviations": []
+    }
+  ]
+}

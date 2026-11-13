@@ -1,0 +1,7 @@
+inputs/s05_then_load_after_store.mlir:15:13: error: operand #0 does not dominate this use
+      %l2 = memref.load %x[%i0] : memref<8xf64>
+            ^
+inputs/s05_then_load_after_store.mlir:15:13: note: see current operation: %4 = "tensor.extract"(%4, %0) : (tensor<8xf64>, index) -> f64
+inputs/s05_then_load_after_store.mlir:11:7: note: operand defined here (op is neither in a parent nor in a child region)
+      memref.store %v, %x[%i0] : memref<8xf64>
+      ^

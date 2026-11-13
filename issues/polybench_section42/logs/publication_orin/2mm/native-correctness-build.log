@@ -1,0 +1,12 @@
+5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c
+In file included from tools/cgeist/Test/polybench/linear-algebra/kernels/2mm/2mm.c:35:
+tools/cgeist/Test/polybench/utilities/polybench.h:233:21: warning: inline function ‘polybench_alloc_data’ given attribute ‘noinline’ [-Wattributes]
+  233 | static inline void* polybench_alloc_data(unsigned long long int n, int elt_size) {
+      |                     ^~~~~~~~~~~~~~~~~~~~
+tools/cgeist/Test/polybench/utilities/polybench.h:236:20: warning: inline function ‘polybench_free_data’ given attribute ‘noinline’ [-Wattributes]
+  236 | static inline void polybench_free_data(void* ptr) {
+      |                    ^~~~~~~~~~~~~~~~~~~
+0000000000001bc0 T kernel_2mm
+3ead555767a84951ca6f7b2cb5dbab2f67c1dc7259ebf781447a0ab37cd63a3c  tools/cgeist/Test/polybench/linear-algebra/kernels/2mm/2mm.c
+8bf5c5aa3b21ad307e773ccd2ce2bee55543599c44cf731e41ea33b50d1e82dd  issues/polybench_section42/polybenchgpu_adapters/2mm.cu
+e8eaa734add3e2abe7a47e15e352d6b8ea74b08766b9e6e0900117d5d1a70a17  /tmp/polybench-publication-orin/2mm/native-correctness

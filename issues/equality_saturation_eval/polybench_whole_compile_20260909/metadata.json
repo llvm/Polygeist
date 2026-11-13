@@ -1,0 +1,57 @@
+{
+  "dataset": "LARGE",
+  "datatype": "double",
+  "git_head": "f37f06fbb8040ac158449c0e1521142d32fc8726",
+  "host": "arpitj-dev",
+  "load_average_at_campaign_start": [
+    14.76025390625,
+    15.1318359375,
+    15.97998046875
+  ],
+  "logical_cpu_count": 24,
+  "manifest": "issues/polybench_section42/manifest.csv",
+  "manifest_sha256": "df321d6cd75c2055c360d9705465a1c48f5c4448b2e031806acd1295c12b8bd1",
+  "matcher_ast_node_ceiling": 32,
+  "matcher_bound_note": "The in-process production matcher uses iteration and AST-size bounds rather than an isolated per-proof wall timer.",
+  "matcher_iteration_limit": 8,
+  "modes": [
+    "egglog",
+    "syntactic"
+  ],
+  "per_candidate_wall_timeout_seconds": null,
+  "platform": "Linux-5.15.0-151-generic-x86_64-with-glibc2.35",
+  "repetitions_per_mode": 5,
+  "runner_sha256": "6c32759f8f34e30b8608a74574ef103dee414fe4416f9b7f4d5ebd6bf05ab6b4",
+  "schema": 1,
+  "scope": "C source through linked AArch64 executable",
+  "semantic_fallback_disabled": true,
+  "sequential": true,
+  "target": "Jetson AArch64 cross-compile on x86 host; executable not run",
+  "timeout_seconds_per_build": 900,
+  "tools": {
+    "build_script": {
+      "path": "/home/arjaiswal/Polygeist-polybench-compile-study/scripts/correctness/polygeist_build.sh",
+      "sha256": "e1f2f3dd199aa5d7db026f3dfacc911352e20dde5d961e3596c0457bab20ffb5"
+    },
+    "cgeist": {
+      "path": "/home/arjaiswal/Polygeist/build/bin/cgeist",
+      "sha256": "d272de5e97d5347b57e0a392d064e1d1df83ca9447d1c296339d253cc9ba518b"
+    },
+    "clang": {
+      "path": "/home/arjaiswal/Polygeist/llvm-project/build/bin/clang",
+      "sha256": "edc952a05b52ea0d5844b4d5e86df31a6372bdb99ae7e6b9f9f43a6bdd7ccd9e"
+    },
+    "mlir_opt": {
+      "path": "/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-opt",
+      "sha256": "5d324a26e89d7ecc611991b85ef5cc94c2b2c5be1ea19f44ca99c64b841d3574"
+    },
+    "mlir_translate": {
+      "path": "/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-translate",
+      "sha256": "e9829fb2190eaa5af19f2c9176916e786c58a4480f1439c7770078cb6ddf69a6"
+    },
+    "polygeist_opt": {
+      "path": "/home/arjaiswal/Polygeist/build/bin/polygeist-opt",
+      "sha256": "c24c6842b53f599fdbc410a92f8ffec414d39288f57043b1b78e428e41dececf"
+    }
+  }
+}

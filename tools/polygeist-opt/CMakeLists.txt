@@ -5,6 +5,7 @@ set(LIBS
         ${conversion_libs}
         MLIROptLib
 		MLIRPolygeist
+		MLIRPolygeistKernel
 		MLIRPolygeistTransforms
 		MLIRFuncAllExtensions
         )

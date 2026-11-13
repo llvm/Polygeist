@@ -1,0 +1,36 @@
+Run from /home/arjaiswal/Polygeist. Source envsetup.sh first. Use /usr/bin/python3 (the default Python environment may lack egglog).
+
+1. Rebuild and validate the current specification catalog:
+   POLYGEIST_SPEC_SUITE=lib_v3 /usr/bin/python3 scripts/correctness/lib_v2/build_lib_v2.py -j 4
+   /usr/bin/python3 scripts/correctness/lib_v2/gen_v2_runtime.py --check
+
+2. Focused regressions and old application proofs:
+   /usr/bin/python3 -m unittest discover -s scripts/correctness/tests
+   /usr/bin/python3 issues/llama_remaining_matches_20261111/check_previous_matches.py
+
+3. Fresh nineteen-site coverage:
+   The coverage driver resumes existing result.json files. Preserve or rename its coverage-final directory before a fresh run.
+   /usr/bin/python3 issues/llama_remaining_matches_20261111/coverage_final.py --suite llama --jobs 4
+
+4. Independent actual upstream reference checks:
+   /usr/bin/python3 issues/llama_remaining_matches_20261111/check_openblas.py
+   /usr/bin/python3 issues/llama_remaining_matches_20261111/check_native_refs.py
+   /usr/bin/python3 issues/llama_remaining_matches_20261111/check_copy_refs.py
+
+5. Isolated GPU kernels:
+   For family gemv, pointwise, rms, copy, run the corresponding build_FAMILY.py then run_FAMILY.py in this campaign directory.
+   The run drivers use the local private remote helper; do not copy its credentials into an artifact. A replacement helper needs run(command, timeout) returning (exit_code, text) and upload(local_path, remote_path) returning exit_code.
+   Board runs must be serialized with other benchmark campaigns. Raw samples and before/after board state are saved.
+
+6. Fresh full inference build:
+   PYTHON=/usr/bin/python3 POLYGEIST_NUMERIC_MODEL=relaxed POLYGEIST_CUTENSOR_ROOT=/home/arjaiswal/cutensornet-aarch64-root/cutensor scripts/correctness/build_llama_reproduction.sh issues/llama_remaining_matches_20261111/full-inference
+
+7. Full GPU/native/expert run:
+   /usr/bin/python3 issues/llama_remaining_matches_20261111/run_full_inference.py --remote-helper /path/to/private/remote.py
+   Add --resume only to reuse an already successful run with the identical executable hash.
+   For vendor verification, rerun the resident executable with POLYGEIST_V2_TRACE=1 separately from timing. Capture full output and before/after board state.
+
+8. Rebuild the summary from captured logs:
+   /usr/bin/python3 issues/llama_remaining_matches_20261111/report.py
+
+The measured snapshot is in source-snapshot/ and provenance-final.json. Later ATen additions may change live catalog counts; use the captured counts when interpreting this campaign. Initial failure logs and unsupported cases are retained, not discarded.

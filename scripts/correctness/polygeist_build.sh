@@ -1,0 +1,1022 @@
+#!/bin/bash
+# polygeist_build.sh — generic driver: take a C source file containing a
+# kernel function and produce a binary where the kernel is matched to an
+# optimized library implementation (cuDNN / cuBLAS) and the rest of the
+# file (main, init, print, etc.) is compiled normally.
+#
+# Usage:
+#   polygeist_build.sh [--target=host|jetson-cpu|jetson] [--function=NAME] [-o OUT]
+#                      [--harness=HARNESS.c] [--whole-program] [--no-debuf]
+#                      [--semantic-mlir=COMPOSED.mlir]
+#                      <kernel.c> [gcc-passthrough-flags...]
+#
+# Defaults:
+#   --target=host       Produce a binary for the local machine. On an x86
+#                       dev VM with no CUDA, links the CPU-stub runtime so
+#                       the binary still runs (CPU-only, for correctness).
+#                       On a Jetson (aarch64 + JetPack CUDA), links cuDNN/
+#                       cuBLAS and the binary runs on the GPU.
+#   --target=jetson     Cross-compile from this x86 VM to aarch64 + bundle
+#                       the cross-CUDA libs. The resulting binary is an
+#                       aarch64 ELF you can scp to a Jetson and run there.
+#                       Deployment (scp / ssh / execute) is out of scope
+#                       for this driver — that's a separate, environment-
+#                       specific concern.
+#   --target=jetson-cpu Cross-compile to aarch64 using the CPU runtime shim.
+#                       This contains no CUDA dependency and can route raised
+#                       BLAS operations to an AArch64 CBLAS implementation.
+#   --function=auto     Auto-detect the kernel function via #pragma scop
+#                       (PolyBench convention) or a leading 'kernel_' prefix.
+#                       Override with --function=NAME for non-conventional
+#                       source.
+#   -o OUT              Defaults to the .c basename without extension.
+#   --no-debuf          Match the memref linalg form directly instead of
+#                       running --linalg-debufferize before the matcher.
+#                       Useful for memref-only compositions such as the
+#                       llama2.c RMSNorm/softmax patterns.
+#   --semantic-mlir     Resume from an already matched/composed MLIR artifact.
+#                       With --whole-program, the artifact must contain the
+#                       complete transformed program and selected function;
+#                       otherwise it contains the extracted function and C is
+#                       used for ABI metadata and harness compilation.
+#   --whole-program     Compile the complete input through cgeist and transform
+#                       the selected function in place. The resulting module
+#                       retains main and all source helpers, and no native
+#                       source kernel or linker-level replacement participates.
+#
+# Optional environment:
+#   POLYGEIST_CPU_BLAS=1
+#                       Host or jetson-cpu target. Compile the CPU runtime with
+#                       CBLAS calls for BLAS-like symbols and link OpenBLAS by
+#                       default. Override with POLYGEIST_CPU_BLAS_CFLAGS and
+#                       POLYGEIST_CPU_BLAS_LIBS for MKL/BLIS/ArmPL/NVPL.
+#   POLYGEIST_CUTENSORNET_ROOT=/path/to/cuquantum
+#                       Jetson target only. The root must contain
+#                       include/cutensornet.h and lib/libcutensornet.so for
+#                       aarch64. Enables the cuTensorNet tensor-product shim.
+#   POLYGEIST_CUTENSOR_ROOT=/path/to/cutensor
+#                       Jetson target only. The root must contain
+#                       include/cutensor.h and lib/libcutensor.so for aarch64.
+#                       Enables cuTENSOR without unnecessarily linking
+#                       cuTensorNet or cuSOLVER.
+#   POLYGEIST_STENCIL_BACKEND=cudnn|custen
+#                       Select the external implementation used for matched
+#                       generalized 2-D stencils. `cudnn` is the default.
+#   POLYGEIST_CUSTEN_LIB=/path/to/libpolygeist_custen.so
+#                       Jetson target only. Cross-built aarch64 shared library
+#                       containing upstream cuSten plus the thin Polygeist ABI
+#                       adapter. Required when STENCIL_BACKEND=custen.
+#   POLYGEIST_MINIMAL_CUTENSORNET_RUNTIME=1
+#                       Jetson target only. For contraction-only binaries,
+#                       discard unused runtime sections and avoid DT_NEEDED
+#                       entries for unrelated cuDNN/cuFFT/cuSPARSE libraries.
+#   POLYGEIST_MINIMAL_CUDA_RUNTIME=1
+#                       Jetson target only. Link a cuBLAS-only executable
+#                       without unrelated cuDNN/cuFFT/cuSPARSE/cuSOLVER
+#                       dependencies after function-section dead stripping.
+#   POLYGEIST_MINIMAL_CUDNN_RUNTIME=1
+#                       As above, but retain cuDNN plus cuBLAS for convolution,
+#                       pooling, normalization, and activation routes.
+#   POLYGEIST_NUMERIC_MODEL=strict|relaxed
+#                       Strict preserves scalar operation trees (default).
+#                       Relaxed permits real-arithmetic reassociation and
+#                       identities; numerical output checks remain required.
+#   POLYGEIST_DISABLE_LIBRARY_MATCHING=1
+#                       Preserve residual Linalg instead of emitting any
+#                       kernel.launch operations. Useful for isolating raising
+#                       correctness from matcher/ABI/runtime correctness.
+#   POLYGEIST_EXPORT_OBJECT_DIR=/path
+#                       Copy kernel.o, wrapper.o, runtime objects, and the
+#                       matched/ABI MLIR into this directory for a larger
+#                       application link.
+#   POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION=name
+#                       Materialize scratch owned by this compiler-visible
+#                       repeated function before ABI lowering and normalize
+#                       ABI-created loop-carried tensor results again before
+#                       final bufferization.
+#   POLYGEIST_PERSISTENT_WORKSPACE_LOWER_SUBMAPS=auto|0|1
+#                       Control tensor-view lowering before ABI lowering.
+#                       `auto` (the default) enables it for tensor iter_args;
+#                       use 0 or 1 for controlled layout experiments.
+#   POLYGEIST_SKIP_LINK=1
+#                       Stop after compiling/exporting those objects. This is
+#                       intended for application composition builds whose main
+#                       program is linked separately.
+#   POLYGEIST_POLYBENCH_REPETITIONS=1
+#                       Whole-program mode only. Rename the unchanged source's
+#                       main entry and link an algorithm-neutral driver that
+#                       invokes it five warmups plus five measured iterations
+#                       in one process. Override the counts with
+#                       POLYGEIST_WARMUP_RUNS and POLYGEIST_TIMED_RUNS.
+#   POLYGEIST_HARNESS_CFLAGS="..."
+#                       Additional flags used only when compiling the native C
+#                       harness, not when cgeist translates the selected kernel.
+#   POLYGEIST_CGEIST_FLAGS="..."
+#                       Additional cgeist-only driver options. This is used by
+#                       controlled experiments such as `--no-inline` without
+#                       leaking cgeist options into the C harness compiler.
+#
+# Any unrecognized flags are passed through to all the gcc/clang invocations
+# that compile non-MLIR pieces of the build (harness, polybench utility code,
+# runtime shim). This is how PolyBench-style preprocessor defines like
+# -DMINI_DATASET / -DDATA_TYPE_IS_DOUBLE / -DPOLYBENCH_DUMP_ARRAYS get
+# propagated — they're just gcc flags from the driver's perspective.
+#
+# Examples:
+#   polygeist_build.sh gemm.c -DMINI_DATASET -I /path/polybench/utilities
+#   polygeist_build.sh --target=jetson gemm.c -DLARGE_DATASET -o gemm_jetson
+#   polygeist_build.sh --function=kernel_conv2d conv2d.c
+
+set -euo pipefail
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
+
+# ─── Tooling ────────────────────────────────────────────────────────────
+MLIR_OPT="${MLIR_OPT:-$REPO_ROOT/llvm-project/build/bin/mlir-opt}"
+MLIR_TRANSLATE="${MLIR_TRANSLATE:-$REPO_ROOT/llvm-project/build/bin/mlir-translate}"
+CLANG="${CLANG:-$REPO_ROOT/llvm-project/build/bin/clang}"
+PYTHON=$PYTHON
+SCRIPTS=$REPO_ROOT/scripts/correctness
+RT=$REPO_ROOT/runtime
+
+# Cross toolchain (used only when --target=jetson).
+CUDA_CROSS="${POLYGEIST_CUDA_CROSS_ROOT:-/usr/local/cuda-12.6/targets/sbsa-linux}"
+CUDNN_CROSS_INC=/usr/include/aarch64-linux-gnu
+CUDNN_CROSS_LIB=/usr/lib/aarch64-linux-gnu
+AARCH64_CC=aarch64-linux-gnu-gcc
+
+# ─── Parse args ─────────────────────────────────────────────────────────
+TARGET=host
+FUNCTION=
+OUT=
+INPUT=
+HARNESS_INPUT=
+DEBUFFERIZE=1
+SEMANTIC_MLIR=
+WHOLE_PROGRAM=0
+GCC_PASSTHROUGH=()
+RT_CFLAGS=()
+STENCIL_BACKEND="${POLYGEIST_STENCIL_BACKEND:-cudnn}"
+ABI_BACKEND="${POLYGEIST_ABI_BACKEND:-cuda}"
+
+usage() {
+  sed -n '3,40p' "$0" | sed 's/^# \?//'
+  exit "${1:-0}"
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --target=*)    TARGET="${1#--target=}"; shift ;;
+    --function=*)  FUNCTION="${1#--function=}"; shift ;;
+    --harness=*)   HARNESS_INPUT="${1#--harness=}"; shift ;;
+    --no-debuf|--no-linalg-debufferize) DEBUFFERIZE=0; shift ;;
+    --semantic-mlir=*) SEMANTIC_MLIR="${1#--semantic-mlir=}"; shift ;;
+    --whole-program) WHOLE_PROGRAM=1; shift ;;
+    -o)            OUT="$2"; shift 2 ;;
+    -h|--help)     usage ;;
+    *.c)
+      if [ -z "$INPUT" ]; then INPUT="$1"
+      else GCC_PASSTHROUGH+=("$1"); fi
+      shift ;;
+    *)             GCC_PASSTHROUGH+=("$1"); shift ;;
+  esac
+done
+
+[ -z "$INPUT" ] && { echo "ERROR: no .c input file provided" >&2; usage 1; }
+[ -f "$INPUT" ] || { echo "ERROR: input file $INPUT not found" >&2; exit 1; }
+[ -n "$HARNESS_INPUT" ] || HARNESS_INPUT="$INPUT"
+[ -f "$HARNESS_INPUT" ] || { echo "ERROR: harness file $HARNESS_INPUT not found" >&2; exit 1; }
+[ -z "$SEMANTIC_MLIR" ] || [ -f "$SEMANTIC_MLIR" ] || {
+  echo "ERROR: semantic MLIR file $SEMANTIC_MLIR not found" >&2; exit 1;
+}
+case "$TARGET" in host|jetson-cpu|jetson) ;; *)
+  echo "ERROR: --target must be 'host', 'jetson-cpu', or 'jetson' (got '$TARGET')" >&2; exit 1 ;;
+esac
+if [ -z "${POLYGEIST_ABI_BACKEND:-}" ] && [ "$TARGET" != jetson ]; then
+  ABI_BACKEND=cpu
+fi
+case "$ABI_BACKEND" in cpu|cuda|pva) ;; *)
+  echo "ERROR: POLYGEIST_ABI_BACKEND must be 'cpu', 'cuda', or 'pva'" >&2; exit 1 ;;
+esac
+if { [ "$ABI_BACKEND" = cpu ] && [ "$TARGET" = jetson ]; } ||
+   { [ "$ABI_BACKEND" != cpu ] && [ "$TARGET" != jetson ]; }; then
+  echo "ERROR: backend $ABI_BACKEND does not match execution target $TARGET" >&2; exit 1
+fi
+if [ "$ABI_BACKEND" = pva ] && [ "$TARGET" != jetson ]; then
+  echo "ERROR: PVA ABI lowering requires --target=jetson" >&2; exit 1
+fi
+CROSS_AARCH64=0
+if [ "$TARGET" != "host" ]; then CROSS_AARCH64=1; fi
+[ -z "$OUT" ] && OUT="$(basename "$INPUT" .c)"
+
+WHOLE_PROGRAM_ENTRY=main
+POLYBENCH_REPETITIONS=${POLYGEIST_POLYBENCH_REPETITIONS:-0}
+if [ "$POLYBENCH_REPETITIONS" != 0 ]; then
+  [ "$WHOLE_PROGRAM" -ne 0 ] || {
+    echo "ERROR: POLYGEIST_POLYBENCH_REPETITIONS requires --whole-program" >&2
+    exit 1
+  }
+  POLYGEIST_WARMUP_RUNS=${POLYGEIST_WARMUP_RUNS:-5}
+  POLYGEIST_TIMED_RUNS=${POLYGEIST_TIMED_RUNS:-5}
+  [[ "$POLYGEIST_WARMUP_RUNS" =~ ^[0-9]+$ ]] || {
+    echo "ERROR: POLYGEIST_WARMUP_RUNS must be a non-negative integer" >&2
+    exit 1
+  }
+  [[ "$POLYGEIST_TIMED_RUNS" =~ ^[1-9][0-9]*$ ]] || {
+    echo "ERROR: POLYGEIST_TIMED_RUNS must be a positive integer" >&2
+    exit 1
+  }
+  WHOLE_PROGRAM_ENTRY=polygeist_polybench_iteration
+  GCC_PASSTHROUGH+=("-Dmain=$WHOLE_PROGRAM_ENTRY")
+  GCC_PASSTHROUGH+=("-include" "$RT/polybench_repeat_entry.h")
+fi
+
+# ─── Auto-detect the kernel function name ───────────────────────────────
+if [ -z "$FUNCTION" ]; then
+  # Strategy 1: find the function immediately preceding '#pragma scop'
+  # (PolyBench convention — the scop marker sits in the kernel function body).
+  FUNCTION=$(awk '
+    /^void\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\(/ {
+      match($0, /^void\s+([a-zA-Z_][a-zA-Z0-9_]*)/, a); last_fn = a[1]
+    }
+    /#pragma\s+scop/ { print last_fn; exit }
+  ' "$INPUT")
+  # Strategy 2: first function whose name starts with kernel_
+  if [ -z "$FUNCTION" ]; then
+    FUNCTION=$(grep -oE '^\s*(static\s+)?void\s+kernel_[a-zA-Z0-9_]+' "$INPUT" \
+               | head -1 | awk '{print $NF}')
+  fi
+  if [ -z "$FUNCTION" ]; then
+    echo "ERROR: couldn't auto-detect kernel function in $INPUT." >&2
+    echo "       Use --function=NAME to specify it explicitly." >&2
+    exit 1
+  fi
+fi
+if [ "$WHOLE_PROGRAM" -ne 0 ] && [ -n "$SEMANTIC_MLIR" ]; then
+  grep -qE "func\.func .*@${FUNCTION}\(" "$SEMANTIC_MLIR" || {
+    echo "ERROR: whole-program semantic MLIR does not contain $FUNCTION" >&2
+    exit 1
+  }
+fi
+
+if [ -n "${POLYGEIST_BUILD_WORK_DIR:-}" ]; then
+  WORK=$POLYGEIST_BUILD_WORK_DIR
+  mkdir -p "$WORK"
+  POLYGEIST_KEEP_WORK=1
+else
+  WORK=$(mktemp -d)
+fi
+if [ "${POLYGEIST_KEEP_WORK:-0}" != "0" ]; then
+  echo "[polygeist] keeping workdir: $WORK"
+else
+  trap "rm -rf $WORK" EXIT
+fi
+
+echo "[polygeist] input=$INPUT  function=$FUNCTION  target=$TARGET  output=$OUT"
+if [ "$WHOLE_PROGRAM" -ne 0 ]; then
+  echo "[polygeist] integration=whole-program-in-place"
+  if [ "$POLYBENCH_REPETITIONS" != 0 ]; then
+    echo "[polygeist] repetitions=${POLYGEIST_WARMUP_RUNS}+${POLYGEIST_TIMED_RUNS} in-process"
+  fi
+else
+  echo "[polygeist] harness=$HARNESS_INPUT"
+fi
+echo "[polygeist] gcc passthrough: ${GCC_PASSTHROUGH[*]:-(none)}"
+
+# ─── Steps 1-4: produce or reuse matched/composed semantic MLIR ─────────
+if [ -n "$SEMANTIC_MLIR" ]; then
+  echo "  [1-4/9] reuse stored semantic MLIR: $SEMANTIC_MLIR"
+  MATCH_PROOF="${POLYGEIST_MATCH_PROOF:?resumed MLIR requires its specification match report}"
+  $PYTHON "$SCRIPTS/spec_match.py" "$SEMANTIC_MLIR" --verify-report "$MATCH_PROOF" --backend "$ABI_BACKEND"
+  cp "$SEMANTIC_MLIR" "$WORK/matched.mlir"
+  cp "$MATCH_PROOF" "$WORK/match.json"
+  SEMANTIC_INPUT=$WORK/matched.mlir
+else
+# ─── Step 1: cgeist lifts the kernel function to affine MLIR ────────────
+echo "  [1/9] cgeist → affine MLIR"
+mapfile -t SHARED_FRONTEND_ARGS < <($PYTHON "$SCRIPTS/lib_v2/recipe.py" --emit frontend)
+CGEIST_EXTRA_FLAGS=()
+if [ -n "${POLYGEIST_CGEIST_FLAGS:-}" ]; then
+  read -r -a CGEIST_EXTRA_FLAGS <<< "$POLYGEIST_CGEIST_FLAGS"
+fi
+CGEIST_FUNCTION=$FUNCTION
+[ "$WHOLE_PROGRAM" -eq 0 ] || CGEIST_FUNCTION='*'
+if [ "$POLYBENCH_REPETITIONS" != 0 ]; then
+  # A command-line macro supplies the renamed spelling, so Clang does not
+  # classify that declaration as written in the main file for wildcard
+  # selection. Select the entry explicitly; its direct callees, including the
+  # benchmark kernel and initializer, are emitted transitively.
+  CGEIST_FUNCTION=$WHOLE_PROGRAM_ENTRY
+fi
+cgeist "$INPUT" --function="$CGEIST_FUNCTION" \
+  --resource-dir=/usr/lib/clang/14 \
+  "${SHARED_FRONTEND_ARGS[@]}" \
+  "${CGEIST_EXTRA_FLAGS[@]}" \
+  "${GCC_PASSTHROUGH[@]}" \
+  -o $WORK/affine.mlir 2>$WORK/cgeist.err || {
+    echo "ERROR: cgeist failed; see $WORK/cgeist.err" >&2; cat $WORK/cgeist.err >&2; exit 1; }
+
+# Explicit cgeist selection can silently omit a source-local static function.
+# Retry the same structural selection with a translation-only linkage exposure.
+# This is deliberately name-agnostic: it changes no computation and does not
+# add a benchmark-specific matcher rule or alter the separately compiled
+# harness.
+has_selected_cgeist_function() {
+  awk -v symbol="@$FUNCTION(" \
+    'index($0, "func.func") && index($0, symbol) { found = 1 }
+     END { exit(found ? 0 : 1) }' "$1"
+}
+if [ "$WHOLE_PROGRAM" -eq 0 ] && \
+   [ "$CGEIST_FUNCTION" = "$FUNCTION" ] && \
+   ! has_selected_cgeist_function "$WORK/affine.mlir"; then
+  echo "         selected symbol absent; retrying cgeist static-linkage exposure"
+  mv "$WORK/affine.mlir" "$WORK/affine_explicit_missing.mlir"
+  mv "$WORK/cgeist.err" "$WORK/cgeist_explicit_missing.err"
+  cgeist "$INPUT" --function="$FUNCTION" \
+    --resource-dir=/usr/lib/clang/14 \
+    "${CGEIST_EXTRA_FLAGS[@]}" \
+    "${GCC_PASSTHROUGH[@]}" \
+    -Dstatic= \
+    "${SHARED_FRONTEND_ARGS[@]}" \
+    -o "$WORK/affine.mlir" 2>"$WORK/cgeist.err" || {
+      echo "ERROR: cgeist static-linkage retry failed; see $WORK/cgeist.err" >&2
+      cat "$WORK/cgeist.err" >&2
+      exit 1
+    }
+  if ! has_selected_cgeist_function "$WORK/affine.mlir"; then
+    echo "ERROR: cgeist did not emit requested function '$FUNCTION' " \
+         "during explicit selection or static-linkage retry" >&2
+    exit 1
+  fi
+fi
+
+# ─── Step 2: raise affine → linalg + debufferize ────────────────────────
+SELECT_FUNC_ARGS=(--select-func=func-name="$FUNCTION")
+if [ "$HARNESS_INPUT" = "$INPUT" ]; then
+  # The normally compiled source harness supplies helper definitions.  Keep
+  # their exact declarations in lifted IR, but do not drag unrelated helper
+  # bodies through the selected kernel's lowering pipeline.
+  SELECT_FUNC_ARGS=(--select-func="func-name=$FUNCTION externalize-dependencies=true")
+fi
+SHARED_SCOPE=()
+[ "$WHOLE_PROGRAM" -eq 0 ] || SHARED_SCOPE+=(--whole-program)
+if [ "${POLYGEIST_KEEP_DEPENDENCIES:-0}" != "0" ]; then
+  SHARED_SCOPE+=(--keep-dependencies)
+fi
+$PYTHON "$SCRIPTS/lib_v2/recipe.py" --stage raise --function "$FUNCTION" \
+  "${SHARED_SCOPE[@]}" --input "$WORK/affine.mlir" --output "$WORK/raised.mlir" \
+  >"$WORK/raise.json"
+if [ "$DEBUFFERIZE" -ne 0 ]; then
+  $PYTHON "$SCRIPTS/lib_v2/recipe.py" --stage debufferize --function "$FUNCTION" \
+    "${SHARED_SCOPE[@]}" --input "$WORK/raised.mlir" --output "$WORK/linalg.mlir" \
+    >"$WORK/debufferize.json"
+else
+  cp "$WORK/raised.mlir" "$WORK/linalg.mlir"
+fi
+
+if [ -n "${POLYGEIST_PVA_APPROXIMATION_BUDGETS:-}" ]; then
+  echo "ERROR: an error budget alone cannot authorize a specification match" >&2; exit 1
+fi
+# ─── Step 3: imported-specification matching ──────────────────────────
+echo "  [3/9] imported specifications: Linalg then generic region matching"
+MATCHER_ARGS=(--backend "$ABI_BACKEND" --report "$WORK/match.json")
+if [ "${POLYGEIST_NORMALIZE_PARALLEL_DIMS:-0}" != 0 ]; then
+  MATCHER_ARGS+=(--normalize-parallel-dims)
+fi
+if [ "${POLYGEIST_MATCH_MAX_PARALLEL_DIMS:-0}" != 0 ]; then
+  MATCHER_ARGS+=(--max-parallel-dims "$POLYGEIST_MATCH_MAX_PARALLEL_DIMS")
+fi
+if [ "${POLYGEIST_MATCH_MAX_OPERAND_RANK:-0}" != 0 ]; then
+  MATCHER_ARGS+=(--max-operand-rank "$POLYGEIST_MATCH_MAX_OPERAND_RANK")
+fi
+if [ "${POLYGEIST_MATCH_FUSE_INITIALIZERS:-0}" != 0 ]; then
+  MATCHER_ARGS+=(--fuse-initializers)
+fi
+if [ "${POLYGEIST_DISABLE_LIBRARY_MATCHING:-0}" != 0 ]; then
+  MATCHER_ARGS+=(--max-launches 0)
+fi
+if [ -n "${POLYGEIST_MATCH_MAX_LAUNCHES:-}" ]; then
+  MATCHER_ARGS+=(--max-launches "$POLYGEIST_MATCH_MAX_LAUNCHES")
+fi
+$PYTHON "$SCRIPTS/spec_match.py" "$WORK/linalg.mlir" \
+  "${MATCHER_ARGS[@]}" -o "$WORK/matched.mlir" 2>"$WORK/match.err" || {
+  cat "$WORK/match.err" >&2; exit 1;
+}
+cat "$WORK/match.err"
+SEMANTIC_INPUT=$WORK/matched.mlir
+fi
+
+# Only specification-proven launches reach target lowering. Legacy graph
+# composition/backend-selection passes may not introduce unproved replacements.
+$PYTHON "$SCRIPTS/spec_match.py" "$SEMANTIC_INPUT" --verify-report "$WORK/match.json" --backend "$ABI_BACKEND"
+if [ -n "${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION:-}" ] || \
+   [ "${POLYGEIST_ALLOW_TF32:-0}" != 0 ]; then
+  echo "ERROR: workspace/precision transformations require specification evidence integration" >&2
+  exit 1
+fi
+
+# ─── Steps 4-5: mechanical lowering of specification bindings ──────────
+echo "  [4-5/9] imported specification ABI -> external library calls"
+ABI_DEALLOC_ARGS=()
+if [ "$WHOLE_PROGRAM" -ne 0 ] && [ "$TARGET" = host ] && \
+   [ "${POLYGEIST_BUFFER_DEALLOC:-auto}" != 0 ]; then
+  ABI_DEALLOC_ARGS+=(--deallocate)
+fi
+if ! $PYTHON "$SCRIPTS/lib_v2/lower_v2.py" "$SEMANTIC_INPUT" \
+  --backend "$ABI_BACKEND" "${ABI_DEALLOC_ARGS[@]}" \
+  -o "$WORK/abi.mlir" --report "$WORK/abi.json" 2>"$WORK/abi.err"; then
+  if grep -q 'kernel.launch' "$SEMANTIC_INPUT" || [ ! -f "$WORK/affine.mlir" ]; then
+    cat "$WORK/abi.err" >&2; exit 1
+  fi
+  # No call was selected. Preserve the original lifted program if residual
+  # tensor views cannot be lowered. This recovery authorizes zero matches.
+  cp "$WORK/abi.json" "$WORK/residual-lowering-failure.json"
+  cp "$WORK/match.json" "$WORK/attempted-match.json"
+  if [ "$WHOLE_PROGRAM" -ne 0 ]; then
+    cp "$WORK/affine.mlir" "$WORK/residual.mlir"
+  else
+    polygeist-opt "${SELECT_FUNC_ARGS[@]}" "$WORK/affine.mlir" -o "$WORK/residual.mlir"
+  fi
+  $PYTHON "$SCRIPTS/spec_match.py" "$WORK/residual.mlir" --backend "$ABI_BACKEND" \
+    --max-launches 0 -o "$WORK/matched.mlir" --report "$WORK/match.json"
+  SEMANTIC_INPUT=$WORK/matched.mlir
+  $PYTHON "$SCRIPTS/spec_match.py" "$SEMANTIC_INPUT" --verify-report "$WORK/match.json" --backend "$ABI_BACKEND"
+  $PYTHON "$SCRIPTS/lib_v2/lower_v2.py" "$SEMANTIC_INPUT" \
+    --backend "$ABI_BACKEND" "${ABI_DEALLOC_ARGS[@]}" \
+    -o "$WORK/abi.mlir" --report "$WORK/abi.json" 2>"$WORK/abi.err"
+  echo "         retained original affine IR after residual view-lowering failure (zero matches)"
+fi
+cat "$WORK/abi.err"
+# Memory-layout/copy helpers are runtime support, not library matches.
+N_CALL=$($PYTHON -c 'import json,sys; print(len(json.load(open(sys.argv[1])).get("launches", [])))' "$WORK/abi.json")
+echo "         emitted $N_CALL external-library runtime calls"
+
+# ─── Step 6: lower to LLVM dialect + translate to LLVM IR ───────────────
+echo "  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll"
+# ABI lowering can leave pure polygeist.submap/submapInverse view ops around,
+# especially when a matched launch consumed one view but the neighboring CPU
+# residual linalg still uses another. Clean those up with polygeist-opt before
+# handing the IR to upstream mlir-opt, which does not load the Polygeist dialect.
+# Run the targeted view cleanup before CSE.  Broad canonicalization here can
+# fold a rank-expanding tensor view through a residual DPS linalg.generic and
+# temporarily replace its ranked output operand with the flat base, producing
+# invalid IR.  LowerPolygeistSubmap handles identity views explicitly.
+# Do not CSE tensor.empty roots here.  Distinct C scratch allocas from
+# sequential inlined stages can canonicalize to one tensor.empty SSA value;
+# one-shot bufferization may then select the same physical buffer for results
+# that are simultaneously live.  View lowering does not require CSE.
+ABI_CLEANUP_PASSES=(--lower-polygeist-submap --canonicalize-polygeist)
+polygeist-opt "${ABI_CLEANUP_PASSES[@]}" \
+  $WORK/abi.mlir -o $WORK/abi_canon.mlir 2>>$WORK/abi.err || {
+    echo "ERROR: polygeist submap cleanup failed; see $WORK/abi.err" >&2
+    cat $WORK/abi.err >&2
+    exit 1
+  }
+# Some legacy scalar reductions use a non-injective rank-expanding memref
+# view solely to express an accumulator to Linalg.  It is safe to collapse
+# that view only after Linalg has made the reduction order explicit.  Retry
+# the cleanup in that form when the first pass leaves semantic views behind.
+if grep -q 'polygeist\.submap' $WORK/abi_canon.mlir; then
+  polygeist-opt --convert-linalg-to-loops --canonicalize \
+    --lower-polygeist-submap --canonicalize \
+    $WORK/abi_canon.mlir -o $WORK/abi_canon_loops.mlir 2>>$WORK/abi.err || {
+      echo "ERROR: residual polygeist submap cleanup failed; see $WORK/abi.err" >&2
+      cat $WORK/abi.err >&2
+      exit 1
+    }
+  mv $WORK/abi_canon_loops.mlir $WORK/abi_canon.mlir
+fi
+# Library ABI lowering may introduce a fresh result allocation for a tensor
+# carried by a repeated loop. Re-run the idempotent workspace planner so it can
+# express the copy-back with materialize_in_destination before the final
+# One-Shot Bufferize invocation checks iter_arg/yield equivalence.
+if [ -n "${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION:-}" ]; then
+  polygeist-opt \
+    "--plan-persistent-gpu-workspace=function=${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION}" \
+    $WORK/abi_canon.mlir -o $WORK/abi_persistent_workspace.mlir
+  mv $WORK/abi_persistent_workspace.mlir $WORK/abi_canon.mlir
+fi
+# Persistent scratch begins as private host storage because its lifetime is
+# established before library ABI lowering.  Now that runtime calls are visible,
+# move only workspaces with a completely device/descriptor-only use graph into
+# cudaMalloc storage.  Host-observable globals remain on the mapped-host path.
+DEVICE_WORKSPACE_PLANNED=0
+if [ "$TARGET" = jetson ] && \
+   [ -n "${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION:-}" ]; then
+  polygeist-opt \
+    "--plan-gpu-data-residency=function=${POLYGEIST_PERSISTENT_WORKSPACE_FUNCTION} promote-function-arguments=false" \
+    $WORK/abi_canon.mlir -o $WORK/abi_device_workspace.mlir
+  mv $WORK/abi_device_workspace.mlir $WORK/abi_canon.mlir
+  DEVICE_WORKSPACE_PLANNED=1
+fi
+# Mark to_tensor results restrict so one-shot-bufferize keeps in-place semantics.
+sed -i 's|bufferization\.to_tensor \(%[^ ]*\) :|bufferization.to_tensor \1 restrict :|g' \
+  $WORK/abi_canon.mlir
+# One-shot bufferization materialises every tensor temporary as a heap
+# allocation and nothing frees it, so each call leaks its scratch buffers and
+# pays fresh page faults. Bufferize here and insert deallocations with MLIR's
+# ownership-based pipeline; the lowering below then sees no tensors. The CUDA
+# runtime may still use registered host buffers after the function returns,
+# so the GPU target keeps the old behaviour. POLYGEIST_BUFFER_DEALLOC=0|1
+# overrides; if the pass rejects the module the build continues without it.
+# Whole host programs resolve lifetimes before ABI lowering above, while
+# library calls still expose memref uses to allocation-based deallocation.
+BUFFER_DEALLOC=${POLYGEIST_BUFFER_DEALLOC:-auto}
+if [ "${#ABI_DEALLOC_ARGS[@]}" -ne 0 ]; then BUFFER_DEALLOC=0; fi
+if [ "$BUFFER_DEALLOC" = auto ]; then
+  if [ "$TARGET" = jetson ]; then BUFFER_DEALLOC=0; else BUFFER_DEALLOC=1; fi
+fi
+if [ "$BUFFER_DEALLOC" != 0 ]; then
+  # Same tool as the lowering below (see the C-pointer ABI branch).
+  DEALLOC_OPT=("$MLIR_OPT")
+  if grep -qE 'polygeist\.(memref2pointer|pointer2memref)' $WORK/abi_canon.mlir; then
+    DEALLOC_OPT=("$MLIR_OPT" --allow-unregistered-dialect)
+    if [ "$WHOLE_PROGRAM" -ne 0 ]; then
+      DEALLOC_OPT=(polygeist-opt --allow-unregistered-dialect)
+    fi
+  fi
+  if "${DEALLOC_OPT[@]}" --empty-tensor-to-alloc-tensor --lower-affine \
+       --one-shot-bufferize=bufferize-function-boundaries \
+       --ownership-based-buffer-deallocation \
+       --buffer-deallocation-simplification --bufferization-lower-deallocations \
+       $WORK/abi_canon.mlir -o $WORK/abi_dealloc.mlir 2>$WORK/dealloc.err; then
+    mv $WORK/abi_dealloc.mlir $WORK/abi_canon.mlir
+    echo "         + temporaries freed (ownership-based buffer deallocation)"
+  else
+    echo "  WARNING: buffer deallocation failed, temporaries will leak; see $WORK/dealloc.err" >&2
+  fi
+fi
+# Keep exported ABI IR available to higher-level GPU outlining/residency.
+# Only the final host lowering needs a runtime copy for device-pointer inputs.
+if [ "$ABI_BACKEND" = cuda ]; then
+  $PYTHON "$SCRIPTS/lib_v2/lower_v2.py" "$WORK/abi_canon.mlir" \
+    --backend cuda --memory-copies-only -o "$WORK/abi_memory.mlir" \
+    2>"$WORK/memory-copy.err"
+  mv "$WORK/abi_memory.mlir" "$WORK/abi_canon.mlir"
+fi
+C_STYLE_ABI=0
+GPU_TO_LLVM_ARGS=()
+if [ "$DEVICE_WORKSPACE_PLANNED" -ne 0 ]; then
+  GPU_TO_LLVM_ARGS+=(--gpu-to-llvm)
+fi
+if grep -qE 'polygeist\.(memref2pointer|pointer2memref)' $WORK/abi_canon.mlir; then
+  C_STYLE_ABI=1
+  # C sources with erased pointer views need Polygeist's native C-pointer ABI.
+  # Upstream MLIR performs dialect-independent preparation while preserving
+  # those registered-on-the-next-step operations; Polygeist then lowers the
+  # views, calls, and function boundary together.
+  C_ABI_OPT=$MLIR_OPT
+  if [ "$WHOLE_PROGRAM" -ne 0 ]; then
+    # Complete cgeist modules can contain Polygeist-approved memrefs whose
+    # element is an LLVM struct (for example libc FILE globals). Upstream
+    # mlir-opt intentionally rejects those types while polygeist-opt installs
+    # the required external model and can prepare the complete application.
+    C_ABI_OPT=polygeist-opt
+  fi
+  $C_ABI_OPT --allow-unregistered-dialect --convert-math-to-llvm \
+    --empty-tensor-to-alloc-tensor --lower-affine \
+    --one-shot-bufferize=bufferize-function-boundaries \
+    --convert-linalg-to-loops --convert-scf-to-cf \
+    --resolve-shaped-type-result-dims --canonicalize \
+    --expand-strided-metadata --lower-affine \
+    "${GPU_TO_LLVM_ARGS[@]}" \
+    $WORK/abi_canon.mlir -o $WORK/pre_llvm.mlir 2>$WORK/mlir.err || {
+      echo "ERROR: MLIR preparation failed; see $WORK/mlir.err" >&2; cat $WORK/mlir.err >&2; exit 1; }
+  polygeist-opt --convert-polygeist-to-llvm \
+    $WORK/pre_llvm.mlir -o $WORK/llvm.mlir 2>>$WORK/mlir.err || {
+      echo "ERROR: Polygeist C-ABI lowering failed; see $WORK/mlir.err" >&2; cat $WORK/mlir.err >&2; exit 1; }
+else
+  $MLIR_OPT --convert-math-to-llvm \
+    --empty-tensor-to-alloc-tensor \
+    --lower-affine \
+    --one-shot-bufferize=bufferize-function-boundaries \
+    --convert-linalg-to-loops --convert-scf-to-cf \
+    --expand-strided-metadata \
+    --lower-affine \
+    "${GPU_TO_LLVM_ARGS[@]}" \
+    --convert-arith-to-llvm --convert-index-to-llvm --finalize-memref-to-llvm \
+    --convert-func-to-llvm --reconcile-unrealized-casts \
+    $WORK/abi_canon.mlir -o $WORK/llvm.mlir 2>$WORK/mlir.err || {
+      echo "ERROR: mlir-opt lowering failed; see $WORK/mlir.err" >&2; cat $WORK/mlir.err >&2; exit 1; }
+fi
+$MLIR_TRANSLATE --mlir-to-llvmir $WORK/llvm.mlir -o $WORK/kernel.ll
+
+# Rename the lifted symbol to <name>_impl so the harness's own C definition
+# of the same function name doesn't collide. The auto-generated wrapper
+# provides the public <name> entry that calls _impl with packed memrefs.
+if [ "$C_STYLE_ABI" -eq 0 ]; then
+  if [ "$WHOLE_PROGRAM" -eq 0 ]; then
+    sed -i "s/@${FUNCTION}\b/@${FUNCTION}_impl/g" $WORK/kernel.ll
+  fi
+fi
+
+# Retarget the LLVM IR if we're cross-compiling. clang's --target flag will
+# also do most of this, but stripping the embedded x86 datalayout avoids
+# warnings and lets clang re-derive an aarch64 layout from --target.
+if [ "$CROSS_AARCH64" -ne 0 ]; then
+  sed -i 's|target triple = "x86_64.*"|target triple = "aarch64-linux-gnu"|' $WORK/kernel.ll
+  sed -i '/^target datalayout/d' $WORK/kernel.ll
+fi
+
+# ─── Step 7: generate the ABI wrapper for the kernel ────────────────────
+echo "  [7/9] prepare ABI bridge for $FUNCTION"
+WRAPPER_ARGS=()
+if [ "${POLYGEIST_CUDA_TIMING_WRAPPER:-0}" != "0" ]; then
+  WRAPPER_ARGS+=(--cuda-timing)
+fi
+if [ "$C_STYLE_ABI" -eq 0 ] && [ "$WHOLE_PROGRAM" -eq 0 ]; then
+  $PYTHON $SCRIPTS/gen_wrapper.py "${WRAPPER_ARGS[@]}" "$INPUT" "$FUNCTION" > $WORK/wrapper.c
+fi
+
+# ─── Step 8: per-target compile + harness prep ──────────────────────────
+echo "  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=$TARGET)"
+if [ "$TARGET" = "host" ]; then
+  CC=$CLANG
+  CLANG_TARGET_ARGS=""
+  RT_SRC=$RT/polygeist_cublas_rt_cpu.c
+  RT_LIBS="-lm -lpthread"
+  if [ "${POLYGEIST_CPU_BLAS:-0}" != "0" ]; then
+    RT_CFLAGS+=("-DPOLYGEIST_CPU_USE_CBLAS")
+    if [ -n "${POLYGEIST_CPU_BLAS_CFLAGS:-}" ]; then
+      read -r -a _CPU_BLAS_CFLAGS <<< "$POLYGEIST_CPU_BLAS_CFLAGS"
+      RT_CFLAGS+=("${_CPU_BLAS_CFLAGS[@]}")
+    fi
+    RT_LIBS="${POLYGEIST_CPU_BLAS_LIBS:--lopenblas} $RT_LIBS"
+    echo "         + optimized CPU CBLAS runtime enabled"
+  fi
+elif [ "$TARGET" = "jetson-cpu" ]; then
+  CC=$AARCH64_CC
+  CLANG_TARGET_ARGS="--target=aarch64-linux-gnu --gcc-toolchain=/usr"
+  RT_SRC=$RT/polygeist_cublas_rt_cpu.c
+  RT_LIBS="-lm -lpthread"
+  if [ "${POLYGEIST_CPU_BLAS:-0}" != "0" ]; then
+    RT_CFLAGS+=("-DPOLYGEIST_CPU_USE_CBLAS")
+    if [ -n "${POLYGEIST_CPU_BLAS_CFLAGS:-}" ]; then
+      read -r -a _CPU_BLAS_CFLAGS <<< "$POLYGEIST_CPU_BLAS_CFLAGS"
+      RT_CFLAGS+=("${_CPU_BLAS_CFLAGS[@]}")
+    fi
+    RT_LIBS="${POLYGEIST_CPU_BLAS_LIBS:--lopenblas} $RT_LIBS"
+    echo "         + optimized AArch64 CPU CBLAS runtime enabled"
+  fi
+else
+  # aarch64-linux-gnu-gcc is already configured for aarch64 — no --target arg.
+  # Clang (used for kernel.ll → kernel.o only) does need --target=aarch64-linux-gnu.
+  CC=$AARCH64_CC
+  CLANG_TARGET_ARGS="--target=aarch64-linux-gnu --gcc-toolchain=/usr"
+  RT_SRC=$RT/polygeist_cublas_rt_cuda.c
+  RT_LIBS="-L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs -L$CUDNN_CROSS_LIB \
+           -lcudnn -lcublasLt -lcublas -lcufft -lcusparse -lcusolver \
+           -lcudart -lm -lpthread -ldl \
+           -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
+  if [ "$ABI_BACKEND" = pva ]; then
+    PVA_SOLUTIONS_ROOT="${PVASOL_ROOT:?set PVASOL_ROOT for PVA builds}"
+    PVA_CUPVA_ROOT="${CUPVA_SDK_ROOT:?set CUPVA_SDK_ROOT for PVA builds}"
+    PVA_STAGED_LIBS="${PVA_LIB_STAGE:?set PVA_LIB_STAGE for PVA builds}"
+    PVA_TARGET_RPATH="${POLYGEIST_PVA_TARGET_RPATH:-/usr/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu/nvidia}"
+    PVA_OPERATOR_INC="$PVA_SOLUTIONS_ROOT/public/src/operator/include"
+    PVA_NVCV_INC="$PVA_SOLUTIONS_ROOT/public/3rdparty/cvcuda/src/nvcv/src/include"
+    for required in "$PVA_OPERATOR_INC/OpBoxFilter.h" \
+                    "$PVA_NVCV_INC/nvcv/Tensor.h" \
+                    "$PVA_CUPVA_ROOT/include/cupva_host.h" \
+                    "$PVA_STAGED_LIBS/libpva_operator.so"; do
+      [ -e "$required" ] || {
+        echo "ERROR: required staged PVA build input missing: $required" >&2
+        exit 1
+      }
+    done
+    RT_SRC=$RT/polygeist_pva_image_rt.c
+    RT_CFLAGS+=("-I$PVA_OPERATOR_INC" "-I$PVA_NVCV_INC"
+               "-I$PVA_CUPVA_ROOT/include")
+    RT_LIBS="-L$PVA_STAGED_LIBS -L$CUDA_CROSS/lib \
+             -lpva_operator -lnvcv_types -lcupva_host -lcudart \
+             -lm -lpthread -ldl -Wl,--allow-shlib-undefined \
+             -Wl,-rpath,$PVA_TARGET_RPATH"
+    echo "         + staged PVA Solutions runtime adapter"
+  fi
+  if [ "${POLYGEIST_MINIMAL_CUDA_RUNTIME:-0}" != "0" ]; then
+    RT_CFLAGS+=("-DPOLYGEIST_DISABLE_CUSPARSE"
+               "-DPOLYGEIST_DISABLE_CUSOLVER"
+               "-DPOLYGEIST_DISABLE_CUDNN_CLEANUP")
+    RT_LIBS="-L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs \
+             -lcublas -lcudart -lm -lpthread -ldl \
+             -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
+    echo "         + minimal cuBLAS/CUDA runtime linkage"
+  fi
+  if [ "${POLYGEIST_MINIMAL_CUDNN_RUNTIME:-0}" != "0" ]; then
+    RT_CFLAGS+=("-DPOLYGEIST_DISABLE_CUSPARSE"
+               "-DPOLYGEIST_DISABLE_CUSOLVER")
+    RT_LIBS="-L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs \
+             -L/usr/lib/aarch64-linux-gnu \
+             -lcudnn -lcublasLt -lcublas -lcudart -lm -lpthread -ldl \
+             -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu:/home/nvidia/polygeist_cuda_libs"
+    echo "         + minimal cuDNN/cuBLAS/CUDA runtime linkage"
+  fi
+  if [ "${POLYGEIST_MINIMAL_CUSPARSE_RUNTIME:-0}" != "0" ]; then
+    RT_CFLAGS+=("-DPOLYGEIST_DISABLE_CUFFT"
+               "-DPOLYGEIST_DISABLE_CUSOLVER")
+    RT_LIBS="-L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs -L$CUDNN_CROSS_LIB \
+             -lcudnn -lcusparse -lcusolver -lcublasLt -lcublas -lcudart \
+             -lm -lpthread -ldl \
+             -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
+    echo "         + minimal cuSPARSE/cuBLAS/CUDA runtime linkage"
+  fi
+  if [ -n "${POLYGEIST_CUTENSORNET_ROOT:-}" ]; then
+    CUTENSORNET_ROOT=$POLYGEIST_CUTENSORNET_ROOT
+    [ -f "$CUTENSORNET_ROOT/include/cutensornet.h" ] || {
+      echo "ERROR: $CUTENSORNET_ROOT/include/cutensornet.h not found" >&2
+      exit 1
+    }
+    RT_CFLAGS+=("-DPOLYGEIST_ENABLE_CUTENSORNET"
+               "-DPOLYGEIST_ENABLE_CUTENSOR"
+               "-I$CUTENSORNET_ROOT/include"
+               "-I$REPO_ROOT/third_party/cuda_headers/cutensor/include")
+    RT_LIBS="-L$CUTENSORNET_ROOT/lib -lcutensornet -lcutensor $RT_LIBS"
+    echo "         + cuTensorNet runtime from $CUTENSORNET_ROOT"
+    if [ "${POLYGEIST_MINIMAL_CUTENSORNET_RUNTIME:-0}" != "0" ]; then
+      # With function-section GC, a contraction-only executable does not need
+      # the cuDNN/cuFFT/cuSPARSE portions of the shared runtime object.  Avoid
+      # recording those unrelated DSOs in DT_NEEDED; this is useful on lean
+      # Jetson installations that provide CUDA/cuBLAS but not every toolkit
+      # component.
+      RT_CFLAGS+=("-DPOLYGEIST_DISABLE_CUSPARSE"
+                 "-DPOLYGEIST_DISABLE_CUSOLVER"
+                 "-DPOLYGEIST_DISABLE_CUFFT"
+                 "-DPOLYGEIST_DISABLE_CUDNN_CLEANUP")
+      RT_LIBS="-L$CUTENSORNET_ROOT/lib -lcutensornet -lcutensor \
+               -L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs \
+               -lcusolver -lcusparse -lcublasLt -lcublas -lcudart -lm -lpthread -ldl \
+               -Wl,-rpath,/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
+      echo "         + contraction-only runtime linkage"
+    fi
+  elif [ -n "${POLYGEIST_CUTENSOR_ROOT:-}" ]; then
+    CUTENSOR_ROOT=$POLYGEIST_CUTENSOR_ROOT
+    [ -f "$CUTENSOR_ROOT/include/cutensor.h" ] || {
+      echo "ERROR: $CUTENSOR_ROOT/include/cutensor.h not found" >&2
+      exit 1
+    }
+    RT_CFLAGS+=("-DPOLYGEIST_ENABLE_CUTENSOR" "-I$CUTENSOR_ROOT/include")
+    RT_LIBS="-L$CUTENSOR_ROOT/lib -l:libcutensor.so.2 $RT_LIBS"
+    echo "         + cuTENSOR runtime from $CUTENSOR_ROOT"
+  fi
+  if [ "$STENCIL_BACKEND" = "custen" ]; then
+    [ -n "${POLYGEIST_CUSTEN_LIB:-}" ] || {
+      echo "ERROR: POLYGEIST_CUSTEN_LIB is required for the cuSten backend" >&2
+      exit 1
+    }
+    [ -f "$POLYGEIST_CUSTEN_LIB" ] || {
+      echo "ERROR: cuSten adapter library $POLYGEIST_CUSTEN_LIB not found" >&2
+      exit 1
+    }
+    CUSTEN_LIB_DIR="$(cd "$(dirname "$POLYGEIST_CUSTEN_LIB")" && pwd)"
+    CUSTEN_LIB_NAME="$(basename "$POLYGEIST_CUSTEN_LIB")"
+    CUSTEN_LINK_NAME="${CUSTEN_LIB_NAME#lib}"
+    CUSTEN_LINK_NAME="${CUSTEN_LINK_NAME%.so}"
+    RT_LIBS="-L$CUSTEN_LIB_DIR -l$CUSTEN_LINK_NAME $RT_LIBS \
+             -Wl,-rpath,$CUSTEN_LIB_DIR:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu"
+    echo "         + external cuSten backend from $POLYGEIST_CUSTEN_LIB"
+  fi
+fi
+
+SPEC_RUNTIME_OBJECTS=()
+N_RUNTIME_CALL=$(grep -cE 'call @polygeist_v2_' "$WORK/abi_canon.mlir" || true)
+if [ "$N_RUNTIME_CALL" -gt 0 ]; then
+  $PYTHON "$SCRIPTS/lib_v2/gen_v2_runtime.py" --output-dir "$WORK/spec_runtime" \
+    >"$WORK/spec_runtime.log" 2>&1
+  if [ "$ABI_BACKEND" = pva ]; then
+    $CC -O2 -ffunction-sections -fdata-sections -I"$REPO_ROOT/runtime" \
+      -c "$WORK/spec_runtime/polygeist_v2_rt_pva.c" -o "$WORK/spec_runtime.o"
+  elif [ "$TARGET" = jetson ]; then
+    $CC -O2 -ffunction-sections -fdata-sections -I"$CUDA_CROSS/include" \
+      -I"$REPO_ROOT/runtime" \
+      -I"$REPO_ROOT/third_party/cuda_headers/cusolver/include" \
+      -I"$CUDNN_CROSS_INC" \
+      -c "$WORK/spec_runtime/polygeist_v2_rt_cuda.c" -o "$WORK/spec_runtime.o"
+    RT_LIBS="-L$CUDA_CROSS/lib -L$CUDA_CROSS/lib/stubs -L$CUDNN_CROSS_LIB -lcudnn -lcublas -lcusolver -lcudart $RT_LIBS"
+  else
+    $CC -O2 -ffunction-sections -fdata-sections \
+      -I"$REPO_ROOT/runtime" \
+      -c "$WORK/spec_runtime/polygeist_v2_rt_cpu.c" -o "$WORK/spec_runtime.o"
+    RT_LIBS="${POLYGEIST_CPU_BLAS_LIBS:--lopenblas} $RT_LIBS"
+  fi
+  SPEC_RUNTIME_OBJECTS+=("$WORK/spec_runtime.o")
+fi
+
+# Pointwise DIV stages use the actual Thrust FP32 transform implementation.
+# Precise division and subnormal support are part of this backend's contract.
+if [ "$TARGET" = jetson ] && [ "$ABI_BACKEND" = cuda ]; then
+  "${POLYGEIST_NVCC:-/usr/local/cuda-12.6/bin/nvcc}" -O2 -std=c++17 \
+    -arch="${POLYGEIST_GPU_ARCH:-sm_87}" \
+    -ccbin="${POLYGEIST_CROSS_CXX:-aarch64-linux-gnu-g++}" -target-dir sbsa-linux \
+    --fmad=false --ftz=false --prec-div=true \
+    -Xcompiler=-fPIC,-ffunction-sections,-fdata-sections \
+    -I"$REPO_ROOT/third_party/cuda_headers/cuda_cccl/include/cccl" -I"$RT" \
+    -c "$RT/polygeist_thrust_rt.cu" -o "$WORK/thrust_runtime.o"
+  SPEC_RUNTIME_OBJECTS+=("$WORK/thrust_runtime.o")
+  RT_LIBS="-lstdc++ $RT_LIBS"
+fi
+
+# CUB is a template library; its fixed C ABI is compiled with the pinned public
+# CCCL headers. Generated wrappers call this ABI after proving the reference.
+if [ "${POLYGEIST_ENABLE_CUB:-0}" != "0" ]; then
+  if [ "$TARGET" != jetson ] || [ "$ABI_BACKEND" != cuda ]; then
+    echo "ERROR: CUB runtime requires the Jetson CUDA backend" >&2
+    exit 1
+  fi
+  "${POLYGEIST_NVCC:-/usr/local/cuda-12.6/bin/nvcc}" -O2 -std=c++17 \
+    -arch="${POLYGEIST_GPU_ARCH:-sm_87}" \
+    -ccbin="${POLYGEIST_CROSS_CXX:-aarch64-linux-gnu-g++}" -target-dir sbsa-linux \
+    -Xcompiler=-fPIC,-ffunction-sections,-fdata-sections \
+    -I"$REPO_ROOT/third_party/cuda_headers/cuda_cccl/include/cccl" -I"$RT" \
+    -c "$RT/polygeist_cub_scan_rt.cu" -o "$WORK/cub_runtime.o"
+  SPEC_RUNTIME_OBJECTS+=("$WORK/cub_runtime.o")
+  RT_LIBS="-lstdc++ $RT_LIBS"
+fi
+
+# Kernel (lifted) — use Polygeist clang for both host and cross.
+$CLANG $CLANG_TARGET_ARGS -O3 -c $WORK/kernel.ll -o $WORK/kernel.o
+
+# Do not repair duplicate ownership by weakening symbols.  That turns linker
+# identity into a replacement mechanism and invalidates end-to-end claims.
+# The compiler pipeline must emit correct declarations/definitions instead.
+if [ "$C_STYLE_ABI" -ne 0 ] && [ "$HARNESS_INPUT" = "$INPUT" ] && \
+   [ "$WHOLE_PROGRAM" -eq 0 ]; then
+  KERNEL_NM=nm
+  if [ "$CROSS_AARCH64" -ne 0 ]; then
+    KERNEL_NM=aarch64-linux-gnu-nm
+  fi
+  mapfile -t LIFTED_DATA_SYMBOLS < <(
+    $KERNEL_NM --defined-only $WORK/kernel.o |
+      awk '$2 ~ /^[BCDGRSV]$/ { print $3 }'
+  )
+  if [ "${#LIFTED_DATA_SYMBOLS[@]}" -ne 0 ]; then
+    echo "ERROR: lifted object defines source data symbols; weak-symbol substitution is forbidden" >&2
+    printf '  %s\n' "${LIFTED_DATA_SYMBOLS[@]}" >&2
+    exit 1
+  fi
+fi
+
+# Wrapper (ABI bridge generated by gen_wrapper.py). Native C-pointer lowering
+# already has the source ABI and therefore needs no bridge object.
+if [ "$C_STYLE_ABI" -eq 0 ] && [ "$WHOLE_PROGRAM" -eq 0 ]; then
+  $CC -O2 "${GCC_PASSTHROUGH[@]}" -c $WORK/wrapper.c -o $WORK/wrapper.o
+else
+  $CC -x c -c /dev/null -o $WORK/wrapper.o
+fi
+
+# Harness compiled normally. It must not define the selected kernel: deleting,
+# weakening, or interposing that definition is forbidden. Use a dedicated
+# algorithm-neutral harness that only declares and invokes the transformed ABI.
+HARNESS_EXTRA_CFLAGS=()
+for arg in "${GCC_PASSTHROUGH[@]}"; do
+  # PolyBench declares kernels `static`. Exposing them with `-Dstatic=` also
+  # changes its allocation helpers from `static inline` to `inline`; GNU89
+  # inline semantics retain a callable definition when inlining is disabled.
+  [[ "$arg" == -Dstatic=* ]] && HARNESS_EXTRA_CFLAGS+=(-fgnu89-inline)
+done
+HARNESS_USER_CFLAGS=()
+if [ -n "${POLYGEIST_HARNESS_CFLAGS:-}" ]; then
+  read -r -a HARNESS_USER_CFLAGS <<< "$POLYGEIST_HARNESS_CFLAGS"
+fi
+HARNESS_NOINLINE_CFLAGS=(-fno-inline -fno-inline-functions
+                         -fsemantic-interposition)
+if ! "$CC" --version 2>/dev/null | head -1 | grep -qi clang; then
+  HARNESS_NOINLINE_CFLAGS+=(-fno-ipa-cp -fno-ipa-cp-clone -fno-ipa-sra)
+fi
+if [ "$WHOLE_PROGRAM" -ne 0 ]; then
+  if [ "$POLYBENCH_REPETITIONS" != 0 ]; then
+    $CC -O2 \
+      "-DPOLYGEIST_WARMUP_RUNS=$POLYGEIST_WARMUP_RUNS" \
+      "-DPOLYGEIST_TIMED_RUNS=$POLYGEIST_TIMED_RUNS" \
+      -c "$RT/polybench_repeat_driver.c" -o $WORK/harness_full.o
+  else
+    $CC -x c -c /dev/null -o $WORK/harness_full.o
+  fi
+else
+  $CC "${GCC_PASSTHROUGH[@]}" -O3 "${HARNESS_NOINLINE_CFLAGS[@]}" \
+    "${HARNESS_EXTRA_CFLAGS[@]}" \
+    "${HARNESS_USER_CFLAGS[@]}" \
+    -c "$HARNESS_INPUT" -o $WORK/harness_full.o
+fi
+NM_TOOL=nm
+if [ "$CROSS_AARCH64" -ne 0 ] && command -v aarch64-linux-gnu-nm >/dev/null 2>&1; then
+  NM_TOOL=aarch64-linux-gnu-nm
+fi
+if $NM_TOOL $WORK/harness_full.o | awk '{print $3}' | grep -qx "$FUNCTION"; then
+  echo "ERROR: harness defines $FUNCTION; weak-symbol replacement is forbidden" >&2
+  echo "Use a dedicated harness that only declares and calls the transformed function." >&2
+  exit 1
+else
+  cp $WORK/harness_full.o $WORK/harness.o
+fi
+if [ "$WHOLE_PROGRAM" -ne 0 ]; then
+  if ! $NM_TOOL --defined-only $WORK/kernel.o | awk '{print $3}' | \
+      grep -qx "$FUNCTION"; then
+    # A source-local kernel can remain an internal function through MLIR and
+    # then be inlined into the retained transformed main by the final LLVM
+    # optimizer. Accept that in-place case only when pre-optimization LLVM IR
+    # contains both the internal definition and a real call from the module;
+    # this does not substitute or weaken any symbol.
+    if grep -Eq "define internal .*@${FUNCTION}\\(" "$WORK/kernel.ll" && \
+       grep -Eq "call .*@${FUNCTION}\\(" "$WORK/kernel.ll"; then
+      echo "         transformed internal $FUNCTION inlined into whole-program object"
+    else
+      echo "ERROR: whole-program object does not define transformed $FUNCTION" >&2
+      exit 1
+    fi
+  fi
+  $NM_TOOL --defined-only $WORK/kernel.o | awk '{print $3}' | \
+    grep -qx "$WHOLE_PROGRAM_ENTRY" || {
+      echo "ERROR: whole-program object does not retain $WHOLE_PROGRAM_ENTRY" >&2
+      exit 1
+    }
+fi
+
+# Runtime shim. For jetson target we also need cuda + cudnn headers.
+if [ "$TARGET" != "jetson" ]; then
+  $CC -O2 -ffunction-sections -fdata-sections "${RT_CFLAGS[@]}" \
+    -c $RT_SRC -o $WORK/rt.o
+  $CC -O2 -c $RT/polygeist_mlir_runner_utils.c -o $WORK/mlir_runner_utils.o
+else
+  $CC -O2 -ffunction-sections -fdata-sections "${RT_CFLAGS[@]}" \
+    -I$CUDA_CROSS/include -I$CUDNN_CROSS_INC \
+    -c $RT_SRC -o $WORK/rt.o
+  $CC -O2 -c $RT/polygeist_mlir_runner_utils.c -o $WORK/mlir_runner_utils.o
+fi
+
+# Polybench utility .c — only if the harness uses POLYBENCH macros and the
+# user provided -I to its include path. Detect via 'polybench.h' include.
+POLYBENCH_OBJS=()
+POLYBENCH_INCLUDE_INPUT=$HARNESS_INPUT
+[ "$WHOLE_PROGRAM" -eq 0 ] || POLYBENCH_INCLUDE_INPUT=$INPUT
+if grep -q '#include\s*<polybench.h>\|#include\s*"polybench.h"' "$POLYBENCH_INCLUDE_INPUT"; then
+  # Find polybench.c on the same -I path the harness was given.
+  POLYBENCH_C=""
+  for arg in "${GCC_PASSTHROUGH[@]}"; do
+    case "$arg" in
+      -I*)
+        dir=${arg#-I}
+        if [ -f "$dir/polybench.c" ]; then POLYBENCH_C="$dir/polybench.c"; break; fi ;;
+    esac
+  done
+  if [ -n "$POLYBENCH_C" ]; then
+    echo "         + polybench utility from $POLYBENCH_C"
+    # `-Dstatic=...` is used to expose a source-local benchmark kernel so the
+    # lifted wrapper can replace it.  Do not apply it to polybench.c/header:
+    # that would turn the header's `static inline polybench_alloc_data` into
+    # an external inline declaration and leave application allocation calls
+    # unresolved at link time.
+    POLYBENCH_CFLAGS=()
+    for arg in "${GCC_PASSTHROUGH[@]}"; do
+      [[ "$arg" == -Dstatic=* ]] || POLYBENCH_CFLAGS+=("$arg")
+    done
+    $CC -O2 "${POLYBENCH_CFLAGS[@]}" -c "$POLYBENCH_C" -o $WORK/polybench.o
+    POLYBENCH_OBJS=("$WORK/polybench.o")
+  fi
+fi
+
+CUSTOM_CUDA_OBJS=()
+CUSTOM_CUDA_OBJ_LIST="${POLYGEIST_CUSTOM_CUDA_OBJS:-${POLYGEIST_CUSTOM_CUDA_OBJ:-}}"
+if [ -n "$CUSTOM_CUDA_OBJ_LIST" ]; then
+  read -r -a CUSTOM_CUDA_OBJS <<< "$CUSTOM_CUDA_OBJ_LIST"
+  for obj in "${CUSTOM_CUDA_OBJS[@]}"; do
+    [ -f "$obj" ] || {
+      echo "ERROR: custom CUDA object $obj not found" >&2
+      exit 1
+    }
+  done
+  echo "         + custom CUDA object(s): ${CUSTOM_CUDA_OBJS[*]}"
+fi
+
+if [ -n "${POLYGEIST_EXPORT_OBJECT_DIR:-}" ]; then
+  mkdir -p "$POLYGEIST_EXPORT_OBJECT_DIR"
+  MATCHED_EXPORT="$WORK/matched.mlir"
+  [ -f "$MATCHED_EXPORT" ] || MATCHED_EXPORT="$SEMANTIC_MLIR"
+  cp "$WORK/kernel.o" "$WORK/wrapper.o" "$WORK/harness.o" "$WORK/rt.o" \
+     "$WORK/mlir_runner_utils.o" "$MATCHED_EXPORT" "$WORK/abi.mlir" \
+     "$WORK/abi_canon.mlir" \
+     "${SPEC_RUNTIME_OBJECTS[@]}" "$WORK/match.json" "$WORK/abi.json" \
+     "$POLYGEIST_EXPORT_OBJECT_DIR/"
+  echo "         exported link objects to $POLYGEIST_EXPORT_OBJECT_DIR"
+fi
+
+if [ "${POLYGEIST_SKIP_LINK:-0}" != "0" ]; then
+  echo ""
+  echo "═══ object build complete (link skipped) ═══"
+  exit 0
+fi
+
+# ─── Step 9: link ───────────────────────────────────────────────────────
+echo "  [9/9] link → $OUT"
+$CC -O2 \
+  $WORK/kernel.o $WORK/wrapper.o $WORK/harness.o $WORK/rt.o \
+  $WORK/mlir_runner_utils.o \
+  "${POLYBENCH_OBJS[@]}" \
+  "${CUSTOM_CUDA_OBJS[@]}" \
+  "${SPEC_RUNTIME_OBJECTS[@]}" \
+  $RT_LIBS \
+  -Wl,--gc-sections \
+  -o "$OUT"
+
+echo ""
+echo "═══ build complete ═══"
+file "$OUT" || true

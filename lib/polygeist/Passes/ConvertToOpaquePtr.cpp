@@ -44,6 +44,13 @@ static LogicalResult convertPtrsToOpaque(Operation *op, Operation *&rewritten,
   state.addOperands(operands);
   state.addTypes(convertedResultTypes);
   state.addAttributes(op->getAttrs());
+  // memref.global carries its element type in an attribute rather than an SSA
+  // result.  Convert that attribute together with memref.get_global results;
+  // otherwise recursive structs leave the symbol and its users with different
+  // identified types (`name` versus `opaque@name`).
+  if (auto global = dyn_cast<memref::GlobalOp>(op))
+    state.attributes.set(
+        "type", TypeAttr::get(converter->convertType(global.getType())));
   if (attr)
     state.addAttribute(kElemTypeAttrName, attr);
   state.addSuccessors(op->getSuccessors());

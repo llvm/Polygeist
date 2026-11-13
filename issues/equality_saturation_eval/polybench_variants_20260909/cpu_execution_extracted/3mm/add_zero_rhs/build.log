@@ -1,0 +1,16 @@
+COMMAND: /home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh --target=host --function=kernel_3mm --harness=issues/equality_saturation_eval/polybench_variants_20260909/cpu_execution_extracted/3mm/harness.c --semantic-mlir=issues/equality_saturation_eval/polybench_variants_20260909/cpu_execution_extracted/3mm/add_zero_rhs/matched.mlir -o issues/equality_saturation_eval/polybench_variants_20260909/cpu_execution_extracted/3mm/add_zero_rhs/raised-openblas /home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/linear-algebra/kernels/3mm/3mm.c -O3 -I/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/utilities -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO -DPOLYBENCH_DUMP_ARRAYS -I/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/linear-algebra/kernels/3mm
+[polygeist] input=/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/linear-algebra/kernels/3mm/3mm.c  function=kernel_3mm  target=host  output=issues/equality_saturation_eval/polybench_variants_20260909/cpu_execution_extracted/3mm/add_zero_rhs/raised-openblas
+[polygeist] harness=issues/equality_saturation_eval/polybench_variants_20260909/cpu_execution_extracted/3mm/harness.c
+[polygeist] gcc passthrough: -O3 -I/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/utilities -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO -DPOLYBENCH_DUMP_ARRAYS -I/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/linear-algebra/kernels/3mm
+  [1-4/9] reuse stored semantic MLIR: issues/equality_saturation_eval/polybench_variants_20260909/cpu_execution_extracted/3mm/add_zero_rhs/matched.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+         emitted 6 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+  [7/9] prepare ABI bridge for kernel_3mm
+  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=host)
+         + optimized CPU CBLAS runtime enabled
+         + polybench utility from /home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/utilities/polybench.c
+  [9/9] link → issues/equality_saturation_eval/polybench_variants_20260909/cpu_execution_extracted/3mm/add_zero_rhs/raised-openblas
+
+═══ build complete ═══
+issues/equality_saturation_eval/polybench_variants_20260909/cpu_execution_extracted/3mm/add_zero_rhs/raised-openblas: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 3.2.0, not stripped

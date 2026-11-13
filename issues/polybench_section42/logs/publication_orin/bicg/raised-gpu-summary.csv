@@ -1,0 +1,2 @@
+kernel,implementation,correctness,values,compute_device_median_ms,compute_device_min_ms,compute_device_max_ms,compute_device_iqr_ms,compute_wall_median_ms,compute_wall_min_ms,compute_wall_max_ms,compute_wall_iqr_ms,memory_device_median_ms,e2e_median_ms,e2e_min_ms,e2e_max_ms,e2e_iqr_ms,publication_acceptance
+bicg,raised cuBLAS transpose DGEMV plus DGEMV,pass,4000,0.874336,0.576736,0.926144,0.321024,0.584928,0.568928,0.914688,0.175360,22.965504,23.978720,23.619328,24.600704,0.789136,pending_fixed_hardware_state_verification

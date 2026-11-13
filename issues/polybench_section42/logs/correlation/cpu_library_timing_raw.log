@@ -1,0 +1,7 @@
+command: taskset -c 21 env OPENBLAS_NUM_THREADS=1 /tmp/polybench-section42-correlation-openblas-timing
+correlation,openblas_cblas_1t,warmup,0,0.095537
+correlation,openblas_cblas_1t,1,0,0.095494
+correlation,openblas_cblas_1t,2,0,0.094161
+correlation,openblas_cblas_1t,3,0,0.094717
+correlation,openblas_cblas_1t,4,0,0.093178
+correlation,openblas_cblas_1t,5,0,0.096396

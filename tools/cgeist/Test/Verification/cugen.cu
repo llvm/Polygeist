@@ -28,7 +28,9 @@ void start(double* w) {
 // CHECK-NEXT:     %c20 = arith.constant 20 : index
 // CHECK-NEXT:     %c1 = arith.constant 1 : index
 // CHECK-NEXT:     scf.parallel (%arg1) = (%c0) to (%c20) step (%c1) {
-// CHECK-NEXT:       memref.store %cst, %arg0[%arg1] : memref<?xf64>
+// CHECK-NEXT:       %[[IDX32:.*]] = arith.index_cast %arg1 : index to i32
+// CHECK-NEXT:       %[[IDX:.*]] = arith.index_castui %[[IDX32]] : i32 to index
+// CHECK-NEXT:       memref.store %cst, %arg0[%[[IDX]]] : memref<?xf64>
 // CHECK-NEXT:       scf.yield
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return

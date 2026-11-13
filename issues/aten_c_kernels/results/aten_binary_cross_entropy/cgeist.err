@@ -1,0 +1,2 @@
+warning: we fall back to libc call for __builtin_logf
+warning: we fall back to libc call for __builtin_logf

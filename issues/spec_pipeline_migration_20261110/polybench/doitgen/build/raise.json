@@ -1,0 +1,14 @@
+{
+  "ok": true,
+  "rc": 0,
+  "cmd": [
+    "/home/arjaiswal/Polygeist/build/bin/polygeist-opt",
+    "--select-func=func-name=kernel_doitgen preserve-module=true pipeline=delinearize-memref-accesses,remove-iter-args,func.func(affine-parallelize),raise-affine-to-linalg-pipeline",
+    "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/polybench/doitgen/build/affine.mlir",
+    "-o",
+    "/home/arjaiswal/Polygeist/issues/spec_pipeline_migration_20261110/polybench/doitgen/build/raised.mlir"
+  ],
+  "stderr": "",
+  "timed_out": false,
+  "recovery": null
+}

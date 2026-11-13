@@ -1,0 +1,24 @@
+{
+  "kernel": "integrate_value_3d",
+  "rc": 0,
+  "command": [
+    "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+    "--target=jetson",
+    "--function=mfem_integrate_value_3d_scratch_sliced",
+    "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+    "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/value_scratch_sliced.c",
+    "-DBENCH_INTEGRATE_VALUE_3D",
+    "-DMFEM_BENCH_NE=1024",
+    "-o",
+    "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/integrate_value_3d/program"
+  ],
+  "seconds": 52.45708467066288,
+  "source_sha256": "8d872b872a02965b0363ca82946b968e224f833913af686185e1c2f21b6d49cd",
+  "program_sha256": "f99239df11d66587253348f09a0a1b4f57db3ad10780bedc81478408bb24aa90",
+  "specifications": [
+    "openblas_dgemm_nt_b1_alpha1",
+    "openblas_dgemv_t_beta1",
+    "openblas_dgemm_nt_b1_alpha1"
+  ],
+  "calls": 3
+}

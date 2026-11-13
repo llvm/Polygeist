@@ -1,0 +1,10 @@
+-- Testing: 5 of 179 tests, 5 workers --
+PASS: polygeist :: scripts/gen-wrapper-cuda-timing.c (1 of 5)
+PASS: polygeist :: polygeist-opt/raise-hoist-index-only.mlir (2 of 5)
+PASS: polygeist :: scripts/compare-polybench-dumps.c (3 of 5)
+PASS: polygeist :: scripts/kernel-match-composition-root-rewire.mlir (4 of 5)
+PASS: polygeist :: runtime/cblas-runtime-compiles.c (5 of 5)
+
+Testing Time: 2.39s
+  Excluded: 174
+  Passed  :   5

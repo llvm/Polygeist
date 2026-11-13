@@ -1,0 +1,1321 @@
+[
+  {
+    "run_id": "20261111T232311Z",
+    "name": "eq",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "1f9f8bed2cc808c3ebbe00097156e2a54c89a0678ff5c60bd5d1fa07e1cc0fd7",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.066369057
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.064961195
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.062689066
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.064129114
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.065825939
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.06902504
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.06377697
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.067456961
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.062401056
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.059968948
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.062401056,
+        "direct_cudnn": 0.059968948
+      }
+    }
+  },
+  {
+    "run_id": "20261111T232311Z",
+    "name": "ne",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "a0503ef8a1cb7be7fcb718f013ac813d0e6e6a2c68610e33cb0fa53f15cd2d9a",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.064033031
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.064640999
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.079712868
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.066465855
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.062497139
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.062176943
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.062497139
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.071361065
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.06236887
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.062304974
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.06236887,
+        "direct_cudnn": 0.062176943
+      }
+    }
+  },
+  {
+    "run_id": "20261111T232311Z",
+    "name": "lt",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "4d8b9948a990b49fe995f07641f6f0ec47e434d931eeca50bb95cb7020578996",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.062401056
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.068672895
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.066080809
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.065696955
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.069665194
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.074402094
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.069344997
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.071937084
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.06166482
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.060704947
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.06166482,
+        "direct_cudnn": 0.060704947
+      }
+    }
+  },
+  {
+    "run_id": "20261111T232311Z",
+    "name": "le",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "282b0b550192934ae497cd2527a59b8d87fbe2f5f73487e2aeca261df997ee1b",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.061537027
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.064864874
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.061281204
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.061408997
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.062786102
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.068800926
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.062304974
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.065984964
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.061600924
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.060577154
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.061408997,
+        "direct_cudnn": 0.060577154
+      }
+    }
+  },
+  {
+    "run_id": "20261111T232311Z",
+    "name": "gt",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "d07350960aa1720c32b6d885ebda2b0f009136d908669c916cef79cd21a181a3",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.064832926
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.063105106
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.06377697
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.062816858
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.064673185
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.069314003
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.068161011
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.069120884
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.064896822
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.065057039
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.062816858,
+        "direct_cudnn": 0.063105106
+      }
+    }
+  },
+  {
+    "run_id": "20261111T232311Z",
+    "name": "ge",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "e537e0b9da97357ab114734486ed237e9d68cdccc91b3ba51a9adf139748f730",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.063073158
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.068640947
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.06064105
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.061953068
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.066272974
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.069440842
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.066306114
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.07158494
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.061441183
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.062817097
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.061441183,
+        "direct_cudnn": 0.06064105
+      }
+    }
+  },
+  {
+    "run_id": "20261111T232311Z",
+    "name": "logical_and",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "89cd78cca8feaedbc26ae9b80f5f07ec9c3728731481015c9298726f8a909ac1",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.066272974
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.065665007
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.067553043
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.065056801
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.070561171
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.068192959
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.06803298
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.067936897
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.061184883
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.05836916
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.061184883,
+        "direct_cudnn": 0.05836916
+      }
+    }
+  },
+  {
+    "run_id": "20261111T232311Z",
+    "name": "logical_or",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "078f82765398acbecdd08a4199902720018c361cb2129d67da942d0053061484",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.063361168
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.061953068
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.062241077
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.060096979
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.061024904
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.061825037
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.058944941
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.070401192
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.060992956
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.059457064
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.060096979,
+        "direct_cudnn": 0.058944941
+      }
+    }
+  },
+  {
+    "run_id": "20261111T232311Z",
+    "name": "logical_xor",
+    "sizes": [
+      4096,
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "ff1fb68ad6af517f4c5803ad40e49921f4efcf61559ca7953b4acd2631e829e8",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.063777208
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.063393116
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.060000896
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.062464952
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.064417124
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.060065031
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.062912941
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.060321093
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.063009024
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.060961008
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.060321093,
+        "direct_cudnn": 0.060000896
+      }
+    }
+  },
+  {
+    "run_id": "20261111T232311Z",
+    "name": "logical_not_f32",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "28ac4480683dbeda63bdb75b8dc8d47c8b27aca7350e69622a596aacaa5617b5",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.059265137
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.057473183
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.055233002
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.053792953
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.0613451
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.067265034
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.059937
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.056768894
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.056289196
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.055616856
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.053792953,
+        "direct_cudnn": 0.055233002
+      }
+    }
+  }
+]

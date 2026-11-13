@@ -1,0 +1,11 @@
+suite,program,validation_scope,status,runtime,backend,evidence
+snu-npb,CG,Former application deleted conj_grad and linked a selected replacement,EXCLUDED,Not reportable as automatic end-to-end performance,Static structural cuSPARSE/cuBLAS/CUB routes remain under audit,issues/ginsbach_asplos18/SILICON_STATUS.md
+snu-npb,BT,Full Class S application plus batched external-library prototype,BLOCKED,No passing full GPU application result,cuBLAS prototype plus memory initialization,scripts/correctness/logs/npb_bt_class_s_two_cublas_1step_20260905_213450.silicon.log
+snu-npb,EP,Former source-text Gaussian-statistics rewrite,EXCLUDED,Not reportable,Only separately inferred final CUB sum remains static,issues/ginsbach_asplos18/SILICON_STATUS.md
+snu-npb,FT,Former direct fftXYZ helper substitution,EXCLUDED,Not reportable,No compliant automatic cuFFT match,issues/ginsbach_asplos18/SILICON_STATUS.md
+snu-npb,IS,Former application deleted rank and linked a selected replacement,EXCLUDED,Not reportable as automatic end-to-end performance,Static structural CUB histogram sites remain under audit,issues/ginsbach_asplos18/SILICON_STATUS.md
+snu-npb,MG,Former renderer selected resid psinv and rprj3 by name,EXCLUDED,Not reportable,Name-dependent route removed,issues/ginsbach_asplos18/SILICON_STATUS.md
+snu-npb,UA,Former manually composed three-site application,EXCLUDED,Not reportable as automatic end-to-end performance,Static DAXPBY sites remain under audit,issues/ginsbach_asplos18/SILICON_STATUS.md
+parboil,sgemm,Former application omitted the original helper and linked an ABI bridge,EXCLUDED,Not reportable as automatic end-to-end performance,Static structural cuBLAS SGEMM match remains under audit,issues/ginsbach_asplos18/SILICON_STATUS.md
+parboil,spmv,Real corpus IR match plus standalone JDS adapter ABI smoke,PARTIAL,0.208 s median whole-process smoke; not a full application,NVIDIA cuSPARSE SpMV after storage conversion,scripts/correctness/logs/cusparse_jds_external_20260905_230355.silicon.log
+parboil,stencil,Former application omitted the original cpu_stencil implementation and linked a selected transformed route,EXCLUDED,Not reportable as automatic end-to-end performance,Static structural cuDNN stencil match remains under audit,issues/ginsbach_asplos18/SILICON_STATUS.md

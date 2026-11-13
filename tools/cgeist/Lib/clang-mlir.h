@@ -193,7 +193,10 @@ private:
 
   std::map<int, mlir::Value> constants;
 
-  mlir::Value castToIndex(mlir::Location loc, mlir::Value val);
+  mlir::Value castToIndex(mlir::Location loc, mlir::Value val,
+                          bool isUnsigned = false);
+
+  mlir::Value castScalarToBool(mlir::Location loc, mlir::Value val);
 
   mlir::Value getLLVM(Expr *E, bool isRef = false);
 
@@ -269,6 +272,8 @@ public:
   ValueCategory VisitImaginaryLiteral(clang::ImaginaryLiteral *expr);
 
   ValueCategory VisitCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *expr);
+
+  ValueCategory VisitCXXNullPtrLiteralExpr(clang::CXXNullPtrLiteralExpr *expr);
 
   ValueCategory VisitCXXTypeidExpr(clang::CXXTypeidExpr *expr);
 
@@ -408,6 +413,7 @@ public:
 
   mlir::Attribute InitializeValueByInitListExpr(mlir::Value toInit,
                                                 clang::Expr *expr);
+  ValueCategory VisitCompoundLiteralExpr(clang::CompoundLiteralExpr *expr);
   ValueCategory VisitInitListExpr(clang::InitListExpr *expr);
   ValueCategory
   VisitCXXStdInitializerListExpr(clang::CXXStdInitializerListExpr *expr);

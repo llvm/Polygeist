@@ -1,0 +1,391 @@
+{
+  "routine": "dsymm",
+  "source": "OpenBLAS 0.3.31 lapack-netlib copy (~/netlib_ref/openblas-0.3.31/lapack-netlib/BLAS/SRC/dsymm.f); the C transliteration ref_c/dsymm.c is shared with lib_v2 (Reference-LAPACK 6a1a8b8a), whose code differs from OpenBLAS's copy only in formatting",
+  "specs": [
+    {
+      "name": "netlib_dsymm_lu_beta0",
+      "defines": {
+        "SIDE": "'L'",
+        "UPLO": "'U'",
+        "BETA_CASE": "0"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsymm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_LEFT",
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "beta": 0.0
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha != 0 (L266-L281 not taken)",
+        "beta == 0"
+      ],
+      "deviations": [],
+      "fortran_lines": "L290-L305"
+    },
+    {
+      "name": "netlib_dsymm_lu",
+      "defines": {
+        "SIDE": "'L'",
+        "UPLO": "'U'",
+        "BETA_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsymm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_LEFT",
+          "uplo": "CUBLAS_FILL_MODE_UPPER"
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B",
+        "beta",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha != 0 (L266-L281 not taken)",
+        "beta != 0 (DSYMM has no BETA.NE.ONE branch; beta == 1 is covered)"
+      ],
+      "deviations": [],
+      "fortran_lines": "L290-L305"
+    },
+    {
+      "name": "netlib_dsymm_ll_beta0",
+      "defines": {
+        "SIDE": "'L'",
+        "UPLO": "'L'",
+        "BETA_CASE": "0"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsymm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_LEFT",
+          "uplo": "CUBLAS_FILL_MODE_LOWER",
+          "beta": 0.0
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha != 0 (L266-L281 not taken)",
+        "beta == 0"
+      ],
+      "deviations": [],
+      "fortran_lines": "L307-L322"
+    },
+    {
+      "name": "netlib_dsymm_ll",
+      "defines": {
+        "SIDE": "'L'",
+        "UPLO": "'L'",
+        "BETA_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsymm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_LEFT",
+          "uplo": "CUBLAS_FILL_MODE_LOWER"
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B",
+        "beta",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha != 0 (L266-L281 not taken)",
+        "beta != 0 (DSYMM has no BETA.NE.ONE branch; beta == 1 is covered)"
+      ],
+      "deviations": [],
+      "fortran_lines": "L307-L322"
+    },
+    {
+      "name": "netlib_dsymm_ru_beta0",
+      "defines": {
+        "SIDE": "'R'",
+        "UPLO": "'U'",
+        "BETA_CASE": "0"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsymm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_RIGHT",
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "beta": 0.0
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha != 0 (L266-L281 not taken)",
+        "beta == 0"
+      ],
+      "deviations": [],
+      "fortran_lines": "L328-L359"
+    },
+    {
+      "name": "netlib_dsymm_ru",
+      "defines": {
+        "SIDE": "'R'",
+        "UPLO": "'U'",
+        "BETA_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsymm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_RIGHT",
+          "uplo": "CUBLAS_FILL_MODE_UPPER"
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B",
+        "beta",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha != 0 (L266-L281 not taken)",
+        "beta != 0 (DSYMM has no BETA.NE.ONE branch; beta == 1 is covered)"
+      ],
+      "deviations": [],
+      "fortran_lines": "L328-L359"
+    },
+    {
+      "name": "netlib_dsymm_rl_beta0",
+      "defines": {
+        "SIDE": "'R'",
+        "UPLO": "'L'",
+        "BETA_CASE": "0"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsymm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_RIGHT",
+          "uplo": "CUBLAS_FILL_MODE_LOWER",
+          "beta": 0.0
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha != 0 (L266-L281 not taken)",
+        "beta == 0"
+      ],
+      "deviations": [],
+      "fortran_lines": "L328-L359"
+    },
+    {
+      "name": "netlib_dsymm_rl",
+      "defines": {
+        "SIDE": "'R'",
+        "UPLO": "'L'",
+        "BETA_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsymm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_RIGHT",
+          "uplo": "CUBLAS_FILL_MODE_LOWER"
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B",
+        "beta",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha != 0 (L266-L281 not taken)",
+        "beta != 0 (DSYMM has no BETA.NE.ONE branch; beta == 1 is covered)"
+      ],
+      "deviations": [],
+      "fortran_lines": "L328-L359"
+    },
+    {
+      "name": "netlib_dsymm_lu_alpha0_beta0",
+      "defines": {
+        "SIDE": "'L'",
+        "UPLO": "'U'",
+        "ALPHA_CASE": "0",
+        "BETA_CASE": "0"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsymm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_LEFT",
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "alpha": 0.0,
+          "beta": 0.0
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "lda",
+        "A",
+        "ldb",
+        "B",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha == 0 (L266-L281)",
+        "beta == 0",
+        "A, B, lda, ldb not referenced by this branch"
+      ],
+      "deviations": [],
+      "fortran_lines": "L266-L281"
+    },
+    {
+      "name": "netlib_dsymm_lu_alpha0",
+      "defines": {
+        "SIDE": "'L'",
+        "UPLO": "'U'",
+        "ALPHA_CASE": "0",
+        "BETA_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDsymm",
+        "fixed_args": {
+          "side": "CUBLAS_SIDE_LEFT",
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "alpha": 0.0
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "lda",
+        "A",
+        "ldb",
+        "B",
+        "beta",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha == 0 (L266-L281)",
+        "beta != 0",
+        "A, B, lda, ldb not referenced by this branch"
+      ],
+      "deviations": [],
+      "fortran_lines": "L266-L281"
+    }
+  ],
+  "layout_transpose": {
+    "about": "Declarative layout-transpose equivalences used by the region matcher's launch emitter. A binding that stores the listed rank-2 operands transposed (the spec reads op^T of the memory it is given) is equivalent to the spec whose defines have each listed flag flipped between its two values, with the listed argument pairs swapped (flips first, then swaps). Leading dimensions always follow their array. The transposed operand set must be covered exactly by disjoint rules.",
+    "flags": {
+      "SIDE": [
+        "'L'",
+        "'R'"
+      ],
+      "UPLO": [
+        "'U'",
+        "'L'"
+      ]
+    },
+    "rules": [
+      {
+        "operands": [
+          "A"
+        ],
+        "flip": [
+          "UPLO"
+        ]
+      },
+      {
+        "operands": [
+          "B",
+          "C"
+        ],
+        "flip": [
+          "SIDE"
+        ],
+        "swap": [
+          [
+            "m",
+            "n"
+          ]
+        ]
+      }
+    ]
+  },
+  "notes": [
+    "Netlib reference code distributed in the OpenBLAS source tree (lapack-netlib/); OpenBLAS itself executes blocked drivers for this routine."
+  ]
+}

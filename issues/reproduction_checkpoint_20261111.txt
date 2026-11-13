@@ -1,0 +1,36 @@
+LoopLibrarian validated fixes checkpoint — 2026-11-11
+
+This checkpoint includes the completed source-derived FP32 library imports,
+shared matcher/view/ABI corrections, GPU execution fixes, tests, generated
+catalog, and compact measurements. The unfinished in-place-add work is saved
+separately and is not included. Older unrelated edits remain in the working tree.
+
+Validated results:
+- Llama generic parallel-dimension collapse: 11.247 ms versus 15.370 ms without
+  collapse, historical 12.709 ms, expert 9.621 ms; 32,000 logits exactly equal.
+- ATen: 34 unique targeted cases pass GPU correctness and direct-vendor timing
+  checks. This is not a full 598-case coverage or 115-case Figure 5 result.
+- RMSNorm's final runtime correction passes normal/edge inputs at two epsilon
+  values and the legacy wrapper. The full Llama runtime replay retains 32,000
+  exact logits and unchanged timing: 11.229 ms versus 11.241 ms before.
+- PolyBench GPU: all 12 cases pass full-output correctness; seven speedups are
+  within 5% of the paper and five are faster. Automatic fan control remains a
+  qualification against the original fixed-fan protocol.
+- The shared 108-test suite, 22 prior matching cases and generated-runtime
+  consistency check passed at the ATen refresh boundary. The subsequent
+  runtime-only RMSNorm change was checked by the dedicated GPU/legacy tests and
+  full Llama replay. No later unfinished compiler changes are included here.
+
+Details and measurements:
+  issues/llama_remaining_matches_20261111/REPORT.txt
+  issues/llama_rank_collapse_20261111/REPORT.txt
+  issues/aten_first10_20261111/STATUS.txt
+  issues/aten_remaining_v3_20261111/REFRESH_REPORT.txt
+  issues/aten_remaining_v3_20261111/validated-targeted-results.json
+  issues/polybench_gpu_v3_verify_20261111/report.txt
+
+Per-run source/proof snapshots, full logs, binaries and compiler backups remain
+in the local campaign directories; this checkpoint does not package all of them.
+The reports' earlier uncommitted-status notes describe their recording time.
+Generated MLIR and pinned upstream files retain their recorded bytes, including
+upstream/generated whitespace, so their provenance hashes remain intact.

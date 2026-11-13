@@ -1,0 +1,26 @@
+{
+  "kernel": "convection_apply_2d",
+  "rc": 0,
+  "command": [
+    "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+    "--target=jetson",
+    "--function=mfem_pa_convection_apply_2d_stage_sliced",
+    "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+    "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/convection_stage_sliced.c",
+    "-DBENCH_CONVECTION_2D",
+    "-DMFEM_BENCH_NE=1024",
+    "-o",
+    "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/convection_apply_2d/program"
+  ],
+  "seconds": 35.499776147305965,
+  "source_sha256": "d6433547f1f30cacd91f4f49919ba50a65b3723c94db8743ed23cd37f482deea",
+  "program_sha256": "9c28e0c04c6e6dee5d0ae7d5615ef51895ee2260ae8e5585f743d7528de45325",
+  "specifications": [
+    "openblas_dgemm_tn_b1_alpha1",
+    "openblas_dgemm_tn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1"
+  ],
+  "calls": 5
+}

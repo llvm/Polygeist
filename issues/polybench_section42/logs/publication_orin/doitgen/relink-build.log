@@ -1,0 +1,1 @@
+/usr/lib/gcc-cross/aarch64-linux-gnu/11/../../../../aarch64-linux-gnu/bin/ld: warning: libnvJitLink.so.12, needed by /usr/local/cuda-12.6/targets/sbsa-linux/lib/stubs/libcusparse.so, not found (try using -rpath or -rpath-link)

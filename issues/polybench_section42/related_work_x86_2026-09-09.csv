@@ -1,0 +1,34 @@
+suite,kernel,dtype,dataset,status,min_ms,hardware,scope,notes
+KernelFaRer,gemm,fp32,LARGE,pass,26.172,x86 CPU,single-thread CPU kernel time,complete CBLAS replacement; complete-output correctness pass; legacy one-warmup/ten-sample x86 reproduction; never compared directly with B300
+KernelFaRer,syr2k,fp32,LARGE,pass,30.144,x86 CPU,single-thread CPU kernel time,complete CBLAS replacement; complete-output correctness pass; legacy one-warmup/ten-sample x86 reproduction; never compared directly with B300
+KernelFaRer,2mm,fp32,LARGE,pass,35.114,x86 CPU,single-thread CPU kernel time,corrected loop placement; complete 2-call CBLAS replacement; complete-output correctness pass; 3967.405 ms native; 112.99x; one warmup and ten measurements
+KernelFaRer,3mm,fp32,LARGE,pass,57.626,x86 CPU,single-thread CPU kernel time,corrected loop placement; complete 3-call CBLAS replacement; complete-output correctness pass; 6477.873 ms native; 112.41x; one warmup and ten measurements
+Pluto,2mm,fp32,LARGE,pass,1519.563,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Pluto,3mm,fp32,LARGE,pass,358.458,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Pluto,atax,fp32,LARGE,pass,6.142,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Pluto,bicg,fp32,LARGE,pass,7.033,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Pluto,correlation,fp32,LARGE,pass,120.617,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Pluto,covariance,fp32,LARGE,pass,120.006,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Pluto,doitgen,fp32,LARGE,pass,290.895,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Pluto,gemm,fp32,LARGE,pass,1175.589,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Pluto,gemver,fp32,LARGE,pass,17.628,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Pluto,gesummv,fp32,LARGE,pass,2.478,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Pluto,mvt,fp32,LARGE,pass,18.992,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Pluto,syr2k,fp32,LARGE,pass,235.539,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Pluto,syrk,fp32,LARGE,pass,82.194,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Pluto,trmm,fp32,LARGE,pass,109.043,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Polly,2mm,fp32,LARGE,pass,4474.442,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Polly,3mm,fp32,LARGE,pass,7212.046,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Polly,atax,fp32,LARGE,pass,1.914,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Polly,bicg,fp32,LARGE,pass,6.157,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Polly,correlation,fp32,LARGE,pass,4979.915,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Polly,covariance,fp32,LARGE,pass,4958.991,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Polly,doitgen,fp32,LARGE,pass,641.52,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Polly,gemm,fp32,LARGE,pass,3625.827,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Polly,gemver,fp32,LARGE,pass,24.803,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Polly,gesummv,fp32,LARGE,pass,1.139,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Polly,mvt,fp32,LARGE,pass,16.846,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Polly,symm,fp32,LARGE,pass,6723.084,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Polly,syr2k,fp32,LARGE,pass,273.636,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Polly,syrk,fp32,LARGE,pass,149.899,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300
+Polly,trmm,fp32,LARGE,pass,704.498,x86 CPU,single-thread CPU kernel time,separate x86 reproduction; never compared directly with B300

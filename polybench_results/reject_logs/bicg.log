@@ -1,0 +1,191 @@
+
+****************************************
+*** RaiseAffineToLinalgPipeline START ***
+****************************************
+
+Running pipeline...
+
+****************************************
+*** RaiseAffineToLinalg START ***
+****************************************
+
+### Step 1: Applying AffineParallelFission ###
+
+=== AffineParallelFission ===
+Processing affine.parallel:
+affine.parallel (%arg7) = (0) to (symbol(%0)) {
+  affine.store %cst, %arg3[%arg7] : memref<?xf64>
+}
+### Step 1 Complete ###
+
+### Step 2: Applying AffineParallelToFor ###
+
+=== AffineParallelToFor ===
+Processing affine.parallel:
+affine.parallel (%arg7) = (0) to (symbol(%0)) {
+  affine.store %cst, %arg3[%arg7] : memref<?xf64>
+}
+Converting parallel loop with 1 induction variables
+=== AffineParallelToFor SUCCESS ===
+
+### Step 2 Complete ###
+
+### Step 3: Applying AffineForOpRaising ###
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg8 = 0 to %0 {
+  %2 = affine.load %arg3[%arg8] : memref<?xf64>
+  %3 = affine.load %arg6[%arg7] : memref<?xf64>
+  %4 = affine.load %arg2[%arg7, %arg8] : memref<?x38xf64>
+  %5 = arith.mulf %3, %4 : f64
+  %6 = arith.addf %2, %5 : f64
+  affine.store %6, %arg3[%arg8] : memref<?xf64>
+  %7 = affine.load %arg4[%arg7] : memref<?xf64>
+  %8 = affine.load %arg2[%arg7, %arg8] : memref<?x38xf64>
+  %9 = affine.load %arg5[%arg8] : memref<?xf64>
+  %10 = arith.mulf %8, %9 : f64
+  %11 = arith.addf %7, %10 : f64
+  affine.store %11, %arg4[%arg7] : memref<?xf64>
+}
+
+Pattern recognition complete:
+  Loads: 6
+  Stores: 2
+  LinalgGenerics: 0
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg7 = 0 to %1 {
+  affine.store %cst, %arg4[%arg7] : memref<?xf64>
+  affine.for %arg8 = 0 to %0 {
+    %2 = affine.load %arg3[%arg8] : memref<?xf64>
+    %3 = affine.load %arg6[%arg7] : memref<?xf64>
+    %4 = affine.load %arg2[%arg7, %arg8] : memref<?x38xf64>
+    %5 = arith.mulf %3, %4 : f64
+    %6 = arith.addf %2, %5 : f64
+    affine.store %6, %arg3[%arg8] : memref<?xf64>
+    %7 = affine.load %arg4[%arg7] : memref<?xf64>
+    %8 = affine.load %arg2[%arg7, %arg8] : memref<?x38xf64>
+    %9 = affine.load %arg5[%arg8] : memref<?xf64>
+    %10 = arith.mulf %8, %9 : f64
+    %11 = arith.addf %7, %10 : f64
+    affine.store %11, %arg4[%arg7] : memref<?xf64>
+  }
+}
+
+REJECTED: Walk was interrupted (invalid operations found)
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg7 = 0 to %0 {
+  affine.store %cst, %arg3[%arg7] : memref<?xf64>
+}
+
+Pattern recognition complete:
+  Loads: 0
+  Stores: 1
+  LinalgGenerics: 0
+
+Loop bounds:
+  lbMap: () -> (0)
+  ubMap: ()[s0] -> (s0)
+
+--- Processing Linalg Generics ---
+
+--- Processing Loads ---
+
+--- Processing Stores ---
+Processing store: affine.store %cst, %arg3[%arg7] : memref<?xf64>
+
+=== remap_in_affine_dim ===
+  oldmap: (d0) -> (d0)
+  firstNDims: 0
+  check_reduction (input): 1
+  lower_bound_val: 0
+  dimidx: 0
+  check_reduction (output): 0
+  new map (map2): (d0) -> (d0)
+  validDims: 1, validSims: 0
+  Created SubmapOp with type: memref<?xf64>
+=== remap_in_affine_dim END ===
+
+
+--- Creating linalg.generic ---
+Iterator type for this loop: parallel
+Total iterator types: 1
+Total inputs: 0
+Total outputs: 1
+
+=== AffineForOpRaising SUCCESS ===
+========================================
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg8 = 0 to %0 {
+  %3 = affine.load %arg3[%arg8] : memref<?xf64>
+  %4 = affine.load %arg6[%arg7] : memref<?xf64>
+  %5 = affine.load %arg2[%arg7, %arg8] : memref<?x38xf64>
+  %6 = arith.mulf %4, %5 : f64
+  %7 = arith.addf %3, %6 : f64
+  affine.store %7, %arg3[%arg8] : memref<?xf64>
+  %8 = affine.load %arg4[%arg7] : memref<?xf64>
+  %9 = affine.load %arg2[%arg7, %arg8] : memref<?x38xf64>
+  %10 = affine.load %arg5[%arg8] : memref<?xf64>
+  %11 = arith.mulf %9, %10 : f64
+  %12 = arith.addf %8, %11 : f64
+  affine.store %12, %arg4[%arg7] : memref<?xf64>
+}
+
+Pattern recognition complete:
+  Loads: 6
+  Stores: 2
+  LinalgGenerics: 0
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg7 = 0 to %2 {
+  affine.store %cst, %arg4[%arg7] : memref<?xf64>
+  affine.for %arg8 = 0 to %0 {
+    %3 = affine.load %arg3[%arg8] : memref<?xf64>
+    %4 = affine.load %arg6[%arg7] : memref<?xf64>
+    %5 = affine.load %arg2[%arg7, %arg8] : memref<?x38xf64>
+    %6 = arith.mulf %4, %5 : f64
+    %7 = arith.addf %3, %6 : f64
+    affine.store %7, %arg3[%arg8] : memref<?xf64>
+    %8 = affine.load %arg4[%arg7] : memref<?xf64>
+    %9 = affine.load %arg2[%arg7, %arg8] : memref<?x38xf64>
+    %10 = affine.load %arg5[%arg8] : memref<?xf64>
+    %11 = arith.mulf %9, %10 : f64
+    %12 = arith.addf %8, %11 : f64
+    affine.store %12, %arg4[%arg7] : memref<?xf64>
+  }
+}
+
+REJECTED: Walk was interrupted (invalid operations found)
+
+### Step 3 Complete ###
+
+****************************************
+*** RaiseAffineToLinalg END ***
+****************************************
+
+
+****************************************
+*** RaiseAffineToLinalgPipeline END ***
+****************************************
+

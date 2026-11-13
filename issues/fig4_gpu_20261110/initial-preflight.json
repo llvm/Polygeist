@@ -1,0 +1,81 @@
+{
+  "timestamp": 1794341547.113135,
+  "load": [
+    0.0048828125,
+    0.01416015625,
+    0.0
+  ],
+  "busy": [],
+  "clocks": [
+    {
+      "policy": "policy8",
+      "scaling_governor": "schedutil",
+      "scaling_min_freq": "2201600",
+      "scaling_max_freq": "2201600",
+      "scaling_cur_freq": "2201600"
+    },
+    {
+      "policy": "policy4",
+      "scaling_governor": "schedutil",
+      "scaling_min_freq": "2201600",
+      "scaling_max_freq": "2201600",
+      "scaling_cur_freq": "2201600"
+    },
+    {
+      "policy": "policy0",
+      "scaling_governor": "schedutil",
+      "scaling_min_freq": "2201600",
+      "scaling_max_freq": "2201600",
+      "scaling_cur_freq": "2201600"
+    }
+  ],
+  "temperatures": [
+    {
+      "sensor": "cv0-thermal",
+      "millicelsius": "unavailable"
+    },
+    {
+      "sensor": "cpu-thermal",
+      "millicelsius": "48500"
+    },
+    {
+      "sensor": "soc2-thermal",
+      "millicelsius": "44625"
+    },
+    {
+      "sensor": "soc0-thermal",
+      "millicelsius": "44562"
+    },
+    {
+      "sensor": "cv1-thermal",
+      "millicelsius": "unavailable"
+    },
+    {
+      "sensor": "gpu-thermal",
+      "millicelsius": "42312"
+    },
+    {
+      "sensor": "tj-thermal",
+      "millicelsius": "48500"
+    },
+    {
+      "sensor": "soc1-thermal",
+      "millicelsius": "44593"
+    },
+    {
+      "sensor": "cv2-thermal",
+      "millicelsius": "unavailable"
+    }
+  ],
+  "fan_settings": {
+    "/sys/class/hwmon/hwmon1/pwm1_enable": "1",
+    "/sys/class/hwmon/hwmon1/pwm1": "48"
+  },
+  "power_mode": "pmode:0000",
+  "software": "# R00 (release), REVISION: 0.0, GCID: 45886993, BOARD: generic, EABI: aarch64, DATE: Tue Jun  9 05:36:42 PM UTC 2026\n# KERNEL_VARIANT: oot\nTARGET_USERSPACE_LIB_DIR=[private]\nTARGET_USERSPACE_LIB_DIR_PATH=usr/lib/aarch64-linux-gnu/[private]\nINSTALL_TYPE=nvgpu\nf818aecf739ce12819146dff7b2a5df2c7b7c12a */usr/lib/xorg/modules/drivers/[private]_drv.so\n4562e72bfde59c074e7cd1a5fc6303220db86702 */usr/lib/xorg/modules/extensions/libglxserver_[private].so\n4664d913a4b5336892292a4985d8c0617f26a820 */usr/lib/aarch64-linux-gnu/[private]/libnvimp.so\n1fbc62473f43627b506d3c9a74833887bfd5c672 */usr/lib/aarch64-linux-gnu/[private]/libnvtvmr.so\n06851f8cba465096f5511d3811ce82c2356e487f */usr/lib/aarch64-linux-gnu/[private]/libnvargus_socketserver.so\n84d94a184262373a4b066f160b9ca51fa82e01e1 */usr/lib/aarch64-linux-gnu/[private]/libnvargus_socketclient.so\n0192a4feb0a1ce25907cd72de08152f9d74e9b61 */usr/lib/aarch64-linux-gnu/[private]/libnvvideoencode_ppe.so\nb07b18c241313b9469b6e6fd8ad177030e1883b9 */usr/lib/aarch64-linux-gnu/[private]/libtegrawfd.so\na8910ca607a64fb71b9955f4a243002a93c1c20f */usr/lib/aarch64-linux-gnu/[private]/libnvrm_mem.so\n36c2a1f75397f03bb8aac0fd2aa6d79a04d26d05 */usr/lib/aarch64-linux-gnu/[private]/libnvplayfair.so\nd338f0177c955f9256e30e36341d327054f22015 */usr/lib/aarch64-linux-gnu/[private]/libnvrm_chip.so\n54714a196f2e8d3c36d9c378e6cc3904057c6d98 */usr/lib/aarch64-linux-gnu/[private]/libnvv4l2.so\nc60ad27add25c6f328dd91999d4c746f0385b0bc */usr/lib/aarch64-linux-gnu/[private]/libnvfnetstoredefog.so\n3acce51cc55edcfa4505178bb6ef59054b712cd0 */usr/lib/aarch64-linux-gnu/[private]/libnvmedia_ijpd_sci.so\n09ef816e832691ccbb2a4a02963992c80e0d28cd */usr/lib/aarch64-linux-gnu/[private]/libnvv4lconvert.so\n0ed45f6b879620e09423795795a5faac006f61d2 */usr/lib/aarch64-linux-gnu/[private]/libnvfnetstorehdfx.so\n58ee9acea93421f36d81729f081d5421370d3722 */usr/lib/aarch64-linux-gnu/[private]/libnvrm_sync.so\n65b4ef39fa9c3c9834f49ec40766b6f5f111da71 */usr/lib/aarch64-linux-gnu/[private]/libnvfusacapinterface.so\n80e3e2b450ce222e48fdbdf39ff094b380ec36d2 */usr/lib/aarch64-linux-gnu/[private]/libnvmm_jpeg.so\n935755987ec0c47b0d0d8c668bd92f9e16fd6294 */usr/lib/aarch64-linux-gnu/[private]/libnvcucompat.so\n7b559cb0786ea649998658a2e0ff15d5a1fdc412 */usr/lib/aarch64-linux-gnu/[private]/libnvpvaumd_core.so\n57c1ba37444b2eb3d571f333401039dff468f8cd */usr/lib/aarch64-linux-gnu/[private]/libnvmedialdc.so\n350e5f9d5fc6540b1b7097f65d0b1b5145e05ef8 */usr/lib/aarch64-linux-gnu/[private]/libnvmm.so\nf1f36cf16bdc388b10ae7169117fd1ad3ed3d48a */usr/lib/aarch64-linux-gnu/[private]/libnvscf.so\n7495c8bbcced8279ff3ef6df7d750381e0a512bb */usr/lib/aarch64-linux-gnu/[private]/libnvsocsys.so\nde20b1de3295aeba6ee753dfc78d887d65708181 */usr/lib/aarch64-linux-gnu/[private]/libVkLayer_json_gen.so\nead11a69c5673e114b26b48357e0f2feef8363c0 */usr/lib/aarch64-linux-gnu/[private]/libnvomx.so\n6ae840cadf8cb5bf4e34886e09debd2bb8943583 */usr/lib/aarch64-linux-gnu/[private]/libnvvideo.so\n12a70283f9c8e727b51259c28dad0a7c34ef9340 */usr/lib/aarch64-linux-gnu/[private]/libgnarl-25.so\n98b080d9f91fe3dd69f011f3582394eca7b633d7 */usr/lib/aarch64-linux-gnu/[private]/libnvcudla.so\n17cc810fc31b67a68bf291aaffe82c434038eb28 */usr/lib/aarch64-linux-gnu/[private]/libnvtegrahv.so\n5305592c9554499128bc60c5830a2da78ed61f46 */usr/lib/aarch64-linux-gnu/[private]/libnvmmlite_utils.so\n6e6ab38a621e391d33205f778b350e242b4ba00b */usr/lib/aarch64-linux-gnu/[private]/libnvvic.so\nd521c5e66082a031985f181491b201fb3cdfa1c3 */usr/lib/aarch64-linux-gnu/[private]/libnvpva.so\n0763bc830ddea015371a702eb139b4d8b4cde741 */usr/lib/aarch64-linux-gnu/[private]/libnvomxilclient.so\n387601851b6a0dce3311853d2777dfd23402f4fc */usr/lib/aarch64-linux-gnu/[private]/libjetsonpower.so\n0e4ff79aac5f3b663567e08109bae833390dd78e */usr/lib/aarch64-linux-gnu/[private]/libnvcolorutil.so\n8df3c6b26ffbfda1f7f3caab0bb0f3d1f8e6ae6b */usr/lib/aarch64-linux-gnu/[private]/libnvcamv4l2.so\n12d1c3820ae3593f1347b65cbe606aca6a71cdac */usr/lib/aarch64-linux-gnu/[private]/libnvargus.so\n83e867a63998f9b3bf38286ffa565229f6454e2a */usr/lib/aarch64-linux-gnu/[private]/libnvmmlite.so\n5136e848b6dc97257348295d60473836a4e6a16e */usr/lib/aarch64-linux-gnu/[private]/libnvmm_contentpipe.so\na39b8061d8d00ed56bc43830ea4d01a88269648b */usr/lib/aarch64-linux-gnu/[private]/libnvrm_stream.so\nca8b606c53dfd71b6e795fb5df0cd476d76a0588 */usr/lib/aarch64-linux-gnu/[private]/libgnat-25.so\nc176c65c9e5f9a88883782b39a346e3b7ac834b7 */usr/lib/aarch64-linux-gnu/[private]/libnvmmlite_video.so\nf02537ad40288b7aaee25ae1a8e2ff7b99a57515 */usr/lib/aarch64-linux-gnu/[private]/libnvcam_imageencoder.so\nf52ba56a13616782ea17273d608bb39288828a3b */usr/lib/aarch64-linux-gnu/[private]/libnvpvaintf.so\n5b187e0701931a6e9d0fab62ae1782f15a7408ac */usr/lib/aarch64-linux-gnu/[private]/libnvfnet.so\n90663fe78b217f0e10f83c53fd585246db9074e4 */usr/lib/aarch64-linux-gnu/[private]/libnvscievent.so\n07ee6d0ed2c0e49dd27a5cecd3198659f6d67541 */usr/lib/aarch64-linux-gnu/[private]/libnveventlib.so\nef011ff9c963ac672cfff7152da65673b70326f8 */usr/lib/aarch64-linux-gnu/[private]/libnvexif.so\n4fcd4b85b34120269108eb743c1dc992f9983e68 */usr/lib/aarch64-linux-gnu/[private]/libnvdla_runtime.so\n49ff6ce0cf545ed5dce6e779d91ef5d5f628e123 */usr/lib/aarch64-linux-gnu/[private]/libnvmedia_isp_ext.so\n7721558df629e0403544f5a437a1cc8f4c256bf0 */usr/lib/aarch64-linux-gnu/[private]/libnvcamlog.so\n6d87705336979b2009f6038da623a92f2ee585f8 */usr/lib/aarch64-linux-gnu/[private]/libnvdecode2eglimage.so\n575da6243f01398d5728b3ad3b3ea05dae1f21d3 */usr/lib/aarch64-linux-gnu/[private]/libnvmmlite_image.so\nd91beedb051e7ce0509b448434afda1206940668 */usr/lib/aarch64-linux-gnu/[private]/libv4l2_nvargus.so\n9f379e6f45031b3c5a407dd193b5c552631b6b2f */usr/lib/aarch64-linux-gnu/[private]/libnvisp_utils.so\nff93662304ac43d1b42e72061b7b761a0154eb14 */usr/lib/aarch64-linux-gnu/[private]/libnvpva_algorithms.so\ne4d9923fe879dc723194d34b985e6d61a279fec1 */usr/lib/aarch64-linux-gnu/[private]/libnvmedia.so\ne90b663c959108fab5f19ca70430e653f9ed274b */usr/lib/aarch64-linux-gnu/[private]/libnvtracebuf.so\na91dcf450ac5f4ad59534a7855e14d3c37cfd323 */usr/lib/aarch64-linux-gnu/[private]/libnvos.so\n41717f4b82f62f03c7cc0067a81cb266ead05a36 */usr/lib/aarch64-linux-gnu/[private]/libnvmedia_eglstream.so\n222ddf299505f0be3ac44ff233e115e13c9a2af7 */usr/lib/aarch64-linux-gnu/[private]/libnvtvmr_2d.so\n5559c151ad769172ab92285c14d9ba4b39743a0f */usr/lib/aarch64-linux-gnu/[private]/libVkSCLayer_khronos_validation.so\n5b65944f61a968d9fb32c5e53980fa7a14b08901 */usr/lib/aarch64-linux-gnu/[private]/libnvmedia_iofa_sci.so\n3548370cf2f93991d63a1e7ebb731ee228561950 */usr/lib/aarch64-linux-gnu/[private]/libnvmedia_ide_sci.so\nce8f026e3fbb258bb748c06850f352e0d04df9fe */usr/lib/aarch64-linux-gnu/[private]/libnvfusacap.so\nc57ea83d7eb2a22d7715d712ef3e44ea4d667107 */usr/lib/aarch64-linux-gnu/[private]/libnvddk_2d_v2.so\n122708bab500c33d10fac3f3ce60acc7a941d60c */usr/lib/aarch64-linux-gnu/[private]/libnvmedia_dla.so\n353336ea2d8efacac4c3f79f9ea4b09af4ad3280 */usr/lib/aarch64-linux-gnu/[private]/libnvddk_vic.so\n2beaa934c97574f3a08934d63438e46dab0f79a8 */usr/lib/aarch64-linux-gnu/[private]/libnvmedia_iep_sci.so\n206ea64ced88a3bf165c537cb7473901abd985ef */usr/lib/aarch64-linux-gnu/[private]/libnvmedia_ijpe_sci.so\n4b4d04678f24c43a701e3fa9bc8d39d2ead723ea */usr/lib/aarch64-linux-gnu/[private]/libnvcamerautils.so\n2ca9617d461ce35b204dcd33721dda086fcb0d4c */usr/lib/aarch64-linux-gnu/[private]/libnvdc.so\n06733def345588147cb3b8aa21a45caf07130ece */usr/lib/aarch64-linux-gnu/[private]/libnvsciipc.so\nc33290a4c88bfd40e5989c15be8b187dacef6e61 */usr/lib/aarch64-linux-gnu/[private]/libnvrm_surface.so\n909a3392dec2fe40285928058001dd010aeead48 */usr/lib/aarch64-linux-gnu/[private]/libnvodm_imager.so\ncf28db9b6f680bff0263848a43a54089002a0247 */usr/lib/aarch64-linux-gnu/[private]/libnvparser.so\ncd70ac01fd46f79a74ef7a7b0616e59cfa0670c7 */usr/lib/aarch64-linux-gnu/[private]/libnvosd.so\n8719042dc6c46e4137f553317f56b1cb404d5599 */usr/lib/aarch64-linux-gnu/[private]/libnvmm_parser.so\ndaabe81bd15979fd81a8fc1c83d4d80a58b14673 */usr/lib/aarch64-linux-gnu/[private]/libnvisp.so\nbe2359542f153d240a776253c92bd167fe935492 */usr/lib/aarch64-linux-gnu/[private]/libnvmedia_2d.so\nb5e5fc101bebc242330dc113165e8cf25edc7edd */usr/lib/aarch64-linux-gnu/[private]/libnvmedia_tensor.so\n4c0179e249157570a663de377afc8cd62448bcec */usr/lib/aarch64-linux-gnu/[private]/libnvcameratools.so\n1d97e9b3f8864a96d5415d2fed778ae3b5774284 */usr/lib/aarch64-linux-gnu/[private]/libnvrm_host1x.so\n1c7ad6b824679f3f7291fdea7cd4bfc6f7a4ebc2 */usr/lib/aarch64-linux-gnu/[private]/libnvpvaumd_cuda.so\n592aaa8c9edb8747146105165d8bec7f7b57a848 */usr/lib/aarch64-linux-gnu/[private]/libnvmedia_ide_parser.so\n3436c2814026728ee13f27150884bf8ba7b83e6b */usr/lib/aarch64-linux-gnu/[private]/libnvrm_gpu.so\n75004fccb4619dc3fdfb918edc585ad3ecae3f0c */usr/lib/aarch64-linux-gnu/[private]/libnvmedia2d.so\nc435a7dac3bfbbc5c37c62897f6025cc4775fac7 */usr/lib/aarch64-linux-gnu/[private]/libnvisppg.so\n4c053cf3dda7b7618ab9687145edcbb19e7a5682 */usr/lib/aarch64-linux-gnu/[private]/libnvmm_utils.so",
+  "tegrastats": "=============================================================\nWARNING: Run tegrastats as root to enable all functionality!\n=============================================================\n\n11-10-2026 20:12:25 RAM 4608/62878MB (lfb 1424x4MB) SWAP 61/2048MB (cached 1MB) CPU [0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201] IGPU_FREQ 0% cpu@48.218C/48.218C soc2@44.531C/44.531C soc0@44.656C/44.656C gpu@42.406C/42.406C tj@48.218C/48.218C soc1@44.593C/44.593C VDD_GPU_SOC 4786mW/4786mW/4786mW VDD_CPU_CV 1196mW/1196mW/1196mW VIN_SYS_5V0 4240mW/4240mW/4240mW\n11-10-2026 20:12:26 RAM 4608/62878MB (lfb 1424x4MB) SWAP 61/2048MB (cached 1MB) CPU [0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201] IGPU_FREQ 0% cpu@48.343C/48.343C soc2@44.625C/44.625C soc0@44.593C/44.656C gpu@42.437C/42.437C tj@48.343C/48.343C soc1@44.531C/44.593C VDD_GPU_SOC 4786mW/4786mW/4786mW VDD_CPU_CV 1197mW/1197mW/1197mW VIN_SYS_5V0 4240mW/4240mW/4240mW\n",
+  "fixed_cpu_clocks": true,
+  "gpu_busy": false,
+  "temperature_limit_c": 85,
+  "accepted": true
+}

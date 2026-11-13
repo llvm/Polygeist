@@ -1,0 +1,81 @@
+{
+ "launches": [
+  {
+   "region_match": "netlib_dsyrk_ut",
+   "binding": {
+    "n": "%arg0",
+    "k": "%arg1",
+    "alpha": "%arg2",
+    "lda": "stride0(%arg5)",
+    "A": "%arg5",
+    "beta": "%arg3",
+    "ldc": "stride0(%arg4)",
+    "C": "%arg4 (in-place)"
+   },
+   "evidence": "netlib_dsyrk_ut: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'k': '%arg1', 'alpha': '%arg2', 'lda': 'stride0(%arg5)', 'A': '%arg5', 'beta': '%arg3', 'ldc': 'stride0(%arg4)', 'C': '%arg4 (in-place)'}; e-graph max 69 nodes, egglog 20.3 ms; dependence checks 7 (reads: input 2, final 0, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dsyrk_ln[transposed], netlib_dsyrk_lt[transposed], netlib_dsyrk_un[transposed]; in-place: C in/out both bound to %arg4"
+  }
+ ],
+ "literal_policy_rejections": [],
+ "alternatives": [],
+ "rejected": [
+  {
+   "spec": "netlib_dsyr2k_un_alpha0",
+   "root": "%8",
+   "why": "unbound parameters ['%k', '%lda', '%A', '%ldb', '%B']"
+  },
+  {
+   "spec": "netlib_dsyrk_un_alpha0",
+   "root": "%8",
+   "why": "unbound parameters ['%k', '%lda', '%A']"
+  }
+ ],
+ "residual_generics": [
+  {
+   "app_generic": "%7",
+   "func": "kernel_syrk",
+   "iters": [
+    "parallel",
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [
+    "netlib_dsyr2k_un#step0",
+    "netlib_dsyr2k_un_alpha0#step0",
+    "netlib_dsyrk_un#step0",
+    "netlib_dsyrk_un_alpha0#step0"
+   ],
+   "n_body_matches": 4,
+   "furthest_dag_stage": {
+    "stage": "matched",
+    "specs": [
+     "netlib_dsyr2k_un_alpha0",
+     "netlib_dsyrk_un_alpha0"
+    ]
+   }
+  },
+  {
+   "app_generic": "%14",
+   "func": "kernel_syrk",
+   "iters": [
+    "parallel",
+    "reduction",
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [
+    "netlib_dsyrk_un#step1",
+    "netlib_dsyrk_un_beta0#step1",
+    "netlib_dsyrk_un_beta1#step0"
+   ],
+   "n_body_matches": 3,
+   "furthest_dag_stage": {
+    "stage": "body",
+    "specs": [
+     "netlib_dsyrk_un",
+     "netlib_dsyrk_un_beta0",
+     "netlib_dsyrk_un_beta1"
+    ]
+   }
+  }
+ ]
+}

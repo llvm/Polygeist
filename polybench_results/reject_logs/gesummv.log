@@ -1,0 +1,180 @@
+
+****************************************
+*** RaiseAffineToLinalgPipeline START ***
+****************************************
+
+Running pipeline...
+
+****************************************
+*** RaiseAffineToLinalg START ***
+****************************************
+
+### Step 1: Applying AffineParallelFission ###
+
+=== AffineParallelFission ===
+Processing affine.parallel:
+affine.parallel (%arg9) = (0) to (symbol(%0)) {
+  %6 = affine.load %arg3[%arg8, %arg9] : memref<?x30xf64>
+  %7 = affine.load %arg6[%arg9] : memref<?xf64>
+  %8 = arith.mulf %6, %7 : f64
+  %9 = affine.load %arg5[%arg8] : memref<?xf64>
+  %10 = arith.addf %8, %9 : f64
+  affine.store %10, %arg5[%arg8] : memref<?xf64>
+  %11 = affine.load %arg4[%arg8, %arg9] : memref<?x30xf64>
+  %12 = affine.load %arg6[%arg9] : memref<?xf64>
+  %13 = arith.mulf %11, %12 : f64
+  %14 = affine.load %arg7[%arg8] : memref<?xf64>
+  %15 = arith.addf %13, %14 : f64
+  affine.store %15, %arg7[%arg8] : memref<?xf64>
+}
+
+=== AffineParallelFission ===
+Processing affine.parallel:
+affine.parallel (%arg8) = (0) to (symbol(%0)) {
+  affine.store %cst, %arg5[%arg8] : memref<?xf64>
+  affine.store %cst, %arg7[%arg8] : memref<?xf64>
+  affine.parallel (%arg9) = (0) to (symbol(%0)) {
+    %6 = affine.load %arg3[%arg8, %arg9] : memref<?x30xf64>
+    %7 = affine.load %arg6[%arg9] : memref<?xf64>
+    %8 = arith.mulf %6, %7 : f64
+    %9 = affine.load %arg5[%arg8] : memref<?xf64>
+    %10 = arith.addf %8, %9 : f64
+    affine.store %10, %arg5[%arg8] : memref<?xf64>
+    %11 = affine.load %arg4[%arg8, %arg9] : memref<?x30xf64>
+    %12 = affine.load %arg6[%arg9] : memref<?xf64>
+    %13 = arith.mulf %11, %12 : f64
+    %14 = affine.load %arg7[%arg8] : memref<?xf64>
+    %15 = arith.addf %13, %14 : f64
+    affine.store %15, %arg7[%arg8] : memref<?xf64>
+  }
+  %1 = affine.load %arg5[%arg8] : memref<?xf64>
+  %2 = arith.mulf %arg1, %1 : f64
+  %3 = affine.load %arg7[%arg8] : memref<?xf64>
+  %4 = arith.mulf %arg2, %3 : f64
+  %5 = arith.addf %2, %4 : f64
+  affine.store %5, %arg7[%arg8] : memref<?xf64>
+}
+### Step 1 Complete ###
+
+### Step 2: Applying AffineParallelToFor ###
+
+=== AffineParallelToFor ===
+Processing affine.parallel:
+affine.parallel (%arg9) = (0) to (symbol(%0)) {
+  %6 = affine.load %arg3[%arg8, %arg9] : memref<?x30xf64>
+  %7 = affine.load %arg6[%arg9] : memref<?xf64>
+  %8 = arith.mulf %6, %7 : f64
+  %9 = affine.load %arg5[%arg8] : memref<?xf64>
+  %10 = arith.addf %8, %9 : f64
+  affine.store %10, %arg5[%arg8] : memref<?xf64>
+  %11 = affine.load %arg4[%arg8, %arg9] : memref<?x30xf64>
+  %12 = affine.load %arg6[%arg9] : memref<?xf64>
+  %13 = arith.mulf %11, %12 : f64
+  %14 = affine.load %arg7[%arg8] : memref<?xf64>
+  %15 = arith.addf %13, %14 : f64
+  affine.store %15, %arg7[%arg8] : memref<?xf64>
+}
+Converting parallel loop with 1 induction variables
+=== AffineParallelToFor SUCCESS ===
+
+
+=== AffineParallelToFor ===
+Processing affine.parallel:
+affine.parallel (%arg8) = (0) to (symbol(%0)) {
+  affine.store %cst, %arg5[%arg8] : memref<?xf64>
+  affine.store %cst, %arg7[%arg8] : memref<?xf64>
+  affine.for %arg9 = 0 to %0 {
+    %6 = affine.load %arg3[%arg8, %arg9] : memref<?x30xf64>
+    %7 = affine.load %arg6[%arg9] : memref<?xf64>
+    %8 = arith.mulf %6, %7 : f64
+    %9 = affine.load %arg5[%arg8] : memref<?xf64>
+    %10 = arith.addf %8, %9 : f64
+    affine.store %10, %arg5[%arg8] : memref<?xf64>
+    %11 = affine.load %arg4[%arg8, %arg9] : memref<?x30xf64>
+    %12 = affine.load %arg6[%arg9] : memref<?xf64>
+    %13 = arith.mulf %11, %12 : f64
+    %14 = affine.load %arg7[%arg8] : memref<?xf64>
+    %15 = arith.addf %13, %14 : f64
+    affine.store %15, %arg7[%arg8] : memref<?xf64>
+  }
+  %1 = affine.load %arg5[%arg8] : memref<?xf64>
+  %2 = arith.mulf %arg1, %1 : f64
+  %3 = affine.load %arg7[%arg8] : memref<?xf64>
+  %4 = arith.mulf %arg2, %3 : f64
+  %5 = arith.addf %2, %4 : f64
+  affine.store %5, %arg7[%arg8] : memref<?xf64>
+}
+Converting parallel loop with 1 induction variables
+=== AffineParallelToFor SUCCESS ===
+
+### Step 2 Complete ###
+
+### Step 3: Applying AffineForOpRaising ###
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg9 = 0 to %0 {
+  %6 = affine.load %arg3[%arg8, %arg9] : memref<?x30xf64>
+  %7 = affine.load %arg6[%arg9] : memref<?xf64>
+  %8 = arith.mulf %6, %7 : f64
+  %9 = affine.load %arg5[%arg8] : memref<?xf64>
+  %10 = arith.addf %8, %9 : f64
+  affine.store %10, %arg5[%arg8] : memref<?xf64>
+  %11 = affine.load %arg4[%arg8, %arg9] : memref<?x30xf64>
+  %12 = affine.load %arg6[%arg9] : memref<?xf64>
+  %13 = arith.mulf %11, %12 : f64
+  %14 = affine.load %arg7[%arg8] : memref<?xf64>
+  %15 = arith.addf %13, %14 : f64
+  affine.store %15, %arg7[%arg8] : memref<?xf64>
+}
+
+Pattern recognition complete:
+  Loads: 6
+  Stores: 2
+  LinalgGenerics: 0
+
+
+========================================
+=== AffineForOpRaising::matchAndRewrite ===
+========================================
+Processing loop:
+affine.for %arg8 = 0 to %0 {
+  affine.store %cst, %arg5[%arg8] : memref<?xf64>
+  affine.store %cst, %arg7[%arg8] : memref<?xf64>
+  affine.for %arg9 = 0 to %0 {
+    %6 = affine.load %arg3[%arg8, %arg9] : memref<?x30xf64>
+    %7 = affine.load %arg6[%arg9] : memref<?xf64>
+    %8 = arith.mulf %6, %7 : f64
+    %9 = affine.load %arg5[%arg8] : memref<?xf64>
+    %10 = arith.addf %8, %9 : f64
+    affine.store %10, %arg5[%arg8] : memref<?xf64>
+    %11 = affine.load %arg4[%arg8, %arg9] : memref<?x30xf64>
+    %12 = affine.load %arg6[%arg9] : memref<?xf64>
+    %13 = arith.mulf %11, %12 : f64
+    %14 = affine.load %arg7[%arg8] : memref<?xf64>
+    %15 = arith.addf %13, %14 : f64
+    affine.store %15, %arg7[%arg8] : memref<?xf64>
+  }
+  %1 = affine.load %arg5[%arg8] : memref<?xf64>
+  %2 = arith.mulf %arg1, %1 : f64
+  %3 = affine.load %arg7[%arg8] : memref<?xf64>
+  %4 = arith.mulf %arg2, %3 : f64
+  %5 = arith.addf %2, %4 : f64
+  affine.store %5, %arg7[%arg8] : memref<?xf64>
+}
+
+REJECTED: Walk was interrupted (invalid operations found)
+
+### Step 3 Complete ###
+
+****************************************
+*** RaiseAffineToLinalg END ***
+****************************************
+
+
+****************************************
+*** RaiseAffineToLinalgPipeline END ***
+****************************************
+

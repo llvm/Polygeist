@@ -1,0 +1,47 @@
+{
+  "kernel": "3mm",
+  "source": "tools/cgeist/Test/polybench/linear-algebra/kernels/3mm/3mm.c",
+  "source_sha256": "5525bcbb6669580d7973c347920ee6962055bedb8d64527502041aa61787ec83",
+  "harness_sha256": "a712f4b262ff11a4e26137a968257c128324cf2f4264da4f1e94e6d787c4118b",
+  "header_sha256": "a4f0c2359510e9f2a8e95730698d851a3d51b33d9cb16921350a5f5992547c9d",
+  "flags": [
+    "-O3",
+    "-I/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/utilities",
+    "-I/home/arjaiswal/Polygeist/issues/fig4_gpu_20261110/3mm",
+    "-DLARGE_DATASET",
+    "-DDATA_TYPE_IS_DOUBLE",
+    "-DPOLYBENCH_TIME"
+  ],
+  "scope": "isolated compiler-generated kernel, explicit ABI test harness",
+  "environment": {
+    "POLYGEIST_ROOT": "/home/arjaiswal/Polygeist",
+    "POLYGEIST_KEEP_WORK": "1",
+    "POLYGEIST_CGEIST_FLAGS": "--no-inline",
+    "POLYGEIST_WRAP_KERNEL_PIPELINE": "0",
+    "POLYGEIST_MINIMAL_CUDA_RUNTIME": "1",
+    "POLYGEIST_SKIP_LINK": "1",
+    "POLYGEIST_POLYBENCH_REPETITIONS": "0",
+    "POLYGEIST_HARNESS_CFLAGS": "-Dmain=polygeist_polybench_iteration",
+    "POLYGEIST_BUILD_WORK_DIR": "/home/arjaiswal/Polygeist/issues/fig4_gpu_20261110/3mm/gpu",
+    "POLYGEIST_LOWER_SUBMAP_BEFORE_DEBUFFERIZE": "auto",
+    "POLYGEIST_GPU_RESIDUAL_FUNCTION": "kernel_3mm",
+    "POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION": "kernel_3mm",
+    "POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS": "1",
+    "POLYGEIST_GPU_REGION_TIMING": "1",
+    "POLYGEIST_GPU_REGION_TIMING_FUNCTION": "kernel_3mm"
+  },
+  "source_build_rc": 0,
+  "matched_calls": [
+    "memset_zero_2D",
+    "cublasDgemm_simple",
+    "memset_zero_2D",
+    "cublasDgemm_simple",
+    "memset_zero_2D",
+    "cublasDgemm_simple"
+  ],
+  "gpu_build_rc": 0,
+  "raised_sha256": "d1508a8e5e70ca7492b492eb0b30345a7c5678bedd32fe1cf2d6ab0e99b27472",
+  "reference_build_rc": 0,
+  "compiler_sha256": "286f0403427585447e5eb846dbe3be1236c320cc3750386a94b598b56e4d1759",
+  "runtime_source_sha256": "04a51e3b79dddaf11c8f10fc2b46c8c1cf37ba6833fc59e4766839cdf1137ff7"
+}

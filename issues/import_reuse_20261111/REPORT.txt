@@ -1,0 +1,26 @@
+Validated reference import reuse — 2026-11-11
+
+Added opt-in --incremental import reuse. Source, upstream, transitive header,
+recipe/toolchain/environment and generated-artifact fingerprints must agree.
+Only entries with successful Affine, Linalg and tensor validation are reused.
+Failed or incomplete entries rerun. Input changes during a build block catalog
+publication. Ordinary full imports and runtime behavior are unchanged.
+
+Frozen 164-entry catalog: warm 16.812s versus full 23.707s, 29.1% less elapsed time; 109 entries reused, 55 fresh.
+Cold cache population took 31.433s. These are shared-host development import
+times, NOT paper compilation-cost results. Uptime is recorded per measurement.
+Cold, warm and forced-full runs produced identical library bytes and identical
+status/numerical-validation records for all 164 entries. This does not mean
+all entries are supported: unsuccessful imports retain their prior status.
+
+Seven focused regression tests pass (including source/header/compiler changes,
+artifact corruption/deletion, rejected incomplete/failed validation and changes
+during build). Four real-reference pilot imports verified selective rebuilds
+after a one-source change and one-artifact corruption, plus identical fresh
+and cached output. Generated runtime --check passes.
+
+Workflow: batch ready references; parallel local application builds; serialize
+GPU measurements; share one common regression result per identical snapshot.
+Keep per-case source and full-output correctness checks. Compiler/validator
+changes invalidate cached entries; compilation-cost measurements omit the flag.
+No commits or pushes. See catalog-results.json, source-state.json and logs.

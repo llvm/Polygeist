@@ -1,0 +1,9 @@
+Jetson Orin sm87, CUDA 12.6, five sequential processes.
+Raised region: three Linalg stages (zero, signed-i8 column reduction, offset subtraction) mapped to CUB DeviceSegmentedReduce with a transform iterator.
+No project-authored GPU compute kernel. Each process validates before timing.
+RESULT kernel=aten_quant_col_offsets_cpu warm_us=18181.215999 resident_us=6463.104000 errors=0 max_error=0 shape=K=1048576_N=48
+RESULT kernel=aten_quant_col_offsets_cpu warm_us=18742.403200 resident_us=6552.096001 errors=0 max_error=0 shape=K=1048576_N=48
+RESULT kernel=aten_quant_col_offsets_cpu warm_us=19265.692801 resident_us=6488.127998 errors=0 max_error=0 shape=K=1048576_N=48
+RESULT kernel=aten_quant_col_offsets_cpu warm_us=20323.436800 resident_us=6536.832001 errors=0 max_error=0 shape=K=1048576_N=48
+RESULT kernel=aten_quant_col_offsets_cpu warm_us=20136.252801 resident_us=6463.744003 errors=0 max_error=0 shape=K=1048576_N=48
+MEDIAN kernel=aten_quant_col_offsets_cpu warm_us=19265.692801 resident_us=6488.127998 mapped_over_resident=2.969376 errors=0 max_error=0

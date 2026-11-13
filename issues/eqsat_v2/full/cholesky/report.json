@@ -1,0 +1,60 @@
+{
+ "launches": [
+  {
+   "region_match": "netlib_dpotf2_u",
+   "binding": {
+    "n": "%arg0",
+    "lda": "stride0(%arg1)",
+    "A": "%arg1 (in-place)"
+   },
+   "evidence": "netlib_dpotf2_u: 2 element equation(s), 2 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1 (in-place)'}; e-graph max 72 nodes, egglog 85.3 ms; dependence checks 49 (reads: input 0, final 5, accumulator 4, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage NOT equivalent (element reads differ on piece [v0 >= 0, p%arg0 - v0 - 1 >= 0, v0 - v1 == 0]: app [\"('in:%arg2', (v1, r0))\", \"('in:%arg2', (v1, v1))\"] vs spec [\"('in:%arg2', (v1, v1))\", \"('out:%arg2', (v1, r0))\"])); also equal: netlib_dpotf2_l[transposed]; in-place: A in/out both bound to %arg1"
+  }
+ ],
+ "literal_policy_rejections": [],
+ "alternatives": [],
+ "rejected": [],
+ "residual_generics": [
+  {
+   "app_generic": "%15",
+   "func": "kernel_cholesky",
+   "iters": [
+    "reduction"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_daxpy_inc",
+     "netlib_dgemv_n_alpha0",
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0",
+     "netlib_dgemv_t_alpha0_beta0",
+     "netlib_dscal_inc"
+    ]
+   }
+  },
+  {
+   "app_generic": "%9",
+   "func": "kernel_cholesky",
+   "iters": [
+    "reduction"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_daxpy_inc",
+     "netlib_dgemv_n_alpha0",
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0",
+     "netlib_dgemv_t_alpha0_beta0",
+     "netlib_dscal_inc"
+    ]
+   }
+  }
+ ]
+}

@@ -1,0 +1,2 @@
+kernel,status,build_rc,run_rc,compare_rc,reference_sha256,candidate_sha256
+trmm,pass,0,0,0,37e750927f621b14fab92806189c63e432666165755f5b7ac540067cd84e7550,cb22e34867d4f35cfb6d51d6f07d2ccf779e336fbd2c5a299acfd079dec878c6

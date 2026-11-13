@@ -1,0 +1,10 @@
+{
+  "git_head": "30e79cf018c83d921a78d8076e643edd7cfd01c4",
+  "python": "3.10.12 (main, Aug 31 2026, 10:18:17) [GCC 11.4.0]",
+  "egglog": "11.4.0",
+  "uptime": "21:53:16 up 447 days,  2:22,  2 users,  load average: 12.08, 11.48, 11.09",
+  "numerical_model": "relaxed",
+  "dataset": "MINI",
+  "target": "host x86_64",
+  "blas_threads": 1
+}

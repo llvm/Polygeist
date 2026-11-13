@@ -1,0 +1,141 @@
+{
+ "launches": [
+  {
+   "spec": "netlib_dgemv_n_beta1",
+   "root": "%22",
+   "func": "kernel_gemver",
+   "binding": {
+    "%m": "%arg0",
+    "%n": "%arg0",
+    "%alpha": "%arg2",
+    "%lda": "stride0(%arg3)",
+    "%A": "%16",
+    "%x": "%7",
+    "%y": "%6"
+   },
+   "generics": {
+    "%9": {
+     "pi": [
+      1,
+      0
+     ],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      1,
+      0
+     ],
+     "app": "%21"
+    }
+   },
+   "consumed_ops": 6
+  },
+  {
+   "spec": "netlib_dgemv_t_beta1",
+   "root": "%32",
+   "func": "kernel_gemver",
+   "binding": {
+    "%m": "%arg0",
+    "%n": "%arg0",
+    "%alpha": "%arg1",
+    "%lda": "stride0(%arg3)",
+    "%A": "%16",
+    "%x": "%26",
+    "%y": "%5"
+   },
+   "generics": {
+    "%8": {
+     "pi": [
+      0,
+      1
+     ],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0,
+      1
+     ],
+     "app": "%31"
+    }
+   },
+   "consumed_ops": 6
+  },
+  {
+   "spec": "netlib_daxpy_inc",
+   "root": "%26",
+   "func": "kernel_gemver",
+   "binding": {
+    "%n": "%arg0",
+    "%da": "literal 1.0",
+    "%dx": "%8",
+    "%incx": "literal 1",
+    "%dy": "%22",
+    "%incy": "literal 1"
+   },
+   "generics": {
+    "%7": {
+     "pi": [
+      0
+     ],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0
+     ],
+     "app": "%25"
+    }
+   },
+   "consumed_ops": 5
+  },
+  {
+   "region_match": "netlib_dger+netlib_dger",
+   "binding": {
+    "1:netlib_dger:m": "%arg0",
+    "1:netlib_dger:n": "%arg0",
+    "1:netlib_dger:alpha": "literal 1.0",
+    "1:netlib_dger:x": "%arg5",
+    "1:netlib_dger:y": "%arg4",
+    "1:netlib_dger:lda": "stride0(%arg3)",
+    "1:netlib_dger:A": "%arg3 (in-place)",
+    "2:netlib_dger:m": "%arg0",
+    "2:netlib_dger:n": "%arg0",
+    "2:netlib_dger:alpha": "literal 1.0",
+    "2:netlib_dger:x": "%arg7",
+    "2:netlib_dger:y": "%arg6",
+    "2:netlib_dger:lda": "stride0(%arg3)",
+    "2:netlib_dger:A": "%arg3 (in-place)"
+   },
+   "evidence": "netlib_dger+netlib_dger: 1 element equation(s), 1 domain piece(s) equal under binding {'1:netlib_dger:m': '%arg0', '1:netlib_dger:n': '%arg0', '1:netlib_dger:alpha': 'literal 1.0', '1:netlib_dger:x': '%arg5', '1:netlib_dger:y': '%arg4', '1:netlib_dger:lda': 'stride0(%arg3)', '1:netlib_dger:A': '%arg3 (in-place)', '2:netlib_dger:m': '%arg0', '2:netlib_dger:n': '%arg0', '2:netlib_dger:alpha': 'literal 1.0', '2:netlib_dger:x': '%arg7', '2:netlib_dger:y': '%arg6', '2:netlib_dger:lda': 'stride0(%arg3)', '2:netlib_dger:A': '%arg3 (in-place)'}; e-graph max 77 nodes, egglog 62.1 ms; dependence checks 2 (reads: input 4, final 0, accumulator 1, scratch-inlined 0); sequential composition netlib_dger ; netlib_dger with link {'A': 'A'} (S1 final values substituted into S2); spec semantics from cgeist-affine/cgeist-affine stages; 1 live-out value(s) re-defined after the launch; also equal: netlib_dger+netlib_dger[literal], netlib_dger+netlib_dger[transposed], netlib_dger+netlib_dger_inc[literal], netlib_dger+netlib_dger_inc[transposed], netlib_dger_inc+netlib_dger[literal], netlib_dger_inc+netlib_dger[transposed], netlib_dger_inc+netlib_dger_inc[literal], netlib_dger_inc+netlib_dger_inc[transposed]; parameter(s) bound to literals {'a:%arg2': 1.0, 'b:%arg2': 1.0} (e-graph union with Term.Lit)"
+  }
+ ],
+ "literal_policy_rejections": [],
+ "alternatives": [],
+ "rejected": [],
+ "residual_generics": [
+  {
+   "app_generic": "%15",
+   "func": "kernel_gemver",
+   "iters": [
+    "parallel",
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_dgemv_n",
+     "netlib_dgemv_n_beta0",
+     "netlib_dgemv_n_beta1",
+     "netlib_dgemv_n_inc",
+     "netlib_dgemv_t",
+     "netlib_dgemv_t_beta0"
+    ]
+   }
+  }
+ ]
+}

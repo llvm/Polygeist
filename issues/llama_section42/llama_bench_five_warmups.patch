@@ -1,0 +1,63 @@
+diff --git a/tools/llama-bench/llama-bench.cpp b/tools/llama-bench/llama-bench.cpp
+index 6de2415..e3e0f84 100644
+--- a/tools/llama-bench/llama-bench.cpp
++++ b/tools/llama-bench/llama-bench.cpp
+@@ -2369,31 +2369,36 @@ int main(int argc, char ** argv) {
+         llama_attach_threadpool(ctx, threadpool, NULL);
+ 
+         // warmup run
+         if (!params.no_warmup) {
+-            if (t.n_prompt > 0) {
+-                if (params.progress) {
+-                    fprintf(stderr, "llama-bench: benchmark %d/%zu: warmup prompt run\n", params_idx, params_count);
++            // Polygeist publication protocol: five full-scope warmup iterations.
++            for (int warmup_i = 0; warmup_i < 5; ++warmup_i) {
++                llama_memory_clear(llama_get_memory(ctx), false);
++                if (t.n_prompt > 0) {
++                    if (params.progress) {
++                        fprintf(stderr, "llama-bench: benchmark %d/%zu: warmup prompt run %d/5\n",
++                                params_idx, params_count, warmup_i + 1);
++                    }
++                    bool res = test_prompt(ctx, t.n_prompt, t.n_batch, t.n_threads);
++                    if (!res) {
++                        fprintf(stderr, "%s: error: failed to run prompt warmup\n", __func__);
++                        llama_free(ctx);
++                        llama_model_free(lmodel);
++                        exit(1);
++                    }
+                 }
+-                //test_prompt(ctx, std::min(t.n_batch, std::min(t.n_prompt, 32)), 0, t.n_batch, t.n_threads);
+-                bool res = test_prompt(ctx, t.n_prompt, t.n_batch, t.n_threads);
+-                if (!res) {
+-                    fprintf(stderr, "%s: error: failed to run prompt warmup\n", __func__);
+-                    llama_free(ctx);
+-                    llama_model_free(lmodel);
+-                    exit(1);
+-                }
+-            }
+-            if (t.n_gen > 0) {
+-                if (params.progress) {
+-                    fprintf(stderr, "llama-bench: benchmark %d/%zu: warmup generation run\n", params_idx, params_count);
+-                }
+-                bool res = test_gen(ctx, 1, t.n_threads);
+-                if (!res) {
+-                    fprintf(stderr, "%s: error: failed to run gen warmup\n", __func__);
+-                    llama_free(ctx);
+-                    llama_model_free(lmodel);
+-                    exit(1);
++                if (t.n_gen > 0) {
++                    if (params.progress) {
++                        fprintf(stderr, "llama-bench: benchmark %d/%zu: warmup generation run %d/5\n",
++                                params_idx, params_count, warmup_i + 1);
++                    }
++                    bool res = test_gen(ctx, t.n_gen, t.n_threads);
++                    if (!res) {
++                        fprintf(stderr, "%s: error: failed to run gen warmup\n", __func__);
++                        llama_free(ctx);
++                        llama_model_free(lmodel);
++                        exit(1);
++                    }
+                 }
+             }
+         }
+ 

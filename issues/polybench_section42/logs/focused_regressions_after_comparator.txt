@@ -1,0 +1,8 @@
+-- Testing: 3 of 177 tests, 3 workers --
+PASS: polygeist :: polygeist-opt/raise-hoist-index-only.mlir (1 of 3)
+PASS: polygeist :: scripts/kernel-match-composition-root-rewire.mlir (2 of 3)
+PASS: polygeist :: runtime/cblas-runtime-compiles.c (3 of 3)
+
+Testing Time: 2.98s
+  Excluded: 174
+  Passed  :   3

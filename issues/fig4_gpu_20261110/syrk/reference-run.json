@@ -1,0 +1,13 @@
+{
+  "kernel": "syrk",
+  "variant": "reference",
+  "rc": 0,
+  "elapsed_s": 13.66606330871582,
+  "sha256": "f6060fc71279211a9d9a008ed41d648e9b79920ef7797808ddd891d9f5aa8a15",
+  "cuda_graph": false,
+  "warmups": 5,
+  "measured": 5,
+  "dump_count": 1,
+  "max_temperature_c": 50.593,
+  "thermal_ok": true
+}

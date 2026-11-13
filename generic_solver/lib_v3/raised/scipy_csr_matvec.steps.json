@@ -1,0 +1,9 @@
+{
+ "recipe": "production",
+ "commands": [
+  "build/bin/cgeist generic_solver/lib_v3/raised/scipy_csr_matvec.c --function=scipy_csr_matvec --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/scipy_csr_matvec.mlir",
+  "build/bin/polygeist-opt '--select-func=func-name=scipy_csr_matvec externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/scipy_csr_matvec.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_linalg.mlir",
+  "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/scipy_csr_matvec_linalg.mlir -o generic_solver/lib_v3/raised/scipy_csr_matvec_debuf.mlir"
+ ],
+ "failure": null
+}

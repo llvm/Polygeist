@@ -1,0 +1,93 @@
+{
+  "routine": "dger",
+  "source": "BLAS/SRC/dger.f:L129-L225 (executable L163-L221)",
+  "specs": [
+    {
+      "name": "netlib_dger",
+      "defines": {
+        "INC_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDger",
+        "fixed_args": {
+          "incx": 1,
+          "incy": 1
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "x",
+        "y",
+        "lda",
+        "A"
+      ],
+      "assumptions": [
+        "alpha != 0 (quick return L182)",
+        "incx == 1, incy == 1"
+      ],
+      "deviations": [
+        "zero-skip guard IF (Y(JY).NE.ZERO) (L194, L209) removed; differs from reference only for NaN/Inf propagation when y(j) == 0"
+      ],
+      "fortran_lines": "L187-L201"
+    },
+    {
+      "name": "netlib_dger_inc",
+      "defines": {
+        "INC_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDger",
+        "fixed_args": {}
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "x",
+        "incx",
+        "y",
+        "incy",
+        "lda",
+        "A"
+      ],
+      "assumptions": [
+        "alpha != 0 (quick return L182)",
+        "incx > 0, incy > 0. Valid for unit increments too: for incx == incy == 1 the reference takes its unit-stride branch, which performs the same per-element arithmetic in the same order (by inspection of the Fortran)"
+      ],
+      "deviations": [
+        "zero-skip guard IF (Y(JY).NE.ZERO) (L194, L209) removed; differs from reference only for NaN/Inf propagation when y(j) == 0"
+      ],
+      "fortran_lines": "L187-L191 + L203-L218"
+    }
+  ],
+  "layout_transpose": {
+    "about": "Declarative layout-transpose equivalences used by the region matcher's launch emitter. A binding that stores the listed rank-2 operands transposed (the spec reads op^T of the memory it is given) is equivalent to the spec whose defines have each listed flag flipped between its two values, with the listed argument pairs swapped (flips first, then swaps). Leading dimensions always follow their array. The transposed operand set must be covered exactly by disjoint rules.",
+    "flags": {},
+    "rules": [
+      {
+        "operands": [
+          "A"
+        ],
+        "flip": [],
+        "swap": [
+          [
+            "m",
+            "n"
+          ],
+          [
+            "x",
+            "y"
+          ],
+          [
+            "incx",
+            "incy"
+          ]
+        ]
+      }
+    ]
+  }
+}

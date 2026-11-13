@@ -1,0 +1,11 @@
+{
+  "name": "interp_value_2d",
+  "rc": 0,
+  "passed": true,
+  "actual_vendor_invocations": 1025,
+  "calls": [
+    "cublasDgemm"
+  ],
+  "program_sha256": "f1f05505da24fa8264a6fe7f0ade7038f7e64cf5fdb0ec96d28b936855646187",
+  "command": "ulimit -s unlimited; LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-interp_value_2d-20261111"
+}

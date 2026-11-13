@@ -1,0 +1,36 @@
+Ternary production validation, 2026-11-11
+
+43 unique targeted ATen cases now validated; addcmul and addcdiv added to 41.
+This is not aggregate paper coverage or Figure 5 native ATen CUDA performance.
+
+Two parameterized references are derived from the pinned ATen CPU scalar bodies
+in PointwiseOpsKernel.cpp. All 20,250 independent upstream C++ versus C reference
+checks pass. Both unchanged application fixtures pass production strict matching,
+ABI lowering, cross-build and real cuDNN execution. EqSat proves application versus
+imported ATen reference; generated vendor opcode semantics are separately trusted
+and tested. No imported cuDNN implementation or EqSat coverage-benefit claim.
+
+All 16 GPU correctness checks pass: 65,536 output values plus inputs and guards,
+normal/edge inputs, two scalar parameter sets, host and resident buffers. All three
+input edge sets vary independently. Finite tolerance: 1e-5 + 1e-4*abs(reference);
+matching NaN class and infinity, signed zero checked. addcmul max abs error 0;
+addcdiv max abs error 3.05175781e-05, within the relative tolerance. No fallback.
+
+Resident timings, min of five synchronized samples after five warmups, tracing
+off in a serialized Orin window:
+  addcmul: raised 0.068414927 ms; direct cuDNN 0.064351082 ms
+  addcdiv: raised 0.068832159 ms; direct cuDNN 0.066528082 ms
+Direct cuDNN is not the native ATen baseline.
+
+Combined import adds these two references and four source-derived FP64 OpenBLAS
+GEMM accumulate variants for the separate MFEM recovery. Catalog: 151 records;
+generated typed calls: 61. All 59 prior CUDA and 14 CPU wrapper functions remain
+byte-identical. All 124 shared tests and all 22 prior match cases pass. Llama
+replay retains 22 calls and byte-identical matched IR; no extra Llama GPU rerun
+for this import-only milestone. Last actual Llama GPU regression is recorded in
+ACTIVATION_REPORT.txt. Earlier 41 ATen GPU results remain frozen, not all rerun.
+
+Evidence: ternary-source-state.json (190 source hashes, two binary hashes),
+ternary-source-snapshot/, ternary-gpu-results.json, ternary-source-validation.json,
+ternary-mfem-regression-tests.log, ternary-mfem-previous-matches.json,
+ternary-mfem-runtime-comparison.json and ternary-mfem-llama-recheck/.

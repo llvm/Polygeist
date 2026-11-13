@@ -1,0 +1,4 @@
+Completed all 43 frozen cases against genuine native ATen CUDA. 41 full normal/edge correctness passes; 2 explicitly diagnosed native/reference semantic differences. 43 fresh raw timing sets; 40 allocation-matched, fully correct comparisons; all 40 slower at existing tiny sizes. RMSNorm raw timings allocation-qualified. GPU reservation released. No shared sources changed, commits or pushes. See REPORT.txt and summary.csv.
+
+Production runtime followup completed (2026-11-11):
+Generic cuTENSOR caching and safe cuDNN direct binding integrated. All 43 frozen fixtures relinked and rerun: 41 strict native passes, 2 unchanged semantic disagreements, 430 raw timing samples. All 40 allocation-matched correct cases faster than the old runtime but still slower than actual native ATen. Both focused safety executables passed 49 complete-buffer checks each. See followup/FINAL_REPORT.txt and followup/production-validation/summary.csv.

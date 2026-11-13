@@ -1,0 +1,31 @@
+{
+ "launches": [],
+ "literal_policy_rejections": [],
+ "alternatives": [],
+ "rejected": [],
+ "residual_generics": [
+  {
+   "app_generic": "%5",
+   "func": "kernel_floyd_warshall",
+   "iters": [
+    "reduction",
+    "parallel",
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_dgemm_nn",
+     "netlib_dgemm_nn_beta0",
+     "netlib_dgemm_nn_beta1",
+     "netlib_dgemm_nt",
+     "netlib_dgemm_nt_beta0",
+     "netlib_dgemm_nt_beta1"
+    ]
+   }
+  }
+ ]
+}

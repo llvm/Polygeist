@@ -1,0 +1,46 @@
+/* aten::conv2d, NCHW, stride 1, valid padding. */
+#ifndef B
+#define B 2
+#endif
+#ifndef IC
+#define IC 4
+#endif
+#ifndef OC
+#define OC 8
+#endif
+#ifndef H
+#define H 16
+#endif
+#ifndef W
+#define W 16
+#endif
+#ifndef KH
+#define KH 3
+#endif
+#ifndef KW
+#define KW 3
+#endif
+#define OH (H - KH + 1)
+#define OW (W - KW + 1)
+
+void aten_conv2d(float input[B][IC][H][W],
+                 float filter[OC][IC][KH][KW],
+                 float output[B][OC][OH][OW]) {
+#pragma scop
+  for (int b = 0; b < B; ++b)
+    for (int oc = 0; oc < OC; ++oc)
+      for (int oh = 0; oh < OH; ++oh)
+        for (int ow = 0; ow < OW; ++ow)
+          output[b][oc][oh][ow] = 0.0f;
+  for (int b = 0; b < B; ++b)
+    for (int oc = 0; oc < OC; ++oc)
+      for (int oh = 0; oh < OH; ++oh)
+        for (int ow = 0; ow < OW; ++ow)
+          for (int ic = 0; ic < IC; ++ic)
+            for (int kh = 0; kh < KH; ++kh)
+              for (int kw = 0; kw < KW; ++kw)
+                output[b][oc][oh][ow] +=
+                    input[b][ic][oh + kh][ow + kw] *
+                    filter[oc][ic][kh][kw];
+#pragma endscop
+}

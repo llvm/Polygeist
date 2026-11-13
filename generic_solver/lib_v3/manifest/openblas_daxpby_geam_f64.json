@@ -1,0 +1,72 @@
+{
+  "routine": "openblas_daxpby_geam_f64",
+  "source": "OpenBLAS 0.3.31 (BSD-3), ~/netlib_ref/openblas-0.3.31 SHA256SUMS; interface/axpby.c, kernel/arm/axpby.c",
+  "specs": [
+    {
+      "name": "openblas_daxpby_geam_f64",
+      "defines": {
+        "BETA_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgeam",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "typed_c_wrapper",
+          "entry": "polygeist_cublas_geam_vector_f64",
+          "arguments": [
+            "n",
+            "alpha",
+            "x",
+            "beta",
+            "y"
+          ],
+          "arrays": {
+            "x": [
+              "n"
+            ],
+            "y": [
+              "n"
+            ]
+          },
+          "bounds": {
+            "n": {
+              "min": 1,
+              "max": 2147483647
+            }
+          },
+          "alias_policy": "disjoint"
+        },
+        "notes": "Closed vendor API equivalent: an n-by-1 column-major GEAM; C aliases B, transb=N, and ldc=ldb=n. Exact FP64 storage. API contract: https://docs.nvidia.com/cuda/archive/12.6.0/cublas/index.html#cublas-t-geam"
+      },
+      "args": [
+        "n",
+        "alpha",
+        "x",
+        "beta",
+        "y"
+      ],
+      "assumptions": [
+        "alpha != 0",
+        "incx == 1, incy == 1",
+        "beta != 0"
+      ],
+      "deviations": [],
+      "source_lines": "interface/axpby.c:L57-L64 + kernel/arm/axpby.c:L31-L94"
+    }
+  ],
+  "ref_c": "openblas_daxpby.c",
+  "upstream_files": [
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/interface/axpby.c",
+      "sha256": "6950df7d9a806ca12f7a1fd6c3de377a9c0ec4c545a2ceae5cd3399e6864395f"
+    },
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/kernel/arm/axpby.c",
+      "sha256": "11feca3c0ccdcee1f6c34c5ccaec45defd24cd344674b7311bb5b6c268dfaabc"
+    }
+  ]
+}

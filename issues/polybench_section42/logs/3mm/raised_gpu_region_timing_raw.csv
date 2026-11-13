@@ -1,0 +1,7 @@
+sample,role,run_status,compute_device_ms,memory_device_ms,e2e_host_ms,markers
+0,warmup_discarded,pass,475.443481,78.630624,554.506688,60
+1,accepted,pass,477.870972,73.411648,551.739424,60
+2,accepted,pass,471.498535,73.839776,545.708608,60
+3,accepted,pass,476.426514,81.809632,559.295488,60
+4,accepted,pass,480.120728,73.128352,553.739744,60
+5,accepted,pass,476.892487,79.073185,556.441696,60

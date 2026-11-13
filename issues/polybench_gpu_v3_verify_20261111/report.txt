@@ -1,0 +1,30 @@
+Current-v3 PolyBench GPU Figure4 verification — 2026-11-11
+
+FP64 LARGE; canonical C initialization and complete output arrays.
+Five warmups, five samples, minimum CUDA-event compute device interval.
+Allocation and initial/final transfers are excluded from device compute; asynchronous submission wall time, transfers and synchronized end-to-end host time are retained separately.
+Fresh source-imported v3 specifications, shared Linalg/region matching, typed ABI lowering, and generic GPU residual-loop lowering.
+Explicit ABI harnesses; isolated-kernel reproduction, not untouched whole-program compilation.
+
+kernel       paper ms     raised ms    native ms    speedup   paper speedup  status
+2mm             48.9197      48.9935      71.8631    1.467x    1.466x  PASS
+3mm             82.5134      82.7505      82.3499    0.995x    0.998x  PASS
+atax             0.5927       0.5587       2.3881    4.275x    4.025x  PASS
+bicg             0.5767       0.5588       2.2321    3.995x    3.834x  PASS
+correlation    306.3729      63.5620     319.5280    5.027x    1.048x  PASS
+covariance     128.2392      63.6511     331.5439    5.209x    2.583x  PASS
+gemm            40.2203      40.2788      74.9292    1.860x    1.860x  PASS
+gemver          15.0733       1.2984       2.6561    2.046x    0.175x  PASS
+gesummv          0.4402       0.3071       0.8772    2.856x    1.982x  PASS
+mvt              0.9506       0.9355       2.1474    2.295x    2.242x  PASS
+syr2k           41.8539      41.9125     207.9358    4.961x    4.963x  PASS
+syrk            22.7000      22.7581      83.5020    3.669x    3.674x  PASS
+
+Correctness: every canonical output element must satisfy abs(actual-reference)<=1e-8+1e-8*abs(reference). Missing/wrong-size/nonfinite output arrays are rejected.
+Vendor execution is checked in a separate run of the exact timed binary. Its timing is not used for the headline comparison. Runtime traces must show zero staged host/device bytes.
+Correlation/covariance baselines are the paper’s locally authored CUDA adaptations; other computational CUDA bodies come from pinned PolyBenchGPU 5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c.
+No historical lowered kernels or executable timings are used for current-v3 results.
+Board clocks/power/load/temperatures and raw samples are retained per run. Fan remains automatic; fixed-fan publication protocol is therefore not fully satisfied.
+Generic integration: CUDA ABI declarations carry polygeist.gpu_runtime; GPU residency/timing consume that promise. This does not authorize graph capture.
+Shared implementation checks: six GPU compiler regression files plus the shared Python pipeline/ABI/import suite; exact final counts are in retained logs.
+No commits or pushes performed in this campaign.

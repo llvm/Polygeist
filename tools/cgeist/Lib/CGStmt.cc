@@ -19,6 +19,33 @@
 using namespace mlir;
 using namespace mlir::arith;
 
+static mlir::Value castIntegerToWidth(mlir::Location loc, mlir::Value value,
+                                      mlir::IntegerType dstTy,
+                                      mlir::OpBuilder &builder) {
+  auto srcTy = value.getType().cast<mlir::IntegerType>();
+  if (srcTy == dstTy)
+    return value;
+  if (srcTy.getWidth() < dstTy.getWidth())
+    return builder.create<ExtUIOp>(loc, dstTy, value);
+  return builder.create<TruncIOp>(loc, dstTy, value);
+}
+
+static bool compatibleMemRefCast(mlir::MemRefType srcTy,
+                                 mlir::MemRefType dstTy) {
+  if (srcTy.getElementType() != dstTy.getElementType() ||
+      srcTy.getMemorySpace() != dstTy.getMemorySpace() ||
+      srcTy.getRank() != dstTy.getRank())
+    return false;
+  for (int64_t i = 0; i < srcTy.getRank(); ++i) {
+    if (srcTy.getDimSize(i) == dstTy.getDimSize(i))
+      continue;
+    if (srcTy.isDynamicDim(i) || dstTy.isDynamicDim(i))
+      continue;
+    return false;
+  }
+  return true;
+}
+
 static bool isTerminator(Operation *op) {
   return op->mightHaveTrait<OpTrait::IsTerminator>();
 }
@@ -249,24 +276,7 @@ ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
     if (auto *s = fors->getCond()) {
       auto condRes = Visit(s);
       auto cond = condRes.getValue(loc, builder);
-      if (auto mt = dyn_cast<mlir::MemRefType>(cond.getType())) {
-        cond = builder.create<polygeist::Memref2PointerOp>(
-            loc,
-            LLVM::LLVMPointerType::get(mt.getElementType(),
-                                       mt.getMemorySpaceAsInt()),
-            cond);
-      }
-      if (auto LT = dyn_cast<mlir::LLVM::LLVMPointerType>(cond.getType())) {
-        auto nullptr_llvm = builder.create<mlir::LLVM::ZeroOp>(loc, LT);
-        cond = builder.create<mlir::LLVM::ICmpOp>(
-            loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
-      }
-      auto ty = cond.getType().cast<mlir::IntegerType>();
-      if (ty.getWidth() != 1) {
-        cond = builder.create<arith::CmpIOp>(
-            loc, CmpIPredicate::ne, cond,
-            builder.create<ConstantIntOp>(loc, 0, ty));
-      }
+      cond = castScalarToBool(loc, cond);
       auto nb = builder.create<mlir::memref::LoadOp>(
           loc, lctx.noBreak, std::vector<mlir::Value>());
       cond = builder.create<AndIOp>(loc, cond, nb);
@@ -342,17 +352,7 @@ ValueCategory MLIRScanner::VisitCXXForRangeStmt(clang::CXXForRangeStmt *fors) {
   if (auto *s = fors->getCond()) {
     auto condRes = Visit(s);
     auto cond = condRes.getValue(loc, builder);
-    if (auto LT = dyn_cast<mlir::LLVM::LLVMPointerType>(cond.getType())) {
-      auto nullptr_llvm = builder.create<mlir::LLVM::ZeroOp>(loc, LT);
-      cond = builder.create<mlir::LLVM::ICmpOp>(
-          loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
-    }
-    auto ty = cond.getType().cast<mlir::IntegerType>();
-    if (ty.getWidth() != 1) {
-      cond = builder.create<arith::CmpIOp>(
-          loc, CmpIPredicate::ne, cond,
-          builder.create<ConstantIntOp>(loc, 0, ty));
-    }
+    cond = castScalarToBool(loc, cond);
     auto nb = builder.create<mlir::memref::LoadOp>(loc, lctx.noBreak,
                                                    std::vector<mlir::Value>());
     cond = builder.create<AndIOp>(loc, cond, nb);
@@ -742,17 +742,7 @@ ValueCategory MLIRScanner::VisitDoStmt(clang::DoStmt *fors) {
   if (auto *s = fors->getCond()) {
     auto condRes = Visit(s);
     auto cond = condRes.getValue(loc, builder);
-    if (auto LT = dyn_cast<mlir::LLVM::LLVMPointerType>(cond.getType())) {
-      auto nullptr_llvm = builder.create<mlir::LLVM::ZeroOp>(loc, LT);
-      cond = builder.create<mlir::LLVM::ICmpOp>(
-          loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
-    }
-    auto ty = cond.getType().cast<mlir::IntegerType>();
-    if (ty.getWidth() != 1) {
-      cond = builder.create<arith::CmpIOp>(
-          loc, CmpIPredicate::ne, cond,
-          builder.create<ConstantIntOp>(loc, 0, ty));
-    }
+    cond = castScalarToBool(loc, cond);
     auto nb = builder.create<mlir::memref::LoadOp>(loc, loops.back().noBreak,
                                                    std::vector<mlir::Value>());
     cond = builder.create<AndIOp>(loc, cond, nb);
@@ -805,17 +795,7 @@ ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *stmt) {
   if (auto *s = stmt->getCond()) {
     auto condRes = Visit(s);
     auto cond = condRes.getValue(loc, builder);
-    if (auto LT = dyn_cast<mlir::LLVM::LLVMPointerType>(cond.getType())) {
-      auto nullptr_llvm = builder.create<mlir::LLVM::ZeroOp>(loc, LT);
-      cond = builder.create<mlir::LLVM::ICmpOp>(
-          loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
-    }
-    auto ty = cond.getType().cast<mlir::IntegerType>();
-    if (ty.getWidth() != 1) {
-      cond = builder.create<arith::CmpIOp>(
-          loc, CmpIPredicate::ne, cond,
-          builder.create<ConstantIntOp>(loc, 0, ty));
-    }
+    cond = castScalarToBool(loc, cond);
     auto nb = builder.create<mlir::memref::LoadOp>(loc, loops.back().noBreak,
                                                    std::vector<mlir::Value>());
     cond = builder.create<AndIOp>(loc, cond, nb);
@@ -849,25 +829,7 @@ ValueCategory MLIRScanner::VisitIfStmt(clang::IfStmt *stmt) {
 
   auto oldpoint = builder.getInsertionPoint();
   auto *oldblock = builder.getInsertionBlock();
-  if (auto LT = dyn_cast<MemRefType>(cond.getType())) {
-    cond = builder.create<polygeist::Memref2PointerOp>(
-        loc, LLVM::LLVMPointerType::get(builder.getI8Type()), cond);
-  }
-  if (auto LT = dyn_cast<mlir::LLVM::LLVMPointerType>(cond.getType())) {
-    auto nullptr_llvm = builder.create<mlir::LLVM::ZeroOp>(loc, LT);
-    cond = builder.create<mlir::LLVM::ICmpOp>(
-        loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
-  }
-  if (!cond.getType().isa<mlir::IntegerType>()) {
-    stmt->dump();
-    llvm::errs() << " cond: " << cond << " ct: " << cond.getType() << "\n";
-  }
-  auto prevTy = cond.getType().cast<mlir::IntegerType>();
-  if (!prevTy.isInteger(1)) {
-    cond = builder.create<arith::CmpIOp>(
-        loc, CmpIPredicate::ne, cond,
-        builder.create<ConstantIntOp>(loc, 0, prevTy));
-  }
+  cond = castScalarToBool(loc, cond);
   bool hasElseRegion = stmt->getElse();
   auto ifOp = builder.create<mlir::scf::IfOp>(loc, cond, hasElseRegion);
 
@@ -1167,7 +1129,7 @@ ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
       if (auto prevTy = dyn_cast<mlir::IntegerType>(val.getType())) {
         auto ipostTy = postTy.cast<mlir::IntegerType>();
         if (prevTy != ipostTy) {
-          val = builder.create<arith::TruncIOp>(loc, ipostTy, val);
+          val = castIntegerToWidth(loc, val, ipostTy, builder);
         }
       } else if (val.getType().isa<MemRefType>() &&
                  postTy.isa<LLVM::LLVMPointerType>())
@@ -1175,6 +1137,12 @@ ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
       else if (val.getType().isa<LLVM::LLVMPointerType>() &&
                postTy.isa<MemRefType>())
         val = builder.create<polygeist::Pointer2MemrefOp>(loc, postTy, val);
+      else if (auto valMemRefTy = dyn_cast<MemRefType>(val.getType())) {
+        if (auto postMemRefTy = dyn_cast<MemRefType>(postTy)) {
+          if (compatibleMemRefCast(valMemRefTy, postMemRefTy))
+            val = builder.create<memref::CastOp>(loc, postTy, val);
+        }
+      }
       if (postTy != val.getType()) {
         stmt->dump();
         llvm::errs() << " val: " << val << " postTy: " << postTy

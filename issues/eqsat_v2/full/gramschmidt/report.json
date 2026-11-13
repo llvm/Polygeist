@@ -1,0 +1,65 @@
+{
+ "launches": [],
+ "literal_policy_rejections": [],
+ "alternatives": [],
+ "rejected": [],
+ "residual_generics": [
+  {
+   "app_generic": "op8",
+   "func": "kernel_gramschmidt",
+   "iters": [
+    "reduction"
+   ],
+   "form": "memref",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": null
+  },
+  {
+   "app_generic": "op18",
+   "func": "kernel_gramschmidt",
+   "iters": [
+    "parallel"
+   ],
+   "form": "memref",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": null
+  },
+  {
+   "app_generic": "op22",
+   "func": "kernel_gramschmidt",
+   "iters": [
+    "parallel"
+   ],
+   "form": "memref",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": null
+  },
+  {
+   "app_generic": "op31",
+   "func": "kernel_gramschmidt",
+   "iters": [
+    "parallel",
+    "reduction"
+   ],
+   "form": "memref",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": null
+  },
+  {
+   "app_generic": "op42",
+   "func": "kernel_gramschmidt",
+   "iters": [
+    "parallel",
+    "parallel"
+   ],
+   "form": "memref",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": null
+  }
+ ]
+}

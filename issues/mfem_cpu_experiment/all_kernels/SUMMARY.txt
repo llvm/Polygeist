@@ -1,0 +1,92 @@
+* convection_2d
+    matcher launches : 5xcutensornetContraction2_f64
+    after composition: 1xcutensornetContraction2_f64_physical 2xcutensornetNetwork_f64_n3   residual linalg.generic: 8
+    validation       : loops=PASS(3.4694469519536142e-18), openblas=PASS(3.4694469519536142e-18), xsmm=PASS(8.6736173798840355e-19)
+    median/min us    : vanilla_c 610/599; loops 2588/2354 (0.24x); openblas 2624/2277 (0.23x); xsmm 2514/2362 (0.24x); xsmm_noslice 2607/2274 (0.23x)
+* convection_3d
+    matcher launches : 10xcutensornetContraction2_f64
+    after composition: 5xcutensornetContraction2_f64_physical 1xcutensornetNetwork_f64_n3 1xcutensornetNetwork_f64_n4   residual linalg.generic: 13
+    validation       : loops=PASS(3.4694469519536142e-18), openblas=PASS(3.4694469519536142e-18), xsmm=PASS(3.4694469519536142e-18)
+    median/min us    : vanilla_c 3680/3390; loops 18904/18550 (0.19x); openblas 16425/16012 (0.22x); xsmm 16237/15804 (0.23x); xsmm_noslice 19186/18831 (0.19x)
+* curlcurl_2d
+    matcher launches : 5xcutensornetContraction2_f64
+    after composition: 1xcutensornetContraction2_f64_physical 2xcutensornetNetwork_f64_n3   residual linalg.generic: 13
+    validation       : loops=PASS(6.9388939039072284e-18), openblas=PASS(6.9388939039072284e-18), xsmm=PASS(6.9388939039072284e-18)
+    median/min us    : vanilla_c 798/776; loops 2937/2692 (0.27x); openblas 3059/2915 (0.26x); xsmm 2726/2362 (0.29x); xsmm_noslice 2980/2905 (0.27x)
+* curlcurl_3d
+    matcher launches : 29xcutensornetContraction2_f64
+    after composition: 5xcutensornetContraction2_f64_physical 6xcutensornetNetwork_f64_n3 4xcutensornetNetwork_f64_n4   residual linalg.generic: 44
+    validation       : loops=PASS(1.3877787807814457e-17), openblas=PASS(1.3877787807814457e-17), xsmm=PASS(1.3877787807814457e-17)
+    median/min us    : vanilla_c 10970/10669; loops 56546/55089 (0.19x); openblas 49954/47438 (0.22x); xsmm 48246/46366 (0.23x); xsmm_noslice 53528/52190 (0.20x)
+* diffusion_2d
+    matcher launches : 6xcutensornetContraction2_f64
+    after composition: 2xcutensornetContraction2_f64_physical 2xcutensornetNetwork_f64_n3   residual linalg.generic: 11
+    validation       : loops=PASS(1.3877787807814457e-17), openblas=PASS(1.3877787807814457e-17), xsmm=PASS(1.3877787807814457e-17)
+    median/min us    : vanilla_c 955/945; loops 3384/3066 (0.28x); openblas 3346/3213 (0.29x); xsmm 3084/2861 (0.31x); xsmm_noslice 3358/3288 (0.28x)
+* diffusion_3d
+    matcher launches : 14xcutensornetContraction2_f64
+    after composition: 5xcutensornetContraction2_f64_physical 3xcutensornetNetwork_f64_n3 1xcutensornetNetwork_f64_n4   residual linalg.generic: 21
+    validation       : loops=PASS(3.4694469519536142e-18), openblas=PASS(3.4694469519536142e-18), xsmm=PASS(3.4694469519536142e-18)
+    median/min us    : vanilla_c 6347/5773; loops 29770/27916 (0.21x); openblas 25447/24091 (0.25x); xsmm 24380/23548 (0.26x); xsmm_noslice 27927/27261 (0.23x)
+* divdiv_2d
+    matcher launches : 6xcutensornetContraction2_f64
+    after composition: 2xcutensornetContraction2_f64_physical 2xcutensornetNetwork_f64_n3   residual linalg.generic: 12
+    validation       : loops=PASS(1.7347234759768071e-18), openblas=PASS(1.7347234759768071e-18), xsmm=PASS(1.7347234759768071e-18)
+    median/min us    : vanilla_c 860/804; loops 3146/2976 (0.27x); openblas 3327/3144 (0.26x); xsmm 2798/2645 (0.31x); xsmm_noslice 3268/3219 (0.26x)
+* divdiv_3d
+    matcher launches : 12xcutensornetContraction2_f64
+    after composition: 3xcutensornetContraction2_f64_physical 3xcutensornetNetwork_f64_n4   residual linalg.generic: 21
+    validation       : loops=PASS(5.5511151231257827e-17), openblas=PASS(5.5511151231257827e-17), xsmm=PASS(5.5511151231257827e-17)
+    median/min us    : vanilla_c 2894/2751; loops 20154/19753 (0.14x); openblas 18150/17799 (0.16x); xsmm 17942/17129 (0.16x); xsmm_noslice 19701/19050 (0.15x)
+* integrate_grad_2d
+    matcher launches : 4xcutensornetContraction2_f64
+    after composition: 2xcutensornetNetwork_f64_n3   residual linalg.generic: 5
+    validation       : loops=PASS(0), openblas=PASS(0), xsmm=PASS(2.7755575615628914e-17)
+    median/min us    : vanilla_c 438/418; loops 1601/1565 (0.27x); openblas 1542/1282 (0.28x); xsmm 1480/1375 (0.30x); xsmm_noslice 1593/1512 (0.28x)
+* integrate_grad_3d
+    matcher launches : 9xcutensornetContraction2_f64
+    after composition: 3xcutensornetNetwork_f64_n4   residual linalg.generic: 10
+    validation       : loops=PASS(2.7755575615628914e-17), openblas=PASS(2.7755575615628914e-17), xsmm=PASS(2.7755575615628914e-17)
+    median/min us    : vanilla_c 2924/2885; loops 9888/9717 (0.30x); openblas 6889/6457 (0.42x); xsmm 6417/6090 (0.46x); xsmm_noslice 7749/7290 (0.38x)
+* integrate_value_2d
+    matcher launches : 1xcutensornetContraction2_f64
+    after composition: 1xcutensornetContraction2_f64_physical   residual linalg.generic: 2
+    validation       : loops=PASS(5.5511151231257827e-17), openblas=PASS(5.5511151231257827e-17), xsmm=PASS(5.5511151231257827e-17)
+    median/min us    : vanilla_c 194/192; loops 1073/928 (0.18x); openblas 953/650 (0.20x); xsmm 1016/656 (0.19x); xsmm_noslice 1089/953 (0.18x)
+* integrate_value_3d
+    matcher launches : 2xcutensornetContraction2_f64
+    after composition: 1xcutensornetNetwork_f64_n4   residual linalg.generic: 2
+    validation       : loops=PASS(2.7755575615628914e-17), openblas=PASS(2.7755575615628914e-17), xsmm=PASS(2.7755575615628914e-17)
+    median/min us    : vanilla_c 374/347; loops 2039/1700 (0.18x); openblas 1013/877 (0.37x); xsmm 867/544 (0.43x); xsmm_noslice 1462/1161 (0.26x)
+* interp_grad_2d
+    matcher launches : 4xcutensornetContraction2_f64
+    after composition: 2xcutensornetContraction2_f64 2xcutensornetContraction2_f64_physical   residual linalg.generic: 4
+    validation       : loops=PASS(0), openblas=PASS(0), xsmm=PASS(3.4694469519536142e-18)
+    median/min us    : vanilla_c 395/380; loops 2871/2764 (0.14x); openblas 2910/2539 (0.14x); xsmm 2844/2646 (0.14x); xsmm_noslice 2941/2547 (0.13x)
+* interp_grad_3d
+    matcher launches : 8xcutensornetContraction2_f64
+    after composition: 3xcutensornetContraction2_f64 3xcutensornetContraction2_f64_physical 1xcutensornetNetwork_f64_n3   residual linalg.generic: 8
+    validation       : loops=PASS(0), openblas=PASS(0), xsmm=PASS(0)
+    median/min us    : vanilla_c 2124/2042; loops 25814/24170 (0.08x); openblas 23974/22048 (0.09x); xsmm 23955/21744 (0.09x); xsmm_noslice 26526/23912 (0.08x)
+* interp_value_2d
+    matcher launches : 2xcutensornetContraction2_f64
+    after composition: 1xcutensornetContraction2_f64 1xcutensornetContraction2_f64_physical   residual linalg.generic: 2
+    validation       : loops=PASS(0), openblas=PASS(0), xsmm=PASS(5.2041704279304213e-18)
+    median/min us    : vanilla_c 48/40; loops 1391/1307 (0.03x); openblas 1356/1323 (0.04x); xsmm 1320/1105 (0.04x); xsmm_noslice 1448/1120 (0.03x)
+* interp_value_3d
+    matcher launches : 3xcutensornetContraction2_f64
+    after composition: 1xcutensornetContraction2_f64 1xcutensornetNetwork_f64_n3   residual linalg.generic: 3
+    validation       : loops=PASS(0), openblas=PASS(0), xsmm=PASS(0)
+    median/min us    : vanilla_c 376/370; loops 7412/7055 (0.05x); openblas 6829/6567 (0.06x); xsmm 15491/6746 (0.02x); xsmm_noslice 7918/7475 (0.05x)
+* mass_2d
+    matcher launches : 3xcutensornetContraction2_f64
+    after composition: 1xcutensornetNetwork_f64_n6   residual linalg.generic: 3
+    validation       : loops=PASS(1.3877787807814457e-17), openblas=PASS(1.3877787807814457e-17), xsmm=PASS(1.3877787807814457e-17)
+    median/min us    : vanilla_c 563/529; loops 946/588 (0.59x); openblas 680/355 (0.83x); xsmm 632/497 (0.89x); xsmm_noslice 567/238 (0.99x)
+* mass_3d
+    matcher launches : 5xcutensornetContraction2_f64
+    after composition: 1xcutensornetNetwork_f64_n8   residual linalg.generic: 5
+    validation       : loops=PASS(1.7347234759768071e-18), openblas=PASS(1.7347234759768071e-18), xsmm=PASS(1.7347234759768071e-18)
+    median/min us    : vanilla_c 1656/1614; loops 3347/3014 (0.49x); openblas 1461/1342 (1.13x); xsmm 1199/1131 (1.38x); xsmm_noslice 2306/2118 (0.72x)
+
+speedup = plain-C median / variant median (>1 means faster than plain C)

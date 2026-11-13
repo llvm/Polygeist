@@ -1,0 +1,44 @@
+{
+  "kernel": "2mm",
+  "source": "tools/cgeist/Test/polybench/linear-algebra/kernels/2mm/2mm.c",
+  "source_sha256": "3ead555767a84951ca6f7b2cb5dbab2f67c1dc7259ebf781447a0ab37cd63a3c",
+  "harness_sha256": "ba0f36049efa64abb54c0256ddcdfcabf4c28c0db3150b9f7b9203a208afb646",
+  "header_sha256": "3cb7a59a5d385f6154f259e4187f6e733568f8dac7a85ae02b4795af00bb6559",
+  "flags": [
+    "-O3",
+    "-I/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/utilities",
+    "-I/home/arjaiswal/Polygeist/issues/fig4_gpu_20261110/2mm",
+    "-DLARGE_DATASET",
+    "-DDATA_TYPE_IS_DOUBLE",
+    "-DPOLYBENCH_TIME"
+  ],
+  "scope": "isolated compiler-generated kernel, explicit ABI test harness",
+  "environment": {
+    "POLYGEIST_ROOT": "/home/arjaiswal/Polygeist",
+    "POLYGEIST_KEEP_WORK": "1",
+    "POLYGEIST_CGEIST_FLAGS": "--no-inline",
+    "POLYGEIST_WRAP_KERNEL_PIPELINE": "0",
+    "POLYGEIST_MINIMAL_CUDA_RUNTIME": "1",
+    "POLYGEIST_SKIP_LINK": "1",
+    "POLYGEIST_POLYBENCH_REPETITIONS": "0",
+    "POLYGEIST_HARNESS_CFLAGS": "-Dmain=polygeist_polybench_iteration",
+    "POLYGEIST_BUILD_WORK_DIR": "/home/arjaiswal/Polygeist/issues/fig4_gpu_20261110/2mm/gpu",
+    "POLYGEIST_LOWER_SUBMAP_BEFORE_DEBUFFERIZE": "auto",
+    "POLYGEIST_GPU_RESIDUAL_FUNCTION": "kernel_2mm",
+    "POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION": "kernel_2mm",
+    "POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS": "1",
+    "POLYGEIST_GPU_REGION_TIMING": "1",
+    "POLYGEIST_GPU_REGION_TIMING_FUNCTION": "kernel_2mm"
+  },
+  "source_build_rc": 0,
+  "matched_calls": [
+    "memset_zero_2D",
+    "cublasDgemm_alpha_only",
+    "cublasDgemm"
+  ],
+  "gpu_build_rc": 0,
+  "raised_sha256": "622987f811fe5dcb18ec5857b2a8deab8df0c2ad661d0b6d6ffca3ea2ed12fb4",
+  "reference_build_rc": 0,
+  "compiler_sha256": "286f0403427585447e5eb846dbe3be1236c320cc3750386a94b598b56e4d1759",
+  "runtime_source_sha256": "04a51e3b79dddaf11c8f10fc2b46c8c1cf37ba6833fc59e4766839cdf1137ff7"
+}

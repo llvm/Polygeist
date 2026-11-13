@@ -1,0 +1,181 @@
+{
+ "launches": [
+  {
+   "spec": "netlib_dgemm_nn_beta0",
+   "root": "%19",
+   "func": "kernel_3mm",
+   "binding": {
+    "%m": "%arg1",
+    "%n": "%arg0",
+    "%k": "%arg2",
+    "%alpha": "literal 1.0",
+    "%lda": "stride0(%arg7)",
+    "%A": "%2",
+    "%ldb": "stride0(%arg6)",
+    "%B": "%1",
+    "%ldc": "stride0(%arg5)",
+    "%C": "%0"
+   },
+   "generics": {
+    "%12": {
+     "pi": [
+      0,
+      1
+     ],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0,
+      2,
+      1
+     ],
+     "app": "%18"
+    },
+    "%7": {
+     "pi": [],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0,
+      1
+     ],
+     "app": "%13"
+    }
+   },
+   "consumed_ops": 11
+  },
+  {
+   "spec": "netlib_dgemm_nn_beta0",
+   "root": "%28",
+   "func": "kernel_3mm",
+   "binding": {
+    "%m": "%arg3",
+    "%n": "%arg1",
+    "%k": "%arg4",
+    "%alpha": "literal 1.0",
+    "%lda": "stride0(%arg10)",
+    "%A": "%5",
+    "%ldb": "stride0(%arg9)",
+    "%B": "%4",
+    "%ldc": "stride0(%arg8)",
+    "%C": "%3"
+   },
+   "generics": {
+    "%12": {
+     "pi": [
+      0,
+      1
+     ],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0,
+      2,
+      1
+     ],
+     "app": "%27"
+    },
+    "%7": {
+     "pi": [],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0,
+      1
+     ],
+     "app": "%22"
+    }
+   },
+   "consumed_ops": 11
+  },
+  {
+   "spec": "netlib_dgemm_nn_beta0",
+   "root": "%37",
+   "func": "kernel_3mm",
+   "binding": {
+    "%m": "%arg3",
+    "%n": "%arg0",
+    "%k": "%arg1",
+    "%alpha": "literal 1.0",
+    "%lda": "stride0(%arg8)",
+    "%A": "%28",
+    "%ldb": "stride0(%arg5)",
+    "%B": "%19",
+    "%ldc": "stride0(%arg11)",
+    "%C": "%6"
+   },
+   "generics": {
+    "%12": {
+     "pi": [
+      0,
+      1
+     ],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0,
+      2,
+      1
+     ],
+     "app": "%36"
+    },
+    "%7": {
+     "pi": [],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0,
+      1
+     ],
+     "app": "%31"
+    }
+   },
+   "consumed_ops": 11
+  }
+ ],
+ "literal_policy_rejections": [],
+ "alternatives": [
+  "netlib_dgemm_nn_beta1@%19",
+  "netlib_dgemm_nn_beta1@%28",
+  "netlib_dgemm_nn_beta1@%37"
+ ],
+ "rejected": [
+  {
+   "spec": "netlib_dsymm_lu_alpha0_beta0",
+   "root": "%14",
+   "why": "unbound parameters ['%lda', '%A', '%ldb', '%B']"
+  },
+  {
+   "spec": "netlib_dsymm_lu_alpha0_beta0",
+   "root": "%23",
+   "why": "unbound parameters ['%lda', '%A', '%ldb', '%B']"
+  },
+  {
+   "spec": "netlib_dsymm_lu_alpha0_beta0",
+   "root": "%32",
+   "why": "unbound parameters ['%lda', '%A', '%ldb', '%B']"
+  },
+  {
+   "spec": "netlib_dtrmm_lunn_alpha0",
+   "root": "%14",
+   "why": "unbound parameters ['%lda', '%A']"
+  },
+  {
+   "spec": "netlib_dtrmm_lunn_alpha0",
+   "root": "%23",
+   "why": "unbound parameters ['%lda', '%A']"
+  },
+  {
+   "spec": "netlib_dtrmm_lunn_alpha0",
+   "root": "%32",
+   "why": "unbound parameters ['%lda', '%A']"
+  }
+ ],
+ "residual_generics": []
+}

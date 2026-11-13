@@ -1,0 +1,17 @@
+{
+ "launches": [
+  {
+   "spec": "netlib_dtrsv_utn",
+   "call": "polygeist_v2_cublasDtrsv",
+   "cpu_entry": "dtrsv_",
+   "gpu_entry": "cublasDtrsv_v2",
+   "operand_types": [
+    "i32",
+    "i32",
+    "memref<?x?xf64>",
+    "memref<?xf64>"
+   ]
+  }
+ ],
+ "opt": []
+}

@@ -1,0 +1,1479 @@
+{
+ "suite": "aliasing",
+ "finished": "2026-10-28T00:22:35",
+ "seconds": 27.3,
+ "summary": {
+  "explicit": {
+   "REJECTED": 6,
+   "MATCHED_CORRECT": 1,
+   "E2E_WRONG_MATCH_RAISE_BUG": 1,
+   "MATCHED_CORRECT_FLAGGED": 1
+  },
+  "call_site": {
+   "WRONG_UNDER_ALIAS_UNFLAGGED": 4,
+   "CORRECT_UNDER_ALIAS": 3,
+   "CORRECT_UNDER_ALIAS_FLAGGED": 1,
+   "WRONG_UNDER_ALIAS_FLAGGED": 2
+  },
+  "false_positives": [],
+  "e2e_wrong_matches_raise_bug": {
+   "gemm_C_is_A": "debufferize (memref-Linalg stage correct, --linalg-debufferize output wrong; the matcher faithfully matched unsound tensor IR)"
+  },
+  "unflagged_wrong_under_alias": [
+   "rt_gemm_A_is_C",
+   "rt_gemm_B_is_C",
+   "rt_gemv_x_is_y",
+   "rt_axpy_y_is_x_plus1"
+  ],
+  "note": "call-site cases call a correctly matched function with aliased pointers; C allows this without restrict.  'residual_control_under_alias' is the same raised IR lowered without matching: if it is also wrong the noalias assumption is pipeline-wide, not introduced by the matcher."
+ },
+ "cases": [
+  {
+   "case": "axpy_overlap_bwd",
+   "type": "explicit",
+   "expect": "reject_or_correct",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/aliasing/axpy_overlap_bwd.c",
+   "launches": [],
+   "flagged": false,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "verdict": "REJECTED",
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1 || region: window 5-8: no specification matched (0 bindings tried)"
+  },
+  {
+   "case": "axpy_overlap_fwd",
+   "type": "explicit",
+   "expect": "reject_or_correct",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/aliasing/axpy_overlap_fwd.c",
+   "launches": [],
+   "flagged": false,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "verdict": "REJECTED",
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1 || region: window 5-8: no specification matched (0 bindings tried)"
+  },
+  {
+   "case": "gemm_AA",
+   "type": "explicit",
+   "expect": "match_correct",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/aliasing/gemm_AA.c",
+   "launches": [
+    "netlib_dgemm_nn"
+   ],
+   "flagged": false,
+   "region_evidence": [],
+   "linalg_bindings": [
+    {
+     "spec": "netlib_dgemm_nn",
+     "binding": {
+      "%m": "%arg0",
+      "%n": "%arg0",
+      "%k": "%arg0",
+      "%alpha": "%arg1",
+      "%lda": "stride0(%arg4)",
+      "%A": "%1",
+      "%ldb": "stride0(%arg4)",
+      "%B": "%1",
+      "%beta": "%arg2",
+      "%ldc": "stride0(%arg3)",
+      "%C": "%0"
+     }
+    }
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1
+      ],
+      "n2": [
+       2
+      ],
+      "n7": [
+       7
+      ],
+      "n23": [
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "residual_control": {
+      "verdict": "PASS",
+      "max_err": 0.0,
+      "n_fail": 0,
+      "why": null
+     },
+     "seconds": 1.1,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemm_nn"
+     ]
+    }
+   },
+   "numeric_verdict": "PASS",
+   "verdict": "MATCHED_CORRECT"
+  },
+  {
+   "case": "gemm_C_is_A",
+   "type": "explicit",
+   "expect": "reject_or_correct",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/aliasing/gemm_C_is_A.c",
+   "launches": [
+    "netlib_dgemm_nn"
+   ],
+   "flagged": false,
+   "region_evidence": [],
+   "linalg_bindings": [
+    {
+     "spec": "netlib_dgemm_nn",
+     "binding": {
+      "%m": "%arg0",
+      "%n": "%arg0",
+      "%k": "%arg0",
+      "%alpha": "%arg1",
+      "%lda": "stride0(%arg4)",
+      "%A": "%1",
+      "%ldb": "stride0(%arg3)",
+      "%B": "%5",
+      "%beta": "%arg2",
+      "%ldc": "stride0(%arg3)",
+      "%C": "%0"
+     }
+    }
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "FAIL",
+     "runs": 20,
+     "max_err": 1.0180010423465473,
+     "bit_exact": false,
+     "fails": [
+      {
+       "config": "n2",
+       "seed": 1,
+       "array": "C",
+       "max_abs": 0.1610492,
+       "max_ref": 0.9905029,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 9180126963132162393,
+       "err": 0.16259336545102493
+      },
+      {
+       "config": "n2",
+       "seed": 2,
+       "array": "C",
+       "max_abs": 0.07581013,
+       "max_ref": 0.9718753,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 3651624741789168,
+       "err": 0.07800396820456287
+      },
+      {
+       "config": "n2",
+       "seed": 3,
+       "array": "C",
+       "max_abs": 0.07026806,
+       "max_ref": 0.9700267,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 632918430049436,
+       "err": 0.07243930502119168
+      },
+      {
+       "config": "n2",
+       "seed": 4,
+       "array": "C",
+       "max_abs": 0.01429821,
+       "max_ref": 0.9935526,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 515147377578713,
+       "err": 0.014390994497925929
+      },
+      {
+       "config": "n2",
+       "seed": 5,
+       "array": "C",
+       "max_abs": 0.3187813,
+       "max_ref": 0.9983338,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 2971532951761272,
+       "err": 0.31931333988691957
+      },
+      {
+       "config": "n7",
+       "seed": 1,
+       "array": "C",
+       "max_abs": 1.141756,
+       "max_ref": 1.166005,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 9205399790090294190,
+       "err": 0.9792033481846133
+      }
+     ],
+     "n_fail": 15,
+     "configs": {
+      "n1": [
+       1
+      ],
+      "n2": [
+       2
+      ],
+      "n7": [
+       7
+      ],
+      "n23": [
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "residual_control": {
+      "verdict": "FAIL",
+      "max_err": 1.0180010423465473,
+      "n_fail": 15,
+      "why": null
+     },
+     "stage_triage": {
+      "cgeist_affine": "PASS",
+      "memref_linalg": "PASS",
+      "debufferized": "FAIL"
+     },
+     "first_bad_stage": "debufferized",
+     "seconds": 2.1,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemm_nn"
+     ]
+    }
+   },
+   "numeric_verdict": "FAIL",
+   "verdict": "E2E_WRONG_MATCH_RAISE_BUG",
+   "culprit": "debufferize (memref-Linalg stage correct, --linalg-debufferize output wrong; the matcher faithfully matched unsound tensor IR)",
+   "reproducer": {
+    "c_source": "/home/arjaiswal/Polygeist/scripts/correctness/lib_v2/tests_v2/cases/aliasing/gemm_C_is_A.c",
+    "raised_debuf": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/aliasing/gemm_C_is_A/k_debuf.mlir",
+    "matched": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/aliasing/gemm_C_is_A/m/matched.mlir",
+    "report": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/aliasing/gemm_C_is_A/m/report.json",
+    "commands": [
+     "/home/arjaiswal/Polygeist/build/bin/cgeist /home/arjaiswal/Polygeist/scripts/correctness/lib_v2/tests_v2/cases/aliasing/gemm_C_is_A.c --function=gemm_C_is_A --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/aliasing/gemm_C_is_A/k.mlir",
+     "/home/arjaiswal/Polygeist/build/bin/polygeist-opt '--select-func=func-name=gemm_C_is_A externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/aliasing/gemm_C_is_A/k.mlir -o /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/aliasing/gemm_C_is_A/k_linalg.mlir",
+     "/home/arjaiswal/Polygeist/build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/aliasing/gemm_C_is_A/k_linalg.mlir -o /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/aliasing/gemm_C_is_A/k_debuf.mlir",
+     "/usr/bin/python3 scripts/correctness/lib_v2/match_v2.py /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/aliasing/gemm_C_is_A/k_debuf.mlir -o /tmp/m.mlir --report /tmp/r.json"
+    ]
+   }
+  },
+  {
+   "case": "gemm_C_is_B",
+   "type": "explicit",
+   "expect": "reject_or_correct",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/aliasing/gemm_C_is_B.c",
+   "launches": [],
+   "flagged": false,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "verdict": "REJECTED",
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx2 || region: window 3-5: dependence check failed: read of %arg3[g2_0, v1] at [13, v0, 25, g2_0, v1, 0] observes an intermediate value (written both before and afte"
+  },
+  {
+   "case": "gemm_overlap_rows",
+   "type": "explicit",
+   "expect": "reject_or_correct",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/aliasing/gemm_overlap_rows.c",
+   "launches": [],
+   "flagged": false,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "verdict": "REJECTED",
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx2 || region: window 3-5: no specification matched (0 bindings tried)"
+  },
+  {
+   "case": "gemv_x_is_y",
+   "type": "explicit",
+   "expect": "reject_or_correct",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/aliasing/gemv_x_is_y.c",
+   "launches": [],
+   "flagged": false,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "verdict": "REJECTED",
+   "reason": "Linalg level: residual generics furthest DAG stage shapex1 || region: window 3-5: dependence check failed: read of %arg4[g1_0] at [13, v0, 25, g1_0, 0] observes an intermediate value (written both before and after)"
+  },
+  {
+   "case": "trsv_b_is_x",
+   "type": "explicit",
+   "expect": "reject_or_correct",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/aliasing/trsv_b_is_x.c",
+   "launches": [
+    "netlib_dtrsv_utn"
+   ],
+   "flagged": true,
+   "region_evidence": [
+    "netlib_dtrsv_utn: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1', 'X': '%arg2 (in-place)'}; e-graph max 63 nodes, egglog 20.9 ms; dependence checks 10 (reads: input 2, final 1, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dtrsv_lnn[transposed]; in-place: X in/out both bound to %arg2"
+   ],
+   "linalg_bindings": [],
+   "numeric": {
+    "region0": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1
+      ],
+      "n2": [
+       2
+      ],
+      "nonsquare": [
+       7
+      ],
+      "medium": [
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.4,
+     "path": "region launch -> spec C (ref_c) vs application C",
+     "spec_call": "netlib_dtrsv_utn(n, (n), L_t, x_t);",
+     "spec": "netlib_dtrsv_utn"
+    }
+   },
+   "numeric_verdict": "PASS",
+   "verdict": "MATCHED_CORRECT_FLAGGED"
+  },
+  {
+   "case": "trsv_b_overlap_x",
+   "type": "explicit",
+   "expect": "reject_or_correct",
+   "source": "scripts/correctness/lib_v2/tests_v2/cases/aliasing/trsv_b_overlap_x.c",
+   "launches": [],
+   "flagged": false,
+   "region_evidence": [],
+   "linalg_bindings": [],
+   "verdict": "REJECTED",
+   "reason": "Linalg level: residual generics furthest DAG stage shapex1 || region: window 5-7: no specification matched (120 bindings tried)"
+  },
+  {
+   "case": "rt_gemm_A_is_C",
+   "type": "call-site",
+   "base_kernel": "gemm__pos",
+   "alias": {
+    "A": [
+     "C",
+     0
+    ]
+   },
+   "expect": "reject_or_flagged_and_correct",
+   "launches": [
+    "netlib_dgemm_nn"
+   ],
+   "flagged": false,
+   "flag_text": [],
+   "numeric": {
+    "linalg": {
+     "verdict": "FAIL",
+     "runs": 20,
+     "max_err": 1.9553260920836533,
+     "bit_exact": false,
+     "fails": [
+      {
+       "config": "n1",
+       "seed": 1,
+       "array": "C",
+       "max_abs": 0.002155697,
+       "max_ref": 0.9905029,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 155334330828581,
+       "err": 0.0021763661671258105
+      },
+      {
+       "config": "n1",
+       "seed": 2,
+       "array": "C",
+       "max_abs": 0.1626629,
+       "max_ref": 0.9718753,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 1465137162221905,
+       "err": 0.1673701348310838
+      },
+      {
+       "config": "n1",
+       "seed": 3,
+       "array": "C",
+       "max_abs": 0.06282865,
+       "max_ref": 0.9700267,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 3043596057014766,
+       "err": 0.06477002127879572
+      },
+      {
+       "config": "n1",
+       "seed": 4,
+       "array": "C",
+       "max_abs": 0.01319808,
+       "max_ref": 0.9935526,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 475510813661207,
+       "err": 0.013283725491735414
+      },
+      {
+       "config": "n1",
+       "seed": 5,
+       "array": "C",
+       "max_abs": 0.09828104,
+       "max_ref": 0.9983338,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 16617367743689920,
+       "err": 0.09844506917425815
+      },
+      {
+       "config": "n2",
+       "seed": 1,
+       "array": "C",
+       "max_abs": 0.423772,
+       "max_ref": 0.9905029,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 9191900970105345133,
+       "err": 0.4278351936173029
+      }
+     ],
+     "n_fail": 20,
+     "configs": {
+      "n1": [
+       1,
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2,
+       2
+      ],
+      "n7": [
+       7,
+       7,
+       7
+      ],
+      "n23": [
+       23,
+       23,
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "residual_control": {
+      "verdict": "FAIL",
+      "max_err": 1.9553260920836533,
+      "n_fail": 20,
+      "why": null
+     },
+     "stage_triage": {
+      "cgeist_affine": "PASS",
+      "memref_linalg": "PASS",
+      "debufferized": "FAIL"
+     },
+     "first_bad_stage": "debufferized",
+     "seconds": 2.0,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemm_nn"
+     ]
+    }
+   },
+   "numeric_verdict": "FAIL",
+   "residual_control_under_alias": "FAIL",
+   "verdict": "WRONG_UNDER_ALIAS_UNFLAGGED",
+   "culprit": "debufferize (memref-Linalg stage correct, --linalg-debufferize output wrong; the matcher faithfully matched unsound tensor IR)"
+  },
+  {
+   "case": "rt_gemm_B_is_C",
+   "type": "call-site",
+   "base_kernel": "gemm__pos",
+   "alias": {
+    "B": [
+     "C",
+     0
+    ]
+   },
+   "expect": "reject_or_flagged_and_correct",
+   "launches": [
+    "netlib_dgemm_nn"
+   ],
+   "flagged": false,
+   "flag_text": [],
+   "numeric": {
+    "linalg": {
+     "verdict": "FAIL",
+     "runs": 20,
+     "max_err": 1.1211596379289055,
+     "bit_exact": false,
+     "fails": [
+      {
+       "config": "n1",
+       "seed": 1,
+       "array": "C",
+       "max_abs": 0.002155697,
+       "max_ref": 0.9905029,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 155334330828581,
+       "err": 0.0021763661671258105
+      },
+      {
+       "config": "n1",
+       "seed": 2,
+       "array": "C",
+       "max_abs": 0.1626629,
+       "max_ref": 0.9718753,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 1465137162221905,
+       "err": 0.1673701348310838
+      },
+      {
+       "config": "n1",
+       "seed": 3,
+       "array": "C",
+       "max_abs": 0.06282865,
+       "max_ref": 0.9700267,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 3043596057014766,
+       "err": 0.06477002127879572
+      },
+      {
+       "config": "n1",
+       "seed": 4,
+       "array": "C",
+       "max_abs": 0.01319808,
+       "max_ref": 0.9935526,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 475510813661207,
+       "err": 0.013283725491735414
+      },
+      {
+       "config": "n1",
+       "seed": 5,
+       "array": "C",
+       "max_abs": 0.09828104,
+       "max_ref": 0.9983338,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 16617367743689920,
+       "err": 0.09844506917425815
+      },
+      {
+       "config": "n2",
+       "seed": 1,
+       "array": "C",
+       "max_abs": 0.5822084,
+       "max_ref": 0.9905029,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 9188790566726635100,
+       "err": 0.5877907071246333
+      }
+     ],
+     "n_fail": 20,
+     "configs": {
+      "n1": [
+       1,
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2,
+       2
+      ],
+      "n7": [
+       7,
+       7,
+       7
+      ],
+      "n23": [
+       23,
+       23,
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "residual_control": {
+      "verdict": "FAIL",
+      "max_err": 1.1211596379289055,
+      "n_fail": 20,
+      "why": null
+     },
+     "stage_triage": {
+      "cgeist_affine": "PASS",
+      "memref_linalg": "FAIL",
+      "debufferized": "FAIL"
+     },
+     "first_bad_stage": "memref_linalg",
+     "seconds": 2.1,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemm_nn"
+     ]
+    }
+   },
+   "numeric_verdict": "FAIL",
+   "residual_control_under_alias": "FAIL",
+   "verdict": "WRONG_UNDER_ALIAS_UNFLAGGED",
+   "culprit": "raise-affine-to-linalg (cgeist affine stage correct, Linalg stage wrong)"
+  },
+  {
+   "case": "rt_gemm_B_is_A",
+   "type": "call-site",
+   "base_kernel": "gemm__pos",
+   "alias": {
+    "B": [
+     "A",
+     0
+    ]
+   },
+   "expect": "reject_or_flagged_and_correct",
+   "launches": [
+    "netlib_dgemm_nn"
+   ],
+   "flagged": false,
+   "flag_text": [],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1,
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2,
+       2
+      ],
+      "n7": [
+       7,
+       7,
+       7
+      ],
+      "n23": [
+       23,
+       23,
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "residual_control": {
+      "verdict": "PASS",
+      "max_err": 0.0,
+      "n_fail": 0,
+      "why": null
+     },
+     "seconds": 1.1,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemm_nn"
+     ]
+    }
+   },
+   "numeric_verdict": "PASS",
+   "residual_control_under_alias": "PASS",
+   "verdict": "CORRECT_UNDER_ALIAS"
+  },
+  {
+   "case": "rt_gemv_x_is_y",
+   "type": "call-site",
+   "base_kernel": "gemv_n__pos",
+   "alias": {
+    "x": [
+     "y",
+     0
+    ]
+   },
+   "expect": "reject_or_flagged_and_correct",
+   "launches": [
+    "netlib_dgemv_t"
+   ],
+   "flagged": false,
+   "flag_text": [],
+   "numeric": {
+    "linalg": {
+     "verdict": "FAIL",
+     "runs": 20,
+     "max_err": 1.1795893058509248,
+     "bit_exact": false,
+     "fails": [
+      {
+       "config": "n1",
+       "seed": 1,
+       "array": "y",
+       "max_abs": 0.002155697,
+       "max_ref": 0.9944599,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 1242674646628654,
+       "err": 0.002167706309726516
+      },
+      {
+       "config": "n1",
+       "seed": 2,
+       "array": "y",
+       "max_abs": 0.1626629,
+       "max_ref": 0.9925708,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 1465137162221904,
+       "err": 0.16388040026968353
+      },
+      {
+       "config": "n1",
+       "seed": 3,
+       "array": "y",
+       "max_abs": 0.06282865,
+       "max_ref": 0.9948848,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 4064446140296626,
+       "err": 0.06315168349139519
+      },
+      {
+       "config": "n1",
+       "seed": 4,
+       "array": "y",
+       "max_abs": 0.01319808,
+       "max_ref": 0.9718989,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 237755406830604,
+       "err": 0.013579684059730902
+      },
+      {
+       "config": "n1",
+       "seed": 5,
+       "array": "y",
+       "max_abs": 0.09828104,
+       "max_ref": 1.508314,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 442618438988400,
+       "err": 0.06515953574653553
+      },
+      {
+       "config": "n2",
+       "seed": 1,
+       "array": "y",
+       "max_abs": 0.419675,
+       "max_ref": 0.9944599,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 5339816645887278,
+       "err": 0.4220129941891071
+      }
+     ],
+     "n_fail": 20,
+     "configs": {
+      "n1": [
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2
+      ],
+      "n7": [
+       7,
+       7
+      ],
+      "n23": [
+       23,
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "residual_control": {
+      "verdict": "FAIL",
+      "max_err": 1.1795893058509248,
+      "n_fail": 20,
+      "why": null
+     },
+     "stage_triage": {
+      "cgeist_affine": "PASS",
+      "memref_linalg": "FAIL",
+      "debufferized": "FAIL"
+     },
+     "first_bad_stage": "memref_linalg",
+     "seconds": 2.2,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemv_t"
+     ]
+    }
+   },
+   "numeric_verdict": "FAIL",
+   "residual_control_under_alias": "FAIL",
+   "verdict": "WRONG_UNDER_ALIAS_UNFLAGGED",
+   "culprit": "raise-affine-to-linalg (cgeist affine stage correct, Linalg stage wrong)"
+  },
+  {
+   "case": "rt_ger_y_is_x",
+   "type": "call-site",
+   "base_kernel": "ger__pos",
+   "alias": {
+    "y": [
+     "x",
+     0
+    ]
+   },
+   "expect": "reject_or_flagged_and_correct",
+   "launches": [
+    "netlib_dger"
+   ],
+   "flagged": false,
+   "flag_text": [],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2
+      ],
+      "n7": [
+       7,
+       7
+      ],
+      "n23": [
+       23,
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "residual_control": {
+      "verdict": "PASS",
+      "max_err": 0.0,
+      "n_fail": 0,
+      "why": null
+     },
+     "seconds": 1.2,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dger"
+     ]
+    }
+   },
+   "numeric_verdict": "PASS",
+   "residual_control_under_alias": "PASS",
+   "verdict": "CORRECT_UNDER_ALIAS"
+  },
+  {
+   "case": "rt_axpy_y_is_x_plus1",
+   "type": "call-site",
+   "base_kernel": "axpy__pos",
+   "alias": {
+    "y": [
+     "x",
+     1
+    ]
+   },
+   "expect": "reject_or_flagged_and_correct",
+   "launches": [
+    "netlib_daxpy_inc"
+   ],
+   "flagged": false,
+   "flag_text": [],
+   "numeric": {
+    "linalg": {
+     "verdict": "FAIL",
+     "runs": 20,
+     "max_err": 1.3193534269825293,
+     "bit_exact": false,
+     "fails": [
+      {
+       "config": "n2",
+       "seed": 1,
+       "array": "x",
+       "max_abs": 1.033145,
+       "max_ref": 1.614854,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 6536686114688954,
+       "err": 0.63977610359822
+      },
+      {
+       "config": "n2",
+       "seed": 2,
+       "array": "x",
+       "max_abs": 0.2728825,
+       "max_ref": 1.109137,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 1228953604897536,
+       "err": 0.24603137394208285
+      },
+      {
+       "config": "n2",
+       "seed": 3,
+       "array": "x",
+       "max_abs": 0.7988419,
+       "max_ref": 1.14134,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 9186391085487109495,
+       "err": 0.699915800725463
+      },
+      {
+       "config": "n2",
+       "seed": 4,
+       "array": "x",
+       "max_abs": 0.2092642,
+       "max_ref": 0.9935526,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 5611752640526524,
+       "err": 0.21062216534887032
+      },
+      {
+       "config": "n2",
+       "seed": 5,
+       "array": "x",
+       "max_abs": 0.3554924,
+       "max_ref": 0.9983338,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 3181120254589955,
+       "err": 0.35608571001001865
+      },
+      {
+       "config": "nonsquare",
+       "seed": 1,
+       "array": "x",
+       "max_abs": 2.193033,
+       "max_ref": 2.107943,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 9214629216085430027,
+       "err": 1.0403663666427412
+      }
+     ],
+     "n_fail": 15,
+     "configs": {
+      "n1": [
+       1
+      ],
+      "n2": [
+       2
+      ],
+      "nonsquare": [
+       7
+      ],
+      "medium": [
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "residual_control": {
+      "verdict": "FAIL",
+      "max_err": 1.3193534269825293,
+      "n_fail": 15,
+      "why": null
+     },
+     "stage_triage": {
+      "cgeist_affine": "PASS",
+      "memref_linalg": "PASS",
+      "debufferized": "FAIL"
+     },
+     "first_bad_stage": "debufferized",
+     "seconds": 2.0,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_daxpy_inc"
+     ]
+    }
+   },
+   "numeric_verdict": "FAIL",
+   "residual_control_under_alias": "FAIL",
+   "verdict": "WRONG_UNDER_ALIAS_UNFLAGGED",
+   "culprit": "debufferize (memref-Linalg stage correct, --linalg-debufferize output wrong; the matcher faithfully matched unsound tensor IR)"
+  },
+  {
+   "case": "rt_axpy_x_is_y_plus1",
+   "type": "call-site",
+   "base_kernel": "axpy__pos",
+   "alias": {
+    "x": [
+     "y",
+     1
+    ]
+   },
+   "expect": "reject_or_flagged_and_correct",
+   "launches": [
+    "netlib_daxpy_inc"
+   ],
+   "flagged": false,
+   "flag_text": [],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1
+      ],
+      "n2": [
+       2
+      ],
+      "nonsquare": [
+       7
+      ],
+      "medium": [
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "residual_control": {
+      "verdict": "PASS",
+      "max_err": 0.0,
+      "n_fail": 0,
+      "why": null
+     },
+     "seconds": 1.0,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_daxpy_inc"
+     ]
+    }
+   },
+   "numeric_verdict": "PASS",
+   "residual_control_under_alias": "PASS",
+   "verdict": "CORRECT_UNDER_ALIAS"
+  },
+  {
+   "case": "rt_trsv_b_is_x",
+   "type": "call-site",
+   "base_kernel": "trsv_ref",
+   "alias": {
+    "b": [
+     "x",
+     0
+    ]
+   },
+   "expect": "reject_or_flagged_and_correct",
+   "launches": [
+    "netlib_dtrsv_utn"
+   ],
+   "flagged": true,
+   "flag_text": [
+    " assumes %arg3 and %arg2 do not alias (pipeline-wide noalias assumption)"
+   ],
+   "numeric": {
+    "region0": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1
+      ],
+      "n2": [
+       2
+      ],
+      "nonsquare": [
+       7
+      ],
+      "medium": [
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.3,
+     "path": "region launch -> spec C (ref_c) vs application C",
+     "spec_call": "netlib_dtrsv_utn(n, (n), L_t, x_t);",
+     "spec": "netlib_dtrsv_utn"
+    }
+   },
+   "numeric_verdict": "PASS",
+   "residual_control_under_alias": null,
+   "verdict": "CORRECT_UNDER_ALIAS_FLAGGED"
+  },
+  {
+   "case": "rt_syrk_A_is_C",
+   "type": "call-site",
+   "base_kernel": "syrk__pos",
+   "alias": {
+    "A": [
+     "C",
+     0
+    ]
+   },
+   "expect": "reject_or_flagged_and_correct",
+   "launches": [
+    "netlib_dsyrk_ut"
+   ],
+   "flagged": true,
+   "flag_text": [
+    "netlib_dsyrk_ut: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'k': '%arg1', 'alpha': '%arg2', 'lda': 'stride0(%arg5)', 'A': '%arg5', 'beta': '%arg3', 'ldc': 'stride0(%arg4)', 'C': '%arg4 (in-place)'}",
+    " in-place: C in/out both bound to %arg4"
+   ],
+   "numeric": {
+    "region0": {
+     "verdict": "FAIL",
+     "runs": 20,
+     "max_err": 1.5388243070181506,
+     "bit_exact": false,
+     "fails": [
+      {
+       "config": "n1",
+       "seed": 1,
+       "array": "C",
+       "max_abs": 1.96764,
+       "max_ref": 1.477458,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 5607391677810278,
+       "err": 1.331773898141267
+      },
+      {
+       "config": "n1",
+       "seed": 2,
+       "array": "C",
+       "max_abs": 1.409786,
+       "max_ref": 1.9606,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 3263275572278679,
+       "err": 0.7190584514944405
+      },
+      {
+       "config": "n1",
+       "seed": 3,
+       "array": "C",
+       "max_abs": 0.9625553,
+       "max_ref": 1.801193,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 2615154756820936,
+       "err": 0.5343987568239494
+      },
+      {
+       "config": "n1",
+       "seed": 4,
+       "array": "C",
+       "max_abs": 0.6840793,
+       "max_ref": 2.448248,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 1540409681107041,
+       "err": 0.2794158516620865
+      },
+      {
+       "config": "n1",
+       "seed": 5,
+       "array": "C",
+       "max_abs": 0.9971876,
+       "max_ref": 5.577337,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 1122733380325576,
+       "err": 0.17879278229018616
+      },
+      {
+       "config": "n2",
+       "seed": 1,
+       "array": "C",
+       "max_abs": 52.94205,
+       "max_ref": 34.40422,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 8237605424300966,
+       "err": 1.5388243070181506
+      }
+     ],
+     "n_fail": 20,
+     "configs": {
+      "n1": [
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2
+      ],
+      "n7": [
+       7,
+       7
+      ],
+      "n23": [
+       23,
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.4,
+     "path": "region launch -> spec C (ref_c) vs application C",
+     "spec_call": "netlib_dsyrk_ut(n, m, alpha, (m), A_t, beta, (n), C_t);",
+     "spec": "netlib_dsyrk_ut"
+    }
+   },
+   "numeric_verdict": "FAIL",
+   "residual_control_under_alias": null,
+   "verdict": "WRONG_UNDER_ALIAS_FLAGGED",
+   "culprit": "matcher (region launch vs spec C)"
+  },
+  {
+   "case": "rt_symm_B_is_C",
+   "type": "call-site",
+   "base_kernel": "symm__pos",
+   "alias": {
+    "B": [
+     "C",
+     0
+    ]
+   },
+   "expect": "reject_or_flagged_and_correct",
+   "launches": [
+    "netlib_dsymm_ru"
+   ],
+   "flagged": true,
+   "flag_text": [
+    "netlib_dsymm_ru: 2 element equation(s), 2 domain piece(s) equal under binding {'m': '%arg1', 'n': '%arg0', 'alpha': '%arg2', 'lda': 'stride0(%arg5)', 'A': '%arg5', 'ldb': 'stride0(%arg6)', 'B': '%arg6', 'beta': '%arg3', 'ldc': 'stride0(%arg4)', 'C': '%arg4 (in-place)'}",
+    " in-place: C in/out both bound to %arg4"
+   ],
+   "numeric": {
+    "region0": {
+     "verdict": "FAIL",
+     "runs": 20,
+     "max_err": 0.16705292846387304,
+     "bit_exact": false,
+     "fails": [
+      {
+       "config": "n7",
+       "seed": 1,
+       "array": "C",
+       "max_abs": 20.17723,
+       "max_ref": 222.5848,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 4169429553588958,
+       "err": 0.09064963106195931
+      },
+      {
+       "config": "n7",
+       "seed": 2,
+       "array": "C",
+       "max_abs": 6.701482,
+       "max_ref": 63.98056,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 3640683625269302,
+       "err": 0.10474247177580191
+      },
+      {
+       "config": "n7",
+       "seed": 3,
+       "array": "C",
+       "max_abs": 89.12285,
+       "max_ref": 560.1373,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 4477725230433014,
+       "err": 0.1591089363268613
+      },
+      {
+       "config": "n7",
+       "seed": 4,
+       "array": "C",
+       "max_abs": 25.69401,
+       "max_ref": 153.8076,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 4442382026064721,
+       "err": 0.16705292846387304
+      },
+      {
+       "config": "n7",
+       "seed": 5,
+       "array": "C",
+       "max_abs": 44.1224,
+       "max_ref": 409.8025,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 3265703262616609,
+       "err": 0.10766747396611782
+      },
+      {
+       "config": "n23",
+       "seed": 1,
+       "array": "C",
+       "max_abs": 52785.17,
+       "max_ref": 479479.1,
+       "nan_mismatch": 0,
+       "exact": 0,
+       "max_ulp": 7386593450478954,
+       "err": 0.11008857320371211
+      }
+     ],
+     "n_fail": 10,
+     "configs": {
+      "n1": [
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2
+      ],
+      "n7": [
+       7,
+       7
+      ],
+      "n23": [
+       23,
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.3,
+     "path": "region launch -> spec C (ref_c) vs application C",
+     "spec_call": "netlib_dsymm_ru(n, m, alpha, (m), A_t, (n), B_t, beta, (n), C_t);",
+     "spec": "netlib_dsymm_ru"
+    }
+   },
+   "numeric_verdict": "FAIL",
+   "residual_control_under_alias": null,
+   "verdict": "WRONG_UNDER_ALIAS_FLAGGED",
+   "culprit": "matcher (region launch vs spec C)"
+  }
+ ]
+}

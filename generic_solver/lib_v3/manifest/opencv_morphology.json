@@ -1,0 +1,268 @@
+{
+  "routine": "opencv_morphology",
+  "source": "OpenCV commit 8bc22eba5946100e9b2470c60939c3f2588c28d7, public OpenCL scalar morphology and dispatcher-generated PROCESS_ELEMS; public equivalent reference for closed PVA API",
+  "adaptation": [
+    "one-channel full 3x3 interior ROI specialization",
+    "work-item coordinates become sequential output loops",
+    "shared-memory loads use equivalent global coordinates",
+    "dispatcher-generated ordered PROCESS list represented by fixed nested loops",
+    "integer max mapped to the C conditional expression preserving signedness",
+    "C VLA declarations record the existing contiguous row stride; pointer addresses and pixel order are unchanged"
+  ],
+  "upstream_files": [
+    {
+      "path": "third_party/opencv/modules/imgproc/src/opencl/morph.cl",
+      "sha256": "7378708b4423569dde613c56f124bc4406d0353ccd62ac2e1803b0fd23ed6196"
+    },
+    {
+      "path": "third_party/opencv/modules/imgproc/src/morph.dispatch.cpp",
+      "sha256": "07ade54a1ba3aac40933dfd352ed8efddf77d837d3acb603f21e444cee98559d"
+    }
+  ],
+  "specs": [
+    {
+      "name": "opencv_morphology_dilate_u8",
+      "defines": {
+        "REFERENCE_TYPE": "uint8_t",
+        "REFERENCE_MIN": "0"
+      },
+      "args": [
+        "h",
+        "w",
+        "input",
+        "output"
+      ],
+      "target": {
+        "library": "PVA",
+        "call": "pvaMorphologySubmit",
+        "backends": [
+          "pva"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "typed_c_wrapper",
+          "entry": "polygeist_pva_morphology_dilate_3x3_u8",
+          "arguments": [
+            "h",
+            "w",
+            "input",
+            "output"
+          ],
+          "arrays": {
+            "input": [
+              "h",
+              "w"
+            ],
+            "output": [
+              {
+                "dimension": "h",
+                "offset": -1
+              },
+              "w"
+            ]
+          },
+          "bounds": {
+            "h": {
+              "min": 3,
+              "max": 46340
+            },
+            "w": {
+              "min": 3,
+              "max": 46340
+            }
+          },
+          "alias_policy": "disjoint"
+        }
+      },
+      "assumptions": [
+        "3 <= h,w <= 46340, so h*w <= INT_MAX",
+        "contiguous single-channel arrays, disjoint input/output",
+        "all-ones 3x3 structuring element, dilation, update interior only; preserve caller border"
+      ],
+      "deviations": []
+    },
+    {
+      "name": "opencv_morphology_dilate_s8",
+      "defines": {
+        "REFERENCE_TYPE": "int8_t",
+        "REFERENCE_MIN": "INT8_MIN"
+      },
+      "args": [
+        "h",
+        "w",
+        "input",
+        "output"
+      ],
+      "target": {
+        "library": "PVA",
+        "call": "pvaMorphologySubmit",
+        "backends": [
+          "pva"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "typed_c_wrapper",
+          "entry": "polygeist_pva_morphology_dilate_3x3_s8",
+          "arguments": [
+            "h",
+            "w",
+            "input",
+            "output"
+          ],
+          "arrays": {
+            "input": [
+              "h",
+              "w"
+            ],
+            "output": [
+              {
+                "dimension": "h",
+                "offset": -1
+              },
+              "w"
+            ]
+          },
+          "bounds": {
+            "h": {
+              "min": 3,
+              "max": 46340
+            },
+            "w": {
+              "min": 3,
+              "max": 46340
+            }
+          },
+          "alias_policy": "disjoint"
+        }
+      },
+      "assumptions": [
+        "3 <= h,w <= 46340, so h*w <= INT_MAX",
+        "contiguous single-channel arrays, disjoint input/output",
+        "all-ones 3x3 structuring element, dilation, update interior only; preserve caller border"
+      ],
+      "deviations": []
+    },
+    {
+      "name": "opencv_morphology_dilate_u16",
+      "defines": {
+        "REFERENCE_TYPE": "uint16_t",
+        "REFERENCE_MIN": "0"
+      },
+      "args": [
+        "h",
+        "w",
+        "input",
+        "output"
+      ],
+      "target": {
+        "library": "PVA",
+        "call": "pvaMorphologySubmit",
+        "backends": [
+          "pva"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "typed_c_wrapper",
+          "entry": "polygeist_pva_morphology_dilate_3x3_u16",
+          "arguments": [
+            "h",
+            "w",
+            "input",
+            "output"
+          ],
+          "arrays": {
+            "input": [
+              "h",
+              "w"
+            ],
+            "output": [
+              {
+                "dimension": "h",
+                "offset": -1
+              },
+              "w"
+            ]
+          },
+          "bounds": {
+            "h": {
+              "min": 3,
+              "max": 46340
+            },
+            "w": {
+              "min": 3,
+              "max": 46340
+            }
+          },
+          "alias_policy": "disjoint"
+        }
+      },
+      "assumptions": [
+        "3 <= h,w <= 46340, so h*w <= INT_MAX",
+        "contiguous single-channel arrays, disjoint input/output",
+        "all-ones 3x3 structuring element, dilation, update interior only; preserve caller border"
+      ],
+      "deviations": []
+    },
+    {
+      "name": "opencv_morphology_dilate_s16",
+      "defines": {
+        "REFERENCE_TYPE": "int16_t",
+        "REFERENCE_MIN": "INT16_MIN"
+      },
+      "args": [
+        "h",
+        "w",
+        "input",
+        "output"
+      ],
+      "target": {
+        "library": "PVA",
+        "call": "pvaMorphologySubmit",
+        "backends": [
+          "pva"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "typed_c_wrapper",
+          "entry": "polygeist_pva_morphology_dilate_3x3_s16",
+          "arguments": [
+            "h",
+            "w",
+            "input",
+            "output"
+          ],
+          "arrays": {
+            "input": [
+              "h",
+              "w"
+            ],
+            "output": [
+              {
+                "dimension": "h",
+                "offset": -1
+              },
+              "w"
+            ]
+          },
+          "bounds": {
+            "h": {
+              "min": 3,
+              "max": 46340
+            },
+            "w": {
+              "min": 3,
+              "max": 46340
+            }
+          },
+          "alias_policy": "disjoint"
+        }
+      },
+      "assumptions": [
+        "3 <= h,w <= 46340, so h*w <= INT_MAX",
+        "contiguous single-channel arrays, disjoint input/output",
+        "all-ones 3x3 structuring element, dilation, update interior only; preserve caller border"
+      ],
+      "deviations": []
+    }
+  ]
+}

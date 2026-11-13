@@ -1,0 +1,83 @@
+diff --git a/lilac/spmv_csr.lilac b/lilac/spmv_csr.lilac
+index 4360bc7..08ee490 100644
+--- a/lilac/spmv_csr.lilac
++++ b/lilac/spmv_csr.lilac
+@@ -7,18 +7,34 @@ HARNESS cuda IMPLEMENTS spmv_csr
+   double alpha = 1.0;
+   double beta  = 0.0;
+-  cusparseMatDescr_t descrA;
+-  cusparseCreateMatDescr(&descrA);
+-  cusparseDcsrmv(handle,
+-                 CUSPARSE_OPERATION_NON_TRANSPOSE,
+-                 rows, cols, rowstr[rows], &alpha,
+-                 descrA, d_mat, d_ranges, d_indir,
+-                 d_vec, &beta, d_out);
++  auto nnz = ranges[rows];
++  cusparseSpMatDescr_t matA;
++  cusparseDnVecDescr_t vecX;
++  cusparseDnVecDescr_t vecY;
++  cusparseCreateCsr(&matA, rows, cols, nnz,
++                    d_ranges, d_indir, d_mat,
++                    CUSPARSE_INDEX_32I, CUSPARSE_INDEX_32I,
++                    CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
++  cusparseCreateDnVec(&vecX, cols, d_vec, CUDA_R_64F);
++  cusparseCreateDnVec(&vecY, rows, d_out, CUDA_R_64F);
++  size_t buffer_size = 0;
++  cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
++                          &alpha, matA, vecX, &beta, vecY, CUDA_R_64F,
++                          CUSPARSE_SPMV_ALG_DEFAULT, &buffer_size);
++  void* buffer = nullptr;
++  cudaMalloc(&buffer, buffer_size);
++  cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
++               &alpha, matA, vecX, &beta, vecY, CUDA_R_64F,
++               CUSPARSE_SPMV_ALG_DEFAULT, buffer);
++  cudaFree(buffer);
++  cusparseDestroyDnVec(vecY);
++  cusparseDestroyDnVec(vecX);
++  cusparseDestroySpMat(matA);
+ OnDemandEvaluated
+   int cols      = Maximum of indir[0..ranges[rows]]
+   double* d_mat = CudaRead of matrix[0..ranges[rows]]
+   double* d_vec = CudaRead of vector[0..cols]
+   int* d_ranges = CudaRead of ranges[0..rows+1]
+-  int* d_indir  = CudaRead of indir[0..rowstr[rows]]
++  int* d_indir  = CudaRead of indir[0..ranges[rows]]
+   double* d_out = CudaWrite of output[0..rows]
+ PersistentVariables
+   cusparseHandle_t handle
+diff --git a/lilac/gemm.lilac b/lilac/gemm.lilac
+index 739dfc0..194f57a 100644
+--- a/lilac/gemm.lilac
++++ b/lilac/gemm.lilac
+@@ -8,15 +8,15 @@ COMPUTATION gemm
+ 
+ HARNESS openblas IMPLEMENTS gemm
+   cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+-               N, M, K, 1.0, left, K, right, N, 0.0, output, N);
++               N, M, K, 1.0, left, K, right, M, 0.0, output, M);
+ CppHeaderFiles
+   #include <cblas.h>
+ 
+ HARNESS cuda IMPLEMENTS gemm
+   double alpha = 1.0;
+   double beta  = 0.0;
+   cublasDgemm_v2(handle, CUBLAS_OP_N, CUBLAS_OP_N,
+-                 M, N, K, &alpha, d_A, K, d_B, N, &beta, d_C, N);
++                 M, N, K, &alpha, d_B, M, d_A, K, &beta, d_C, M);
+ OnDemandEvaluated
+   double* d_A = CudaRead of left[0..N*K]
+   double* d_B = CudaRead of right[0..K*M]
+diff --git a/lilac/Parser.cc b/lilac/Parser.cc
+index 6c4ac2e..31c313a 100644
+--- a/lilac/Parser.cc
++++ b/lilac/Parser.cc
+@@ -700,9 +700,7 @@ void print_harness(std::string name, std::string suffix, std::string body,
+            "struct Functor\n{\n"
+            +indent(functor_body, 4)+(functor_body.empty()?"":"\n")+
+            "    void operator()("+type_interface+") {\n"
+-           "        printf(\"Entering harness '"+name+"'\\n\");\n"
+            +indent(body, 8)+
+-           "        printf(\"Leaving harness '"+name+"'\\n\");\n"
+            "    }\n};\n}\n\n"
+            "extern \"C\"\n"
+            "void "+name+"_harness("+type_interface+") {\n"

@@ -536,6 +536,11 @@ struct LLVMOpLowering : public ConversionPattern {
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
+    // Memref operations require a semantic lowering. Merely converting their
+    // types can leave, for example, a memref.alloc with an LLVM pointer result.
+    if (op->getName().getDialectNamespace() ==
+        memref::MemRefDialect::getDialectNamespace())
+      return failure();
     const TypeConverter *converter = getTypeConverter();
 
     SmallVector<Type> convertedResultTypes;
@@ -1003,7 +1008,7 @@ public:
   }
 };
 
-/// Pattern for lowering heap allocations via malloc.
+/// Pattern for lowering heap allocations via malloc or aligned_alloc.
 struct CAllocOpLowering : public AllocLikeOpLowering<memref::AllocOp> {
 public:
   using AllocLikeOpLowering<memref::AllocOp>::AllocLikeOpLowering;
@@ -1019,8 +1024,6 @@ public:
 
     if (!convertedType)
       return rewriter.notifyMatchFailure(loc, "unsupported memref type");
-    if (adaptor.getAlignment() && adaptor.getAlignment().value() != 0)
-      return rewriter.notifyMatchFailure(loc, "unsupported alignment");
 
     Value outerSize = getOuterSize(allocOp, adaptor, rewriter);
     Value totalSize = outerSize;
@@ -1033,17 +1036,49 @@ public:
           createIndexAttrConstant(rewriter, loc, rewriter.getIndexType(),
                                   innerSizes));
     }
-    Value null = rewriter.create<LLVM::ZeroOp>(loc, convertedType);
     Value elementSize = rewriter.create<polygeist::TypeSizeOp>(
         loc, rewriter.getIndexType(),
         mlir::TypeAttr::get(originalType.getElementType()));
     Value size = rewriter.create<LLVM::MulOp>(loc, totalSize, elementSize);
 
+    if (uint64_t alignment = adaptor.getAlignment().value_or(0)) {
+      // C11 aligned_alloc requires a size that is a multiple of the alignment.
+      // memref.alloc verifies that the alignment is a power of two.
+      Value align = createIndexAttrConstant(rewriter, loc,
+                                           rewriter.getIndexType(), alignment);
+      Value padding = createIndexAttrConstant(
+          rewriter, loc, rewriter.getIndexType(), alignment - 1);
+      Value mask = createIndexAttrConstant(rewriter, loc,
+                                          rewriter.getIndexType(), -alignment);
+      size = rewriter.create<LLVM::AddOp>(loc, size, padding);
+      size = rewriter.create<LLVM::AndOp>(loc, size, mask);
+      LLVM::LLVMFuncOp alignedAllocFunc =
+          getTypeConverter()->getOptions().useGenericFunctions
+              ? LLVM::lookupOrCreateGenericAlignedAllocFn(
+                    module, getIndexType(), /*opaquePointers=*/true)
+              : LLVM::lookupOrCreateAlignedAllocFn(
+                    module, getIndexType(), /*opaquePointers=*/true);
+      Value allocated =
+          rewriter
+              .create<LLVM::CallOp>(loc, alignedAllocFunc,
+                                    ValueRange{align, size})
+              .getResult();
+      rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(allocOp, convertedType,
+                                                 allocated);
+      return success();
+    }
+
     if (auto F = module.lookupSymbol<mlir::func::FuncOp>("malloc")) {
       Value allocated =
           rewriter.create<func::CallOp>(loc, F, size).getResult(0);
-      rewriter.replaceOpWithNewOp<polygeist::Memref2PointerOp>(
-          allocOp, convertedType, allocated);
+      if (isa<MemRefType>(allocated.getType()))
+        rewriter.replaceOpWithNewOp<polygeist::Memref2PointerOp>(
+            allocOp, convertedType, allocated);
+      else if (isa<LLVM::LLVMPointerType>(allocated.getType()))
+        rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(allocOp, convertedType,
+                                                   allocated);
+      else
+        return rewriter.notifyMatchFailure(loc, "unsupported malloc result");
     } else {
       LLVM::LLVMFuncOp mallocFunc =
           getTypeConverter()->getOptions().useGenericFunctions
@@ -1060,6 +1095,50 @@ public:
   }
 };
 
+/// Shape casts preserve the pointer in the C-style ABI.
+struct CCastOpLowering : public ConvertOpToLLVMPattern<memref::CastOp> {
+  using ConvertOpToLLVMPattern<memref::CastOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(memref::CastOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (getTypeConverter()->convertType(op.getType()) !=
+        adaptor.getSource().getType())
+      return failure();
+    rewriter.replaceOp(op, adaptor.getSource());
+    return success();
+  }
+};
+
+/// Copy contiguous buffers whose extent is available in the C-style ABI.
+struct CCopyOpLowering : public ConvertOpToLLVMPattern<memref::CopyOp> {
+  using ConvertOpToLLVMPattern<memref::CopyOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(memref::CopyOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto sourceType = dyn_cast<MemRefType>(op.getSource().getType());
+    auto targetType = dyn_cast<MemRefType>(op.getTarget().getType());
+    if (!sourceType || !targetType || !sourceType.getLayout().isIdentity() ||
+        !targetType.getLayout().isIdentity())
+      return rewriter.notifyMatchFailure(op, "expected contiguous buffers");
+    // CopyOp requires equal runtime shapes. Either operand can supply the
+    // extent, but a bare pointer cannot recover an unknown runtime extent.
+    auto shapeType = sourceType.hasStaticShape() ? sourceType : targetType;
+    if (!shapeType.hasStaticShape())
+      return rewriter.notifyMatchFailure(op, "copy extent is not available");
+    auto loc = op.getLoc();
+    Value count = createIndexAttrConstant(rewriter, loc, getIndexType(),
+                                          shapeType.getNumElements());
+    Value elementSize = getSizeInBytes(loc, sourceType.getElementType(), rewriter);
+    Value size = rewriter.create<LLVM::MulOp>(loc, count, elementSize);
+    rewriter.replaceOpWithNewOp<LLVM::MemcpyOp>(
+        op, adaptor.getTarget(), adaptor.getSource(), size,
+        /*isVolatile=*/false);
+    return success();
+  }
+};
+
 /// Pattern for lowering heap deallocations via free.
 struct CDeallocOpLowering : public ConvertOpToLLVMPattern<memref::DeallocOp> {
 public:
@@ -1070,9 +1149,16 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     auto module = deallocOp->getParentOfType<ModuleOp>();
     if (auto F = module.lookupSymbol<mlir::func::FuncOp>("free")) {
-      Value casted = rewriter.create<polygeist::Pointer2MemrefOp>(
-          deallocOp->getLoc(), MemRefType::get({-1}, rewriter.getI8Type()),
-          adaptor.getMemref());
+      Type argumentType = F.getArgumentTypes().front();
+      Value casted;
+      if (auto memrefType = dyn_cast<MemRefType>(argumentType))
+        casted = rewriter.create<polygeist::Pointer2MemrefOp>(
+            deallocOp->getLoc(), memrefType, adaptor.getMemref());
+      else if (isa<LLVM::LLVMPointerType>(argumentType))
+        casted = rewriter.create<LLVM::BitcastOp>(
+            deallocOp->getLoc(), argumentType, adaptor.getMemref());
+      else
+        return rewriter.notifyMatchFailure(deallocOp, "unsupported free argument");
       rewriter.replaceOpWithNewOp<func::CallOp>(deallocOp, F, casted);
     } else {
       LLVM::LLVMFuncOp freeFunc =
@@ -1397,9 +1483,17 @@ template <typename FuncOpType>
 static std::optional<
     std::pair<LLVM::LLVMFunctionType, TypeConverter::SignatureConversion>>
 convertFunctionType(FuncOpType funcOp, const TypeConverter &typeConverter) {
+  auto functionTypeAttr = funcOp->template getAttrOfType<TypeAttr>(
+      funcOp.getFunctionTypeAttrName());
+  auto sourceFunctionType =
+      functionTypeAttr ? dyn_cast<FunctionType>(functionTypeAttr.getValue())
+                       : FunctionType();
+  if (!sourceFunctionType)
+    return std::nullopt;
   TypeConverter::SignatureConversion signatureConversion(
-      funcOp.getNumArguments());
-  for (const auto &[index, type] : llvm::enumerate(funcOp.getArgumentTypes())) {
+      sourceFunctionType.getNumInputs());
+  for (const auto &[index, type] :
+       llvm::enumerate(sourceFunctionType.getInputs())) {
     Type converted = typeConverter.convertType(type);
     if (!converted)
       return std::nullopt;
@@ -1408,7 +1502,7 @@ convertFunctionType(FuncOpType funcOp, const TypeConverter &typeConverter) {
   }
 
   Type resultType =
-      convertAndPackFunctionResultType(funcOp.getFunctionType(), typeConverter);
+      convertAndPackFunctionResultType(sourceFunctionType, typeConverter);
   if (!resultType)
     return std::nullopt;
 
@@ -2632,8 +2726,16 @@ public:
     unsigned numResults = callOp.getNumResults();
     SmallVector<Type, 1> callResultTypes;
     if (!callOp.getResults().empty()) {
+      // Do not resolve the callee symbol here. Dialect conversion is free to
+      // rewrite a declaration to llvm.func before rewriting its callers, in
+      // which case func::CallOp::getCalleeType() attempts to cast an
+      // LLVMFunctionType back to FunctionType. The call operation's own
+      // operands and results are the stable source signature regardless of
+      // conversion order.
+      auto sourceType = FunctionType::get(
+          callOp.getContext(), callOp.getOperandTypes(), callOp.getResultTypes());
       callResultTypes.push_back(convertAndPackFunctionResultType(
-          callOp.getCalleeType(), *typeConverter));
+          sourceType, *typeConverter));
       if (!callResultTypes.back()) {
         return rewriter.notifyMatchFailure(
             callOp.getLoc(), "failed to convert callee signature");
@@ -2708,16 +2810,53 @@ struct ReconcileUnrealizedPointerCasts
   }
 };
 
+/// Lower pointer extraction for the C-style memref convention. Under this
+/// convention a memref is already represented by its aligned data pointer, so
+/// the descriptor-based upstream lowering is not applicable.
+struct CExtractAlignedPointerAsIndexOpLowering
+    : public ConvertOpToLLVMPattern<
+          memref::ExtractAlignedPointerAsIndexOp> {
+  using ConvertOpToLLVMPattern<
+      memref::ExtractAlignedPointerAsIndexOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(memref::ExtractAlignedPointerAsIndexOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<LLVM::PtrToIntOp>(
+        op, getTypeConverter()->getIndexType(), adaptor.getSource());
+    return success();
+  }
+};
+
+/// Recover metadata hidden by a shape-erasing cast before C-pointer lowering.
+/// The cast does not change the allocation, offset, sizes, or strides. Keeping
+/// its more precise source lets the upstream metadata folder expose constants.
+struct FoldStridedMetadataOfCast
+    : public OpRewritePattern<memref::ExtractStridedMetadataOp> {
+  using OpRewritePattern<memref::ExtractStridedMetadataOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::ExtractStridedMetadataOp op,
+                                PatternRewriter &rewriter) const override {
+    auto cast = op.getSource().getDefiningOp<memref::CastOp>();
+    if (!cast || !memref::CastOp::canFoldIntoConsumerOp(cast))
+      return failure();
+    rewriter.updateRootInPlace(
+        op, [&] { op.getSourceMutable().assign(cast.getSource()); });
+    return success();
+  }
+};
+
 /// Appends the patterns lowering operations from the Memref dialect to the LLVM
 /// dialect using the C-style type conversion, i.e. converting memrefs to
 /// pointer to arrays of arrays.
 static void
 populateCStyleMemRefLoweringPatterns(RewritePatternSet &patterns,
                                      LLVMTypeConverter &typeConverter) {
-  patterns.add<CAllocaOpLowering, CAllocOpLowering, CDeallocOpLowering,
+  patterns.add<CAllocaOpLowering, CAllocOpLowering, CCastOpLowering,
+               CCopyOpLowering, CDeallocOpLowering,
                GetGlobalOpLowering, GlobalOpLowering, CLoadOpLowering,
-               CStoreOpLowering, AllocaScopeOpLowering, CAtomicRMWOpLowering>(
-      typeConverter);
+               CStoreOpLowering, AllocaScopeOpLowering, CAtomicRMWOpLowering,
+               CExtractAlignedPointerAsIndexOpLowering>(typeConverter);
 }
 
 /// Appends the patterns lowering operations from the Func dialect to the LLVM
@@ -2819,6 +2958,8 @@ struct ConvertPolygeistToLLVMPass
                                            gpu::getDefaultGpuBinaryAnnotation(),
                                            gpuTarget);
       patterns.add<ReplaceErrOpWithSuccess>(&getContext());
+      if (useCStyleMemRef)
+        patterns.add<FoldStridedMetadataOfCast>(&getContext());
       (void)applyPatternsAndFoldGreedily(m, std::move(patterns));
     }
 

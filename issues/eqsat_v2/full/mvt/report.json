@@ -1,0 +1,70 @@
+{
+ "launches": [
+  {
+   "spec": "netlib_dgemv_n_beta1",
+   "root": "%16",
+   "func": "kernel_mvt",
+   "binding": {
+    "%m": "%arg0",
+    "%n": "%arg0",
+    "%alpha": "literal 1.0",
+    "%lda": "stride0(%arg5)",
+    "%A": "%4",
+    "%x": "%3",
+    "%y": "%1"
+   },
+   "generics": {
+    "%9": {
+     "pi": [
+      1,
+      0
+     ],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      1,
+      0
+     ],
+     "app": "%15"
+    }
+   },
+   "consumed_ops": 6
+  },
+  {
+   "spec": "netlib_dgemv_t_beta1",
+   "root": "%10",
+   "func": "kernel_mvt",
+   "binding": {
+    "%m": "%arg0",
+    "%n": "%arg0",
+    "%alpha": "literal 1.0",
+    "%lda": "stride0(%arg5)",
+    "%A": "%4",
+    "%x": "%2",
+    "%y": "%0"
+   },
+   "generics": {
+    "%8": {
+     "pi": [
+      0,
+      1
+     ],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0,
+      1
+     ],
+     "app": "%9"
+    }
+   },
+   "consumed_ops": 6
+  }
+ ],
+ "literal_policy_rejections": [],
+ "alternatives": [],
+ "rejected": [],
+ "residual_generics": []
+}

@@ -1,0 +1,17 @@
+Jetson Orin sm87, MAXN, CUDA 12.6, cuDNN 9.7
+N=4194304; warm mean of 10 calls after 3 warmups.
+POLYGEIST_RT_GRAPH_DIAGNOSTICS=1 confirmed an active cuDNN plan for every case.
+Inputs use wide integer patterns so both/all piecewise branches are exercised.
+
+RESULT kernel=aten_elu_backward warm_us=8705.961621 errors=0 max_error=2.38419e-07 nodes=8
+RESULT kernel=aten_hardshrink warm_us=4672.086377 errors=0 max_error=0 nodes=8
+RESULT kernel=aten_hardswish_backward warm_us=8546.879956 errors=0 max_error=1.19209e-07 nodes=11
+RESULT kernel=aten_hardtanh_backward warm_us=6653.488037 errors=0 max_error=0 nodes=8
+RESULT kernel=aten_huber_backward warm_us=6652.921606 errors=0 max_error=2.08616e-07 nodes=10
+RESULT kernel=aten_huber_elementwise warm_us=6673.948804 errors=0 max_error=0 nodes=10
+RESULT kernel=aten_shrink_backward warm_us=6626.259180 errors=0 max_error=0 nodes=8
+RESULT kernel=aten_smooth_l1_backward warm_us=6629.321606 errors=0 max_error=0 nodes=11
+RESULT kernel=aten_smooth_l1_elementwise warm_us=6637.497632 errors=0 max_error=0 nodes=10
+RESULT kernel=aten_softplus_backward warm_us=8552.384033 errors=0 max_error=0 nodes=10
+RESULT kernel=aten_softshrink warm_us=4672.825562 errors=0 max_error=0 nodes=10
+RESULT kernel=aten_threshold_backward warm_us=6661.440039 errors=0 max_error=0 nodes=4

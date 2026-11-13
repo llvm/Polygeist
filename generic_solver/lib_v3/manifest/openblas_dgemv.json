@@ -1,0 +1,210 @@
+{
+  "routine": "openblas_dgemv",
+  "source": "OpenBLAS 0.3.31 (BSD-3), ~/netlib_ref/openblas-0.3.31 SHA256SUMS; interface/gemv.c, kernel/arm/{scal,gemv_n,gemv_t}.c",
+  "specs": [
+    {
+      "name": "openblas_dgemv_n_beta0",
+      "defines": {
+        "TRANS": "'N'",
+        "BETA_CASE": "0"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_N",
+          "incx": 1,
+          "incy": 1,
+          "beta": 0.0
+        },
+        "openblas_call": "cblas_dgemv"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "x",
+        "y"
+      ],
+      "assumptions": [
+        "alpha != 0 (interface/gemv.c L271 not taken)",
+        "incx == 1, incy == 1",
+        "beta == 0"
+      ],
+      "deviations": [],
+      "source_lines": "interface/gemv.c:L269-L294 + kernel/arm/scal.c + kernel/arm/gemv_n.c"
+    },
+    {
+      "name": "openblas_dgemv_n_beta1",
+      "defines": {
+        "TRANS": "'N'",
+        "BETA_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_N",
+          "incx": 1,
+          "incy": 1,
+          "beta": 1.0
+        },
+        "openblas_call": "cblas_dgemv"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "x",
+        "y"
+      ],
+      "assumptions": [
+        "alpha != 0 (interface/gemv.c L271 not taken)",
+        "incx == 1, incy == 1",
+        "beta == 1 (SCAL_K skipped)"
+      ],
+      "deviations": [],
+      "source_lines": "interface/gemv.c:L269-L294 + kernel/arm/scal.c + kernel/arm/gemv_n.c"
+    },
+    {
+      "name": "openblas_dgemv_n",
+      "defines": {
+        "TRANS": "'N'",
+        "BETA_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_N",
+          "incx": 1,
+          "incy": 1
+        },
+        "openblas_call": "cblas_dgemv"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "x",
+        "beta",
+        "y"
+      ],
+      "assumptions": [
+        "alpha != 0 (interface/gemv.c L271 not taken)",
+        "incx == 1, incy == 1",
+        "beta != 0, beta != 1"
+      ],
+      "deviations": [],
+      "source_lines": "interface/gemv.c:L269-L294 + kernel/arm/scal.c + kernel/arm/gemv_n.c"
+    },
+    {
+      "name": "openblas_dgemv_t_beta0",
+      "defines": {
+        "TRANS": "'T'",
+        "BETA_CASE": "0"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_T",
+          "incx": 1,
+          "incy": 1,
+          "beta": 0.0
+        },
+        "openblas_call": "cblas_dgemv"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "x",
+        "y"
+      ],
+      "assumptions": [
+        "alpha != 0 (interface/gemv.c L271 not taken)",
+        "incx == 1, incy == 1",
+        "beta == 0"
+      ],
+      "deviations": [],
+      "source_lines": "interface/gemv.c:L269-L294 + kernel/arm/scal.c + kernel/arm/gemv_t.c"
+    },
+    {
+      "name": "openblas_dgemv_t_beta1",
+      "defines": {
+        "TRANS": "'T'",
+        "BETA_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_T",
+          "incx": 1,
+          "incy": 1,
+          "beta": 1.0
+        },
+        "openblas_call": "cblas_dgemv"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "x",
+        "y"
+      ],
+      "assumptions": [
+        "alpha != 0 (interface/gemv.c L271 not taken)",
+        "incx == 1, incy == 1",
+        "beta == 1 (SCAL_K skipped)"
+      ],
+      "deviations": [],
+      "source_lines": "interface/gemv.c:L269-L294 + kernel/arm/scal.c + kernel/arm/gemv_t.c"
+    },
+    {
+      "name": "openblas_dgemv_t",
+      "defines": {
+        "TRANS": "'T'",
+        "BETA_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_T",
+          "incx": 1,
+          "incy": 1
+        },
+        "openblas_call": "cblas_dgemv"
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "x",
+        "beta",
+        "y"
+      ],
+      "assumptions": [
+        "alpha != 0 (interface/gemv.c L271 not taken)",
+        "incx == 1, incy == 1",
+        "beta != 0, beta != 1"
+      ],
+      "deviations": [],
+      "source_lines": "interface/gemv.c:L269-L294 + kernel/arm/scal.c + kernel/arm/gemv_t.c"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+[
+  {
+    "op": "abs",
+    "count": 4096,
+    "bad": 0,
+    "first_failures": []
+  },
+  {
+    "op": "neg",
+    "count": 4096,
+    "bad": 0,
+    "first_failures": []
+  },
+  {
+    "op": "exp",
+    "count": 4096,
+    "bad": 0,
+    "first_failures": []
+  },
+  {
+    "op": "log",
+    "count": 4096,
+    "bad": 0,
+    "first_failures": []
+  },
+  {
+    "op": "sqrt",
+    "count": 4096,
+    "bad": 0,
+    "first_failures": []
+  },
+  {
+    "op": "reciprocal",
+    "count": 4096,
+    "bad": 0,
+    "first_failures": []
+  },
+  {
+    "op": "sin",
+    "count": 4096,
+    "bad": 0,
+    "first_failures": []
+  },
+  {
+    "op": "cos",
+    "count": 4096,
+    "bad": 0,
+    "first_failures": []
+  },
+  {
+    "op": "tanh",
+    "count": 256,
+    "bad": 0,
+    "first_failures": []
+  },
+  {
+    "op": "sigmoid",
+    "count": 256,
+    "bad": 0,
+    "first_failures": []
+  }
+]

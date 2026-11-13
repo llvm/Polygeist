@@ -1,0 +1,51 @@
+{
+  "routine": "cutlass_rmsnorm",
+  "source": "Pinned upstream scalar implementation; documented adaptations in ref_c/cutlass_rmsnorm.c",
+  "upstream_files": [
+    {
+      "path": "third_party/cutlass/test/unit/util/rms_norm.cu",
+      "sha256": "8eaa1816112d2cdf0bd5a13221f3d567ea39d666dadd6a10305032065dc35232"
+    },
+    {
+      "path": "third_party/cutlass/include/cutlass/fast_math.h",
+      "sha256": "1d343d0a76cce4d4cfb8d8b18cfcca3131bfb6a63a694e3b1d4f796506ab3110"
+    }
+  ],
+  "specs": [
+    {
+      "name": "cutlass_rmsnorm_f32",
+      "target": {
+        "library": "cuDNN",
+        "call": "cudnnBackendExecute",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "vendor_runtime",
+          "extent_arg": "n",
+          "entry": "polygeist_rmsnorm_f32",
+          "arguments": {
+            "N": "n",
+            "X": "input",
+            "Weight": "weight",
+            "Out": "output"
+          }
+        }
+      },
+      "args": [
+        "n",
+        "input",
+        "weight",
+        "output"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX",
+        "contiguous nonoverlapping FP32 arrays",
+        "finite inputs; floating reorderings only under relaxed model",
+        "epsilon == 1e-5f, matching the declared cuDNN RMSNorm adapter contract"
+      ],
+      "deviations": []
+    }
+  ]
+}

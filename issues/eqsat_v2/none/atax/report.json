@@ -1,0 +1,114 @@
+{
+ "launches": [
+  {
+   "spec": "netlib_dgemv_n_beta0",
+   "root": "%22",
+   "func": "kernel_atax",
+   "binding": {
+    "%m": "%arg1",
+    "%n": "%arg0",
+    "%alpha": "literal 1.0",
+    "%lda": "stride0(%arg2)",
+    "%A": "%0",
+    "%x": "%16",
+    "%y": "%2"
+   },
+   "generics": {
+    "%12": {
+     "pi": [
+      1,
+      0
+     ],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0,
+      1
+     ],
+     "app": "%21"
+    },
+    "%5": {
+     "pi": [],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0
+     ],
+     "app": "%6"
+    }
+   },
+   "consumed_ops": 10
+  },
+  {
+   "spec": "netlib_dgemv_t_beta0",
+   "root": "%16",
+   "func": "kernel_atax",
+   "binding": {
+    "%m": "%arg1",
+    "%n": "%arg0",
+    "%alpha": "literal 1.0",
+    "%lda": "stride0(%arg2)",
+    "%A": "%0",
+    "%x": "%1",
+    "%y": "%3"
+   },
+   "generics": {
+    "%11": {
+     "pi": [
+      0,
+      1
+     ],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0,
+      1
+     ],
+     "app": "%15"
+    },
+    "%5": {
+     "pi": [],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0
+     ],
+     "app": "%10"
+    }
+   },
+   "consumed_ops": 10
+  }
+ ],
+ "literal_policy_rejections": [],
+ "alternatives": [
+  "netlib_dgemv_n_beta1@%22",
+  "netlib_dgemv_t_beta1@%16"
+ ],
+ "rejected": [
+  {
+   "spec": "netlib_dgemv_n_alpha0_beta0",
+   "root": "%7",
+   "why": "unbound parameters ['%n', '%lda', '%A', '%x']"
+  },
+  {
+   "spec": "netlib_dgemv_n_alpha0_beta0",
+   "root": "%11",
+   "why": "unbound parameters ['%n', '%lda', '%A', '%x']"
+  },
+  {
+   "spec": "netlib_dgemv_t_alpha0_beta0",
+   "root": "%7",
+   "why": "unbound parameters ['%m', '%lda', '%A', '%x']"
+  },
+  {
+   "spec": "netlib_dgemv_t_alpha0_beta0",
+   "root": "%11",
+   "why": "unbound parameters ['%m', '%lda', '%A', '%x']"
+  }
+ ],
+ "residual_generics": []
+}

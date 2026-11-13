@@ -1,0 +1,15 @@
+[polygeist] input=/home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/linear-algebra/kernels/2mm/2mm.c  function=kernel_2mm  target=host  output=/tmp/polybench-section42-cpu-timing/2mm/openblas
+[polygeist] harness=/home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/linear-algebra/kernels/2mm/2mm.c
+[polygeist] gcc passthrough: -O3 -I/home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/utilities -I/home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/linear-algebra/kernels/2mm -Dstatic= -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO -DPOLYBENCH_TIME -DPOLYBENCH_DUMP_ARRAYS
+  [1-4/9] reuse stored semantic MLIR: /home/arjaiswal/Polygeist-section42/issues/polybench_section42/ir/2mm/matched.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+         emitted 3 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+  [7/9] gen_wrapper.py: ABI bridge for kernel_2mm
+  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=host)
+         + optimized CPU CBLAS runtime enabled
+         + polybench utility from /home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/utilities/polybench.c
+  [9/9] link → /tmp/polybench-section42-cpu-timing/2mm/openblas
+
+═══ build complete ═══
+/tmp/polybench-section42-cpu-timing/2mm/openblas: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 3.2.0, not stripped

@@ -1,0 +1,4 @@
+wall_seconds=8.65
+user_seconds=8.13
+system_seconds=0.45
+peak_rss_kib=157900

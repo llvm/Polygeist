@@ -1,0 +1,2 @@
+kernel,validated_sites,elements,correctness,failures,max_abs,max_rel,target,composition,executable_sha256,evidence,notes
+integrate_value_3d,2,65536,PASS,0,5.5511151231257827e-17,5.5511151231257827e-17,Jetson_AGX_Orin_aarch64_sm87_CUDA12.6,pairwise_disabled,86a02ef6b766357bbeeac6e34c95619469a25a97c54bb12fa06331de31c81245,integrate_value_3d_fixed_orin.log,Fresh NE=1024 full-output validation after permutation-safe tensor submapInverse lowering; two cutensornetContraction2_f64 launches executed

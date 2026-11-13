@@ -1,0 +1,6 @@
+Five independent Jetson Orin process runs; correctness checked before timing.
+RESULT kernel=aten_compressed_block_convert_cpu warm_us=2066.156799 resident_us=2048.160000 errors=0 max_error=0 shape=R=2048_C=2048_BR=4_BC=4 coverage=full_dense-to-block-major_layout_conversion_via_cuTENSOR_permutation
+RESULT kernel=aten_compressed_block_convert_cpu warm_us=2096.886400 resident_us=1969.408001 errors=0 max_error=0 shape=R=2048_C=2048_BR=4_BC=4 coverage=full_dense-to-block-major_layout_conversion_via_cuTENSOR_permutation
+RESULT kernel=aten_compressed_block_convert_cpu warm_us=2067.324800 resident_us=1978.624001 errors=0 max_error=0 shape=R=2048_C=2048_BR=4_BC=4 coverage=full_dense-to-block-major_layout_conversion_via_cuTENSOR_permutation
+RESULT kernel=aten_compressed_block_convert_cpu warm_us=2071.513601 resident_us=2047.680000 errors=0 max_error=0 shape=R=2048_C=2048_BR=4_BC=4 coverage=full_dense-to-block-major_layout_conversion_via_cuTENSOR_permutation
+RESULT kernel=aten_compressed_block_convert_cpu warm_us=2074.067201 resident_us=2055.647999 errors=0 max_error=0 shape=R=2048_C=2048_BR=4_BC=4 coverage=full_dense-to-block-major_layout_conversion_via_cuTENSOR_permutation

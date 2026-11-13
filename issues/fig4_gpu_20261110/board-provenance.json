@@ -1,0 +1,69 @@
+{
+  "board_id": "artifact-orin-1",
+  "libraries": {
+    "libcudnn.so.9": {
+      "resolved_path": "/home/[private]/cuda-12.6/targets/sbsa-linux/lib/libcudnn.so.9.25.1",
+      "sha256": "d921f4ba8ea4c68a0488f559e08dc0f2a3465b1fca06cae28a69e61ea79acc77"
+    },
+    "libcublasLt.so.12": {
+      "resolved_path": "/home/[private]/jetson-cuda-libs/libcublasLt.so.12",
+      "sha256": "2e189996f1d7f5c9d7a710dfcd8c3782d57d4c26b5e0762a9e566db460c7c498"
+    },
+    "libcublas.so.12": {
+      "resolved_path": "/home/[private]/jetson-cuda-libs/libcublas.so.12",
+      "sha256": "3db146a57f97e55781ee7ca55385e839c3f9ad1af937d035bae0c7fc0cf8ddaa"
+    },
+    "libcufft.so.11": {
+      "resolved_path": "/home/[private]/cuda-12.6/targets/sbsa-linux/lib/libcufft.so.11.3.0.4",
+      "sha256": "e64b527da499df0c17b3d2241efed88d0358d84552fc1176db726580a93e5631"
+    },
+    "libcusparse.so.12": {
+      "resolved_path": "/home/[private]/cuda-12.6/targets/sbsa-linux/lib/libcusparse.so.12.5.4.2",
+      "sha256": "6650b245e07ceb3d074a37308e21dfd79664a74270ff7db3681317ec37f11886"
+    },
+    "libcusolver.so.11": {
+      "resolved_path": "/home/[private]/cuda-12.6/targets/sbsa-linux/lib/libcusolver.so.11.7.1.2",
+      "sha256": "743437fac2e02b4356be144ae9842753901162b36d813ab31329c890a9a597f0"
+    },
+    "libcudart.so.12": {
+      "resolved_path": "/home/[private]/jetson-cuda-libs/libcudart.so.12",
+      "sha256": "dbd549c91a1fd8bbae65dd9b733fddf0e98382301f587ce1388ab49c42360ead"
+    },
+    "libm.so.6": {
+      "resolved_path": "/usr/lib/aarch64-linux-gnu/libm.so.6",
+      "sha256": "d5b262e559d38769e4959f036a1cc2c4009fa60b4ec836a7a19ca8554aebf5a5"
+    },
+    "libc.so.6": {
+      "resolved_path": "/usr/lib/aarch64-linux-gnu/libc.so.6",
+      "sha256": "fe5966a43e068ad7cb389c3affa069f4ee6f296e07d7ccc0398a23cfde4f0b7e"
+    },
+    "libdl.so.2": {
+      "resolved_path": "/usr/lib/aarch64-linux-gnu/libdl.so.2",
+      "sha256": "97387fb55ccfc0cc109dfe99b81de2b7bbaac723d1c215107dc69a068c4b1fae"
+    },
+    "libpthread.so.0": {
+      "resolved_path": "/usr/lib/aarch64-linux-gnu/libpthread.so.0",
+      "sha256": "97b288827c0ab29659dfcdcfab6c2e9e1225c19fc5abfe106d8a53c2c7b34402"
+    },
+    "librt.so.1": {
+      "resolved_path": "/usr/lib/aarch64-linux-gnu/librt.so.1",
+      "sha256": "4b38331a53bc2bd10c1ecf4f02a71c913c40bad13f5fbf93bee5a0e1f25dd493"
+    },
+    "libstdc++.so.6": {
+      "resolved_path": "/usr/lib/aarch64-linux-gnu/libstdc++.so.6.0.33",
+      "sha256": "6e3112d35cfc86db7ee85b27e1746f67408e2837ff8628b46386c3eabd5682a4"
+    },
+    "libgcc_s.so.1": {
+      "resolved_path": "/usr/lib/aarch64-linux-gnu/libgcc_s.so.1",
+      "sha256": "f2d3ad2bf0b61f6bc944cc37d7b6ab7f88d2582b41ff989ca164803f56cc5f20"
+    },
+    "libnvJitLink.so.12": {
+      "resolved_path": "/home/[private]/cuda-12.6/targets/sbsa-linux/lib/libnvJitLink.so.12.6.85",
+      "sha256": "94c822534b459ff0ac74c6e1c1b4b2e640bc161947cdd85a4c7789677fa5d4d4"
+    }
+  },
+  "uptime": " 20:48:19 up 22 days,  1:45,  4 users,  load average: 0.01, 0.25, 0.32\n",
+  "kernel": "6.8.12-1021-tegra\n",
+  "arch": "aarch64\n",
+  "fan": "automatic; fixed setting not available to configured account"
+}

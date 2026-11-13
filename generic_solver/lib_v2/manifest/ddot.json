@@ -1,0 +1,65 @@
+{
+  "routine": "ddot",
+  "source": "BLAS/SRC/ddot.f:L81-L149 (executable L104-L145)",
+  "specs": [
+    {
+      "name": "netlib_ddot",
+      "defines": {
+        "INC_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDdot",
+        "fixed_args": {
+          "incx": 1,
+          "incy": 1
+        },
+        "arg_map": {
+          "x": "dx",
+          "y": "dy"
+        },
+        "result": "return value -> cublasDdot result pointer"
+      },
+      "args": [
+        "n",
+        "dx",
+        "dy"
+      ],
+      "returns": "f64",
+      "assumptions": [
+        "incx == 1, incy == 1"
+      ],
+      "deviations": [],
+      "fortran_lines": "L114-L128"
+    },
+    {
+      "name": "netlib_ddot_inc",
+      "defines": {
+        "INC_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDdot",
+        "fixed_args": {},
+        "arg_map": {
+          "x": "dx",
+          "y": "dy"
+        },
+        "result": "return value -> cublasDdot result pointer"
+      },
+      "args": [
+        "n",
+        "dx",
+        "incx",
+        "dy",
+        "incy"
+      ],
+      "returns": "f64",
+      "assumptions": [
+        "incx > 0, incy > 0. Valid for unit increments too: for incx == incy == 1 the reference takes its unit-stride branch, which performs the same per-element arithmetic in the same order (by inspection of the Fortran)"
+      ],
+      "deviations": [],
+      "fortran_lines": "L134-L142"
+    }
+  ]
+}

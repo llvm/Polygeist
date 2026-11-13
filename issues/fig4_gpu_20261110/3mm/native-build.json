@@ -1,0 +1,14 @@
+{
+  "upstream_source": "third_party/polybenchGpu/CUDA/3MM/3mm.cu",
+  "upstream_sha256": "52db8f0bb854d5fcfca0c3368aa6fcfd466f5793b2519d22943086576f83a313",
+  "kernel_sha256": [
+    "2b5243eaaa7e3d475694a2a9351588e85a94079cb82b2e4d8f5d7fdbb33ad09c",
+    "1a7dc3bc1441ac7ebdb7fe00fe29876e3c492c532c442568e106bc25c26a48a0",
+    "8645c6990737799337dbe11169c49330d25ccdb6950fa66dce7d422be2e9bb3f"
+  ],
+  "computational_bodies_verbatim": true,
+  "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+  "generated_source_sha256": "1cc916af20968d9f7c5776b1c08e009439ab7867b46bfac42f9099fc923bf6e6",
+  "build_rc": 0,
+  "executable_sha256": "9bc585f825d6cecdba5fd4f63b9d5264215765b414146c716a7a9a836585230b"
+}

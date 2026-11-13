@@ -1,0 +1,447 @@
+{
+  "routine": "dgemv",
+  "source": "BLAS/SRC/dgemv.f:L157-L330 (executable L196-L326)",
+  "specs": [
+    {
+      "name": "netlib_dgemv_n_beta0",
+      "defines": {
+        "TRANS": "'N'",
+        "BETA_CASE": "0",
+        "INC_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_N",
+          "incx": 1,
+          "incy": 1,
+          "beta": 0.0
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "x",
+        "y"
+      ],
+      "assumptions": [
+        "alpha != 0 (L273 not taken)",
+        "beta == 0",
+        "incx == 1, incy == 1"
+      ],
+      "deviations": [],
+      "fortran_lines": "L247-L272 + L278-L297"
+    },
+    {
+      "name": "netlib_dgemv_n_beta1",
+      "defines": {
+        "TRANS": "'N'",
+        "BETA_CASE": "1",
+        "INC_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_N",
+          "incx": 1,
+          "incy": 1,
+          "beta": 1.0
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "x",
+        "y"
+      ],
+      "assumptions": [
+        "alpha != 0 (L273 not taken)",
+        "beta == 1",
+        "incx == 1, incy == 1"
+      ],
+      "deviations": [],
+      "fortran_lines": "L247-L272 + L278-L297"
+    },
+    {
+      "name": "netlib_dgemv_n",
+      "defines": {
+        "TRANS": "'N'",
+        "BETA_CASE": "2",
+        "INC_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_N",
+          "incx": 1,
+          "incy": 1
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "x",
+        "beta",
+        "y"
+      ],
+      "assumptions": [
+        "alpha != 0 (L273 not taken)",
+        "beta != 0 and beta != 1 (BETA.NE.ONE branch taken)",
+        "incx == 1, incy == 1"
+      ],
+      "deviations": [],
+      "fortran_lines": "L247-L272 + L278-L297"
+    },
+    {
+      "name": "netlib_dgemv_n_alpha0_beta0",
+      "defines": {
+        "TRANS": "'N'",
+        "ALPHA_CASE": "0",
+        "BETA_CASE": "0",
+        "INC_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_N",
+          "incx": 1,
+          "incy": 1,
+          "alpha": 0.0,
+          "beta": 0.0
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "lda",
+        "A",
+        "x",
+        "y"
+      ],
+      "assumptions": [
+        "alpha == 0 (RETURN at L273)",
+        "beta == 0",
+        "incx == 1, incy == 1",
+        "A and x are not referenced by this branch"
+      ],
+      "deviations": [],
+      "fortran_lines": "L247-L273"
+    },
+    {
+      "name": "netlib_dgemv_n_alpha0",
+      "defines": {
+        "TRANS": "'N'",
+        "ALPHA_CASE": "0",
+        "BETA_CASE": "2",
+        "INC_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_N",
+          "incx": 1,
+          "incy": 1,
+          "alpha": 0.0
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "lda",
+        "A",
+        "x",
+        "beta",
+        "y"
+      ],
+      "assumptions": [
+        "alpha == 0 (RETURN at L273)",
+        "beta != 0 and beta != 1",
+        "incx == 1, incy == 1",
+        "A and x are not referenced by this branch"
+      ],
+      "deviations": [],
+      "fortran_lines": "L247-L273"
+    },
+    {
+      "name": "netlib_dgemv_n_inc",
+      "defines": {
+        "TRANS": "'N'",
+        "BETA_CASE": "2",
+        "INC_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_N"
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "x",
+        "incx",
+        "beta",
+        "y",
+        "incy"
+      ],
+      "assumptions": [
+        "alpha != 0",
+        "beta != 0 and beta != 1",
+        "incx > 0, incy > 0. Valid for unit increments too: for incx == incy == 1 the reference takes its unit-stride branch, which performs the same per-element arithmetic in the same order (by inspection of the Fortran)"
+      ],
+      "deviations": [],
+      "fortran_lines": "L258-L271 + L287-L296"
+    },
+    {
+      "name": "netlib_dgemv_t_beta0",
+      "defines": {
+        "TRANS": "'T'",
+        "BETA_CASE": "0",
+        "INC_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_T",
+          "incx": 1,
+          "incy": 1,
+          "beta": 0.0
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "x",
+        "y"
+      ],
+      "assumptions": [
+        "alpha != 0 (L273 not taken)",
+        "beta == 0",
+        "incx == 1, incy == 1"
+      ],
+      "deviations": [],
+      "fortran_lines": "L247-L272 + L302-L323"
+    },
+    {
+      "name": "netlib_dgemv_t_beta1",
+      "defines": {
+        "TRANS": "'T'",
+        "BETA_CASE": "1",
+        "INC_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_T",
+          "incx": 1,
+          "incy": 1,
+          "beta": 1.0
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "x",
+        "y"
+      ],
+      "assumptions": [
+        "alpha != 0 (L273 not taken)",
+        "beta == 1",
+        "incx == 1, incy == 1"
+      ],
+      "deviations": [],
+      "fortran_lines": "L247-L272 + L302-L323"
+    },
+    {
+      "name": "netlib_dgemv_t",
+      "defines": {
+        "TRANS": "'T'",
+        "BETA_CASE": "2",
+        "INC_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_T",
+          "incx": 1,
+          "incy": 1
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "x",
+        "beta",
+        "y"
+      ],
+      "assumptions": [
+        "alpha != 0 (L273 not taken)",
+        "beta != 0 and beta != 1 (BETA.NE.ONE branch taken)",
+        "incx == 1, incy == 1"
+      ],
+      "deviations": [],
+      "fortran_lines": "L247-L272 + L302-L323"
+    },
+    {
+      "name": "netlib_dgemv_t_alpha0_beta0",
+      "defines": {
+        "TRANS": "'T'",
+        "ALPHA_CASE": "0",
+        "BETA_CASE": "0",
+        "INC_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_T",
+          "incx": 1,
+          "incy": 1,
+          "alpha": 0.0,
+          "beta": 0.0
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "lda",
+        "A",
+        "x",
+        "y"
+      ],
+      "assumptions": [
+        "alpha == 0 (RETURN at L273)",
+        "beta == 0",
+        "incx == 1, incy == 1",
+        "A and x are not referenced by this branch"
+      ],
+      "deviations": [],
+      "fortran_lines": "L247-L273"
+    },
+    {
+      "name": "netlib_dgemv_t_alpha0",
+      "defines": {
+        "TRANS": "'T'",
+        "ALPHA_CASE": "0",
+        "BETA_CASE": "2",
+        "INC_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_T",
+          "incx": 1,
+          "incy": 1,
+          "alpha": 0.0
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "lda",
+        "A",
+        "x",
+        "beta",
+        "y"
+      ],
+      "assumptions": [
+        "alpha == 0 (RETURN at L273)",
+        "beta != 0 and beta != 1",
+        "incx == 1, incy == 1",
+        "A and x are not referenced by this branch"
+      ],
+      "deviations": [],
+      "fortran_lines": "L247-L273"
+    },
+    {
+      "name": "netlib_dgemv_t_inc",
+      "defines": {
+        "TRANS": "'T'",
+        "BETA_CASE": "2",
+        "INC_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDgemv",
+        "fixed_args": {
+          "trans": "CUBLAS_OP_T"
+        }
+      },
+      "args": [
+        "m",
+        "n",
+        "alpha",
+        "lda",
+        "A",
+        "x",
+        "incx",
+        "beta",
+        "y",
+        "incy"
+      ],
+      "assumptions": [
+        "alpha != 0",
+        "beta != 0 and beta != 1",
+        "incx > 0, incy > 0. Valid for unit increments too: for incx == incy == 1 the reference takes its unit-stride branch, which performs the same per-element arithmetic in the same order (by inspection of the Fortran)"
+      ],
+      "deviations": [],
+      "fortran_lines": "L258-L271 + L312-L322"
+    }
+  ],
+  "layout_transpose": {
+    "about": "Declarative layout-transpose equivalences used by the region matcher's launch emitter. A binding that stores the listed rank-2 operands transposed (the spec reads op^T of the memory it is given) is equivalent to the spec whose defines have each listed flag flipped between its two values, with the listed argument pairs swapped (flips first, then swaps). Leading dimensions always follow their array. The transposed operand set must be covered exactly by disjoint rules.",
+    "flags": {
+      "TRANS": [
+        "'N'",
+        "'T'"
+      ]
+    },
+    "rules": [
+      {
+        "operands": [
+          "A"
+        ],
+        "flip": [
+          "TRANS"
+        ],
+        "swap": [
+          [
+            "m",
+            "n"
+          ]
+        ]
+      }
+    ]
+  }
+}

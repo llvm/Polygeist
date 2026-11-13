@@ -1,0 +1,2 @@
+kernel,implementation,correctness,values,device_median_ms,device_min_ms,device_max_ms,device_iqr_ms,e2e_median_ms,e2e_min_ms,e2e_max_ms,e2e_iqr_ms,publication_acceptance
+correlation,PolyBenchGPU CUDA modified-source normalization adapter,pass,1440000,321.237823486,321.200988770,322.846252441,1.313873291,326.549000,326.491000,328.183000,1.365500,pending_fixed_hardware_state_verification

@@ -1,0 +1,15 @@
+{
+  "cases": 115,
+  "raised_correct": 115,
+  "native_correct": 115,
+  "pending": [],
+  "buckets": {
+    "within_2x": 66,
+    "raised_over_2x_faster": 17,
+    "raised_over_2x_slower": 32
+  },
+  "invalid_historical_inputs": [
+    "aten_conv2d_columns_cpu",
+    "aten_sparse_matmul_cpu"
+  ]
+}

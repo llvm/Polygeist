@@ -1,0 +1,96 @@
+ATen first ten unary / pointwise cases — 2026-11-11
+
+Scope: abs, neg, exp, log, sqrt, reciprocal, sin, cos, tanh, sigmoid.
+These contribute to ATen coverage (Table 5). They are not among Figure 5's
+115 non-elementwise cases. This campaign does not claim a fresh 598-case sweep.
+
+Implementation:
+- Ten FP32 C reference specializations are extracted from pinned upstream
+  ATen scalar implementations. The manifest records upstream file hashes.
+  TensorIterator/vector mapping is expanded into a contiguous scalar loop.
+- References and applications use the production raising recipe. Reference
+  matching is strict-model, imported-specification-only, with the shared matcher.
+- Both sides originate from ATen scalar semantics. These ten are exact Linalg
+  matches; they do not demonstrate an equality-saturation coverage benefit or
+  import cuDNN's implementation source. The proof establishes application to
+  reference equivalence. The cuDNN opcode semantics and their floating-point
+  behavior are a separate trusted binding, checked by the GPU experiments.
+- cuDNN pointwise graphs are generated mechanically from validated reference
+  MLIR using the existing pointwise_reference adapter. No operation recognizer
+  or handwritten runtime formula was introduced for these ten cases.
+- Corrected the abs fixture/generator: upstream std::abs maps to fabsf, while
+  the previous conditional incorrectly preserved negative zero.
+- Source validation handles equal NaN classes and equal signed infinities,
+  rejecting finite/nonfinite mismatches and opposite infinities. NaN payloads
+  and NaN signs are not part of this equivalence check.
+- Math-to-libm lowering covers math operations without LLVM intrinsics, such
+  as tanh, when validating raised references on the CPU.
+
+Completed checks:
+- All ten references raise and validate exactly at affine, Linalg and
+  imported-definition stages: import-results.json.
+- Independent pinned C++ upstream scalar bodies agree with the C references
+  and application fixtures, including zero/negative zero/NaN/infinity inputs:
+  source-validation.json.
+- All 77 Python regression tests pass against the stable 114-spec catalog:
+  regression-tests-final.log.
+- Generated runtime consistency check passes: runtime-check.log.
+- All ten original fixtures match their corresponding imported reference in
+  strict mode and build for Orin: matching-results.json, gpu-build-results.json.
+- All 22 previously successful application matches are retained:
+  previous-matches.json and previous-matches.log.
+
+GPU results: all ten cases pass the finite and edge-value checks in both host
+and resident modes. All ten produce real cudnnBackendExecute trace records;
+the generated wrappers require GPU libraries and do not accept CPU fallback.
+All ten timing comparisons completed: gpu-results.json, gpu-run.log and
+timings.tsv. Per-case logs and executables are under gpu/<operation>/.
+
+Numerical scope:
+- GPU versus CPU scalar reference uses abs_error <= 1e-5 + 1e-4 * abs(reference).
+  Nonfinite classes must agree; infinity signs and zero signs are checked.
+- GPU versus direct cuDNN is bitwise equal for finite values and infinities.
+  NaN payloads/signs are excluded; both sides must produce a NaN.
+- This is not bitwise CPU equivalence. For example, sin has relative error
+  approaching one near zero while its absolute error stays below 8e-7; tanh's
+  largest observed absolute error is below 7e-6. Full errors are in gpu-results.json.
+- These sampled checks do not prove cuDNN equivalence for every FP32 input.
+
+Minimum resident wall times (microseconds; raised / direct cuDNN):
+abs         56.385 / 53.057
+neg         58.145 / 52.257
+exp         58.017 / 52.097
+log         55.809 / 48.513
+sqrt        62.177 / 52.321
+reciprocal  57.633 / 56.833
+sin         58.145 / 52.353
+cos         56.129 / 51.777
+tanh        54.944 / 36.993
+sigmoid     56.897 / 52.577
+
+Timing protocol: original fixture sizes (4096, except tanh/sigmoid 256),
+resident GPU buffers, five warmups and minimum of five synchronized samples,
+alternating execution order, trace disabled for timing. The comparison is a
+direct cuDNN graph produced from the same reference, not native ATen CUDA.
+Correctness uses separate trace-enabled runs, full outputs, input preservation,
+guard regions, host and resident invocation, plus explicit edge-value cases.
+
+Reproduction commands (from the repository root, after sourcing envsetup.sh):
+  /usr/bin/python3 issues/aten_first10_20261111/prepare_references.py
+  /usr/bin/python3 issues/aten_first10_20261111/verify_sources.py
+  /usr/bin/python3 scripts/correctness/lib_v2/build_lib_v2.py -j 4
+  /usr/bin/python3 scripts/correctness/lib_v2/gen_v2_runtime.py
+  /usr/bin/python3 issues/aten_first10_20261111/build_gpu.py
+  /usr/bin/python3 issues/aten_first10_20261111/run_gpu.py
+The run script uses the configured private Orin access helper and records
+board load/clocks/temperatures before and after; host uptime is also recorded.
+Serialize its GPU work with other agents. The first four commands refresh
+shared references/catalog/runtime, so run them only outside other frozen builds.
+
+Remaining beyond this ten-case campaign: the full 598-case ATen coverage
+denominator and Figure 5's 115 non-elementwise performance cases. The present
+ten exact Linalg matches must not be reported as an EqSat ablation result.
+
+Provenance: source-state.json, frozen import_manifest.json and
+kernel_library_v3.mlir, each build's work/match.json, and final program hashes.
+No changes have been committed or pushed for this campaign.

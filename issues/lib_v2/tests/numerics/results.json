@@ -1,0 +1,945 @@
+{
+ "suite": "numerics",
+ "finished": "2026-10-28T00:25:15",
+ "seconds": 134.7,
+ "summary": {
+  "verdicts": {
+   "gemm": "PASS",
+   "2mm": "PASS",
+   "3mm": "PASS",
+   "atax": "PASS",
+   "bicg": "PASS",
+   "mvt": "PASS",
+   "gesummv": "PASS",
+   "gemver": "PASS",
+   "doitgen": "PASS",
+   "trisolv": "PASS",
+   "cholesky": "PASS",
+   "syrk": "PASS"
+  },
+  "pass": 12,
+  "kernels": 12,
+  "max_err": {
+   "gemm": 0.0,
+   "2mm": 0.0,
+   "3mm": 0.0,
+   "atax": 0.0,
+   "bicg": 0.0,
+   "mvt": 0.0,
+   "gesummv": 0.0,
+   "gemver": 4.3473287897862204e-16,
+   "doitgen": 0.0,
+   "trisolv": 0.0,
+   "cholesky": 1.8194359488480653e-16,
+   "syrk": 5.614866715836055e-16
+  },
+  "bit_exact": {
+   "gemm": true,
+   "2mm": true,
+   "3mm": true,
+   "atax": true,
+   "bicg": true,
+   "mvt": true,
+   "gesummv": true,
+   "gemver": false,
+   "doitgen": true,
+   "trisolv": true,
+   "cholesky": false,
+   "syrk": false
+  },
+  "runs_per_kernel": 20,
+  "seeds": [
+   1,
+   2,
+   3,
+   4,
+   5
+  ],
+  "rtol": 1e-12,
+  "size_configs": "n1 (all sizes 1), n2, nonsquare (7,5,11,3,..), medium (23,19,29,17,..)",
+  "tolerance": "per array incl. 64 guard elements: max|test-ref|/max|ref| <= 1e-12, NaN/Inf positions equal",
+  "sensitivity_controls": [
+   {
+    "control": "gemm launch with A/B operands swapped",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "max_err": 1.612012886085969,
+    "ok": true
+   },
+   {
+    "control": "trisolv region launch with dtrsv_ltn instead of dtrsv_utn",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "max_err": 0.03139131119854859,
+    "ok": true
+   }
+  ],
+  "large": {
+   "gemm": [
+    "PASS_EXACT",
+    0.0
+   ],
+   "2mm": [
+    "PASS_EXACT",
+    0.0
+   ],
+   "3mm": [
+    "PASS_EXACT",
+    0.0
+   ],
+   "atax": [
+    "PASS_EXACT",
+    0.0
+   ],
+   "bicg": [
+    "PASS_EXACT",
+    0.0
+   ],
+   "mvt": [
+    "PASS_EXACT",
+    0.0
+   ],
+   "gesummv": [
+    "PASS_EXACT",
+    0.0
+   ],
+   "gemver": [
+    "PASS_1e-12",
+    4.635918422315845e-16
+   ],
+   "doitgen": [
+    "PASS_EXACT",
+    0.0
+   ]
+  },
+  "large_tight_pass": 9
+ },
+ "large_e2e": {
+  "command": "/usr/bin/python3 /home/arjaiswal/Polygeist/scripts/correctness/lib_v2/e2e_v2.py --dataset LARGE --out /home/arjaiswal/Polygeist/issues/lib_v2/tests/work/numerics/e2e_large -j 4 gemm 2mm 3mm atax bicg mvt gesummv gemver doitgen",
+  "rc": 0,
+  "seconds": 45.8,
+  "stdout_tail": "gemm           ok         residual=PASS_EXACT v2=PASS_EXACT launches=['netlib_dgemm_nn'] maxrel=0.0\n2mm            ok         residual=PASS_EXACT v2=PASS_EXACT launches=['netlib_dgemm_nn_beta0', 'netlib_dgemm_nn'] maxrel=0.0\n3mm            ok         residual=PASS_EXACT v2=PASS_EXACT launches=['netlib_dgemm_nn_beta0', 'netlib_dgemm_nn_beta0', 'netlib_dgemm_nn_beta0'] maxrel=0.0\natax           ok         residual=PASS_EXACT v2=PASS_EXACT launches=['netlib_dgemv_n_beta0', 'netlib_dgemv_t_beta0'] maxrel=0.0\nbicg           ok         residual=PASS_EXACT v2=PASS_EXACT launches=['netlib_dgemv_n_beta0', 'netlib_dgemv_t_beta0'] maxrel=0.0\nmvt            ok         residual=PASS_EXACT v2=PASS_EXACT launches=['netlib_dgemv_n_beta1', 'netlib_dgemv_t_beta1'] maxrel=0.0\ngesummv        ok         residual=PASS_EXACT v2=PASS_EXACT launches=['netlib_dgemv_t_beta0', 'netlib_dgemv_t_beta0'] maxrel=0.0\ngemver         ok         residual=PASS_EXACT v2=PASS_1e-12 launches=['netlib_dgemv_n_beta1', 'netlib_dgemv_t_beta1', 'netlib_daxpy_inc'] maxrel=4.635918422315845e-16\ndoitgen        ok         residual=LOWER_FAIL v2=PASS_EXACT launches=['netlib_dgemv_n_beta0'] maxrel=0.0\n",
+  "kernels": {
+   "gemm": {
+    "status": "ok",
+    "launches": [
+     "netlib_dgemm_nn"
+    ],
+    "v2_verdict": "PASS_EXACT",
+    "v2_max_rel": 0.0,
+    "v2_max_abs": 0.0,
+    "residual_verdict": "PASS_EXACT",
+    "tight_pass": true
+   },
+   "2mm": {
+    "status": "ok",
+    "launches": [
+     "netlib_dgemm_nn_beta0",
+     "netlib_dgemm_nn"
+    ],
+    "v2_verdict": "PASS_EXACT",
+    "v2_max_rel": 0.0,
+    "v2_max_abs": 0.0,
+    "residual_verdict": "PASS_EXACT",
+    "tight_pass": true
+   },
+   "3mm": {
+    "status": "ok",
+    "launches": [
+     "netlib_dgemm_nn_beta0",
+     "netlib_dgemm_nn_beta0",
+     "netlib_dgemm_nn_beta0"
+    ],
+    "v2_verdict": "PASS_EXACT",
+    "v2_max_rel": 0.0,
+    "v2_max_abs": 0.0,
+    "residual_verdict": "PASS_EXACT",
+    "tight_pass": true
+   },
+   "atax": {
+    "status": "ok",
+    "launches": [
+     "netlib_dgemv_n_beta0",
+     "netlib_dgemv_t_beta0"
+    ],
+    "v2_verdict": "PASS_EXACT",
+    "v2_max_rel": 0.0,
+    "v2_max_abs": 0.0,
+    "residual_verdict": "PASS_EXACT",
+    "tight_pass": true
+   },
+   "bicg": {
+    "status": "ok",
+    "launches": [
+     "netlib_dgemv_n_beta0",
+     "netlib_dgemv_t_beta0"
+    ],
+    "v2_verdict": "PASS_EXACT",
+    "v2_max_rel": 0.0,
+    "v2_max_abs": 0.0,
+    "residual_verdict": "PASS_EXACT",
+    "tight_pass": true
+   },
+   "mvt": {
+    "status": "ok",
+    "launches": [
+     "netlib_dgemv_n_beta1",
+     "netlib_dgemv_t_beta1"
+    ],
+    "v2_verdict": "PASS_EXACT",
+    "v2_max_rel": 0.0,
+    "v2_max_abs": 0.0,
+    "residual_verdict": "PASS_EXACT",
+    "tight_pass": true
+   },
+   "gesummv": {
+    "status": "ok",
+    "launches": [
+     "netlib_dgemv_t_beta0",
+     "netlib_dgemv_t_beta0"
+    ],
+    "v2_verdict": "PASS_EXACT",
+    "v2_max_rel": 0.0,
+    "v2_max_abs": 0.0,
+    "residual_verdict": "PASS_EXACT",
+    "tight_pass": true
+   },
+   "gemver": {
+    "status": "ok",
+    "launches": [
+     "netlib_dgemv_n_beta1",
+     "netlib_dgemv_t_beta1",
+     "netlib_daxpy_inc"
+    ],
+    "v2_verdict": "PASS_1e-12",
+    "v2_max_rel": 4.635918422315845e-16,
+    "v2_max_abs": 7.62939453125e-06,
+    "residual_verdict": "PASS_EXACT",
+    "tight_pass": true
+   },
+   "doitgen": {
+    "status": "ok",
+    "launches": [
+     "netlib_dgemv_n_beta0"
+    ],
+    "v2_verdict": "PASS_EXACT",
+    "v2_max_rel": 0.0,
+    "v2_max_abs": 0.0,
+    "residual_verdict": "LOWER_FAIL",
+    "tight_pass": true
+   }
+  }
+ },
+ "cases": [
+  {
+   "kernel": "gemm",
+   "expected_path": "linalg",
+   "launches": [
+    "netlib_dgemm_nn"
+   ],
+   "linalg": [
+    "netlib_dgemm_nn"
+   ],
+   "region": [],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1,
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2,
+       2
+      ],
+      "nonsquare": [
+       7,
+       5,
+       11
+      ],
+      "medium": [
+       23,
+       19,
+       29
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 1.0,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemm_nn"
+     ]
+    }
+   },
+   "verdict": "PASS",
+   "culprit": "",
+   "max_err": 0.0,
+   "bit_exact": true
+  },
+  {
+   "kernel": "2mm",
+   "expected_path": "linalg",
+   "launches": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "linalg": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "region": [],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1,
+       1,
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "nonsquare": [
+       7,
+       5,
+       11,
+       3
+      ],
+      "medium": [
+       23,
+       19,
+       29,
+       17
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 1.1,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemm_nn_beta0",
+      "netlib_dgemm_nn"
+     ]
+    }
+   },
+   "verdict": "PASS",
+   "culprit": "",
+   "max_err": 0.0,
+   "bit_exact": true
+  },
+  {
+   "kernel": "3mm",
+   "expected_path": "linalg",
+   "launches": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0"
+   ],
+   "linalg": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0"
+   ],
+   "region": [],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1,
+       1,
+       1,
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2,
+       2,
+       2,
+       2
+      ],
+      "nonsquare": [
+       7,
+       5,
+       11,
+       3,
+       13
+      ],
+      "medium": [
+       23,
+       19,
+       29,
+       17,
+       31
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 1.2,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemm_nn_beta0",
+      "netlib_dgemm_nn_beta0",
+      "netlib_dgemm_nn_beta0"
+     ]
+    }
+   },
+   "verdict": "PASS",
+   "culprit": "",
+   "max_err": 0.0,
+   "bit_exact": true
+  },
+  {
+   "kernel": "atax",
+   "expected_path": "linalg",
+   "launches": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "linalg": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "region": [],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2
+      ],
+      "nonsquare": [
+       7,
+       5
+      ],
+      "medium": [
+       23,
+       19
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.9,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemv_n_beta0",
+      "netlib_dgemv_t_beta0"
+     ]
+    }
+   },
+   "verdict": "PASS",
+   "culprit": "",
+   "max_err": 0.0,
+   "bit_exact": true
+  },
+  {
+   "kernel": "bicg",
+   "expected_path": "linalg",
+   "launches": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "linalg": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "region": [],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2
+      ],
+      "nonsquare": [
+       7,
+       5
+      ],
+      "medium": [
+       23,
+       19
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.9,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemv_n_beta0",
+      "netlib_dgemv_t_beta0"
+     ]
+    }
+   },
+   "verdict": "PASS",
+   "culprit": "",
+   "max_err": 0.0,
+   "bit_exact": true
+  },
+  {
+   "kernel": "mvt",
+   "expected_path": "linalg",
+   "launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1"
+   ],
+   "linalg": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1"
+   ],
+   "region": [],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1
+      ],
+      "n2": [
+       2
+      ],
+      "nonsquare": [
+       7
+      ],
+      "medium": [
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 1.0,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemv_n_beta1",
+      "netlib_dgemv_t_beta1"
+     ]
+    }
+   },
+   "verdict": "PASS",
+   "culprit": "",
+   "max_err": 0.0,
+   "bit_exact": true
+  },
+  {
+   "kernel": "gesummv",
+   "expected_path": "linalg",
+   "launches": [
+    "netlib_dgemv_t_beta0",
+    "netlib_dgemv_t_beta0",
+    "netlib_dscal_inc+netlib_daxpy_inc"
+   ],
+   "linalg": [
+    "netlib_dgemv_t_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "region": [
+    "netlib_dscal_inc+netlib_daxpy_inc"
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1
+      ],
+      "n2": [
+       2
+      ],
+      "nonsquare": [
+       7
+      ],
+      "medium": [
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.9,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemv_t_beta0",
+      "netlib_dgemv_t_beta0"
+     ]
+    }
+   },
+   "verdict": "PASS",
+   "culprit": "",
+   "max_err": 0.0,
+   "bit_exact": true
+  },
+  {
+   "kernel": "gemver",
+   "expected_path": "linalg",
+   "launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger+netlib_dger"
+   ],
+   "linalg": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc"
+   ],
+   "region": [
+    "netlib_dger+netlib_dger"
+   ],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 4.3473287897862204e-16,
+     "bit_exact": false,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1
+      ],
+      "n2": [
+       2
+      ],
+      "nonsquare": [
+       7
+      ],
+      "medium": [
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 1.0,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemv_n_beta1",
+      "netlib_dgemv_t_beta1",
+      "netlib_daxpy_inc"
+     ]
+    }
+   },
+   "verdict": "PASS",
+   "culprit": "",
+   "max_err": 4.3473287897862204e-16,
+   "bit_exact": false
+  },
+  {
+   "kernel": "doitgen",
+   "expected_path": "linalg",
+   "launches": [
+    "netlib_dgemv_n_beta0"
+   ],
+   "linalg": [
+    "netlib_dgemv_n_beta0"
+   ],
+   "region": [],
+   "numeric": {
+    "linalg": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1,
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2,
+       2
+      ],
+      "nonsquare": [
+       7,
+       5,
+       11
+      ],
+      "medium": [
+       23,
+       19,
+       29
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.9,
+     "path": "lowered (inlined netlib defn bodies)",
+     "specs": [
+      "netlib_dgemv_n_beta0"
+     ]
+    }
+   },
+   "verdict": "PASS",
+   "culprit": "",
+   "max_err": 0.0,
+   "bit_exact": true
+  },
+  {
+   "kernel": "trisolv",
+   "expected_path": "region",
+   "launches": [
+    "netlib_dtrsv_utn"
+   ],
+   "linalg": [],
+   "region": [
+    "netlib_dtrsv_utn"
+   ],
+   "numeric": {
+    "region0": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 0.0,
+     "bit_exact": true,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1
+      ],
+      "n2": [
+       2
+      ],
+      "nonsquare": [
+       7
+      ],
+      "medium": [
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.7,
+     "path": "region launch -> spec C (ref_c) vs application C",
+     "spec_call": "netlib_dtrsv_utn(n, (n + 0), L_t, x_t);",
+     "spec": "netlib_dtrsv_utn"
+    }
+   },
+   "verdict": "PASS",
+   "culprit": "",
+   "max_err": 0.0,
+   "bit_exact": true
+  },
+  {
+   "kernel": "cholesky",
+   "expected_path": "region",
+   "launches": [
+    "netlib_dpotf2_u"
+   ],
+   "linalg": [],
+   "region": [
+    "netlib_dpotf2_u"
+   ],
+   "numeric": {
+    "region0": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 1.8194359488480653e-16,
+     "bit_exact": false,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1
+      ],
+      "n2": [
+       2
+      ],
+      "nonsquare": [
+       7
+      ],
+      "medium": [
+       23
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.6,
+     "path": "region launch -> spec C (ref_c) vs application C",
+     "spec_call": "netlib_dpotf2_u(n, (n + 0), A_t);",
+     "spec": "netlib_dpotf2_u"
+    }
+   },
+   "verdict": "PASS",
+   "culprit": "",
+   "max_err": 1.8194359488480653e-16,
+   "bit_exact": false
+  },
+  {
+   "kernel": "syrk",
+   "expected_path": "region",
+   "launches": [
+    "netlib_dsyrk_ut"
+   ],
+   "linalg": [],
+   "region": [
+    "netlib_dsyrk_ut"
+   ],
+   "numeric": {
+    "region0": {
+     "verdict": "PASS",
+     "runs": 20,
+     "max_err": 5.614866715836055e-16,
+     "bit_exact": false,
+     "fails": [],
+     "n_fail": 0,
+     "configs": {
+      "n1": [
+       1,
+       1
+      ],
+      "n2": [
+       2,
+       2
+      ],
+      "nonsquare": [
+       7,
+       5
+      ],
+      "medium": [
+       23,
+       19
+      ]
+     },
+     "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "rtol": 1e-12,
+     "seconds": 0.5,
+     "path": "region launch -> spec C (ref_c) vs application C",
+     "spec_call": "netlib_dsyrk_ut(n, m, alpha, (m + 0), A_t, beta, (n + 0), C_t);",
+     "spec": "netlib_dsyrk_ut"
+    }
+   },
+   "verdict": "PASS",
+   "culprit": "",
+   "max_err": 5.614866715836055e-16,
+   "bit_exact": false
+  }
+ ]
+}

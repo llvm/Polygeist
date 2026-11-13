@@ -1,0 +1,12 @@
+{
+  "upstream_source": "third_party/polybenchGpu/CUDA/GESUMMV/gesummv.cu",
+  "upstream_sha256": "717c2bc6161a1d9b478282dabe994e0184821ee100996a898aba688302f384a4",
+  "kernel_sha256": [
+    "1c8986c47e22f089011f7e854895fba779c1678307a0b67bc64c00b6f9f85c97"
+  ],
+  "computational_bodies_verbatim": true,
+  "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+  "generated_source_sha256": "11ab2143882e63b22462e872c54e6b67c1d39d9ec726dd79be9f9689ee4a16b6",
+  "build_rc": 0,
+  "executable_sha256": "7432a7a22b9d386afffcd85ba1abea2fcc71dac131114fb7c3e597fd8b2ddd3a"
+}

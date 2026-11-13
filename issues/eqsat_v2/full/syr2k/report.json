@@ -1,0 +1,82 @@
+{
+ "launches": [
+  {
+   "region_match": "netlib_dsyr2k_ut",
+   "binding": {
+    "n": "%arg0",
+    "k": "%arg1",
+    "alpha": "%arg2",
+    "lda": "stride0(%arg5)",
+    "A": "%arg5",
+    "ldb": "stride0(%arg6)",
+    "B": "%arg6",
+    "beta": "%arg3",
+    "ldc": "stride0(%arg4)",
+    "C": "%arg4 (in-place)"
+   },
+   "evidence": "netlib_dsyr2k_ut: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'k': '%arg1', 'alpha': '%arg2', 'lda': 'stride0(%arg5)', 'A': '%arg5', 'ldb': 'stride0(%arg6)', 'B': '%arg6', 'beta': '%arg3', 'ldc': 'stride0(%arg4)', 'C': '%arg4 (in-place)'}; e-graph max 90 nodes, egglog 26.1 ms; dependence checks 7 (reads: input 4, final 0, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); netlib_dsyr2k_un proved with operands ['A', 'B'] stored transposed; launched as the equivalent netlib_dsyr2k_ut (manifest layout_transpose: A+B transposed -> flip TRANS); also equal: netlib_dsyr2k_ln[transposed], netlib_dsyr2k_un[transposed]; in-place: C in/out both bound to %arg4"
+  }
+ ],
+ "literal_policy_rejections": [],
+ "alternatives": [],
+ "rejected": [
+  {
+   "spec": "netlib_dsyr2k_un_alpha0",
+   "root": "%9",
+   "why": "unbound parameters ['%k', '%lda', '%A', '%ldb', '%B']"
+  },
+  {
+   "spec": "netlib_dsyrk_un_alpha0",
+   "root": "%9",
+   "why": "unbound parameters ['%k', '%lda', '%A']"
+  }
+ ],
+ "residual_generics": [
+  {
+   "app_generic": "%8",
+   "func": "kernel_syr2k",
+   "iters": [
+    "parallel",
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [
+    "netlib_dsyr2k_un#step0",
+    "netlib_dsyr2k_un_alpha0#step0",
+    "netlib_dsyrk_un#step0",
+    "netlib_dsyrk_un_alpha0#step0"
+   ],
+   "n_body_matches": 4,
+   "furthest_dag_stage": {
+    "stage": "matched",
+    "specs": [
+     "netlib_dsyr2k_un_alpha0",
+     "netlib_dsyrk_un_alpha0"
+    ]
+   }
+  },
+  {
+   "app_generic": "%17",
+   "func": "kernel_syr2k",
+   "iters": [
+    "parallel",
+    "reduction",
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_dgemm_nn",
+     "netlib_dgemm_nn_beta0",
+     "netlib_dgemm_nn_beta1",
+     "netlib_dgemm_nt",
+     "netlib_dgemm_nt_beta0",
+     "netlib_dgemm_nt_beta1"
+    ]
+   }
+  }
+ ]
+}

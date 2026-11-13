@@ -1,0 +1,36 @@
+{
+  "rc": 0,
+  "command": [
+    "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+    "--target=jetson",
+    "--function=mfem_app_ex9p_mass_convection_2d",
+    "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/mfem_application_reference_harness.c",
+    "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/ex9p_mass_convection_2d.c",
+    "-DMFEM_APP_EX9P",
+    "-DMFEM_BENCH_NE=2",
+    "-DBENCH_ITERS=1",
+    "-DMFEM_REPLAY_WARMUPS=0",
+    "-DMFEM_PUBLICATION_WARMUPS=0",
+    "-DMFEM_PUBLICATION_SAMPLES=1",
+    "-DMFEM_DEBUG_OUTPUT_SUMMARY=1",
+    "-o",
+    "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/pcg-application/program"
+  ],
+  "seconds": 86.99876354634762,
+  "source_sha256": "df0eb6010712ed220de50a5246cf53e1c949fb0420786623758b513a5bf409f4",
+  "harness_sha256": "b152c86c37c61622a0da32162df4ae2a33cc5ab602d0aeab514a9b6c95303d6d",
+  "specifications": [
+    "openblas_dgemm_tn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_tn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_tn_b1_alpha1",
+    "openblas_dgemm_tn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_daxpy",
+    "openblas_daxpby_geam_f64"
+  ],
+  "program_sha256": "e07d49967395a8428196e9139eb924b51875d4ec3a1b4660fe1953794113fa06"
+}

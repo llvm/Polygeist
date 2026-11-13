@@ -1,0 +1,256 @@
+{
+  "by_suite": [
+    {
+      "common_success_inputs": 598,
+      "egglog_matched_bodies": 417,
+      "egglog_only_match_identities": 1,
+      "egglog_selected_matches": 363,
+      "inputs": 598,
+      "suite": "aten",
+      "syntactic_matched_bodies": 416,
+      "syntactic_only_match_identities": 1,
+      "syntactic_selected_matches": 363
+    },
+    {
+      "common_success_inputs": 3,
+      "egglog_matched_bodies": 6,
+      "egglog_only_match_identities": 0,
+      "egglog_selected_matches": 3,
+      "inputs": 3,
+      "suite": "llama2c",
+      "syntactic_matched_bodies": 6,
+      "syntactic_only_match_identities": 0,
+      "syntactic_selected_matches": 3
+    },
+    {
+      "common_success_inputs": 20,
+      "egglog_matched_bodies": 65,
+      "egglog_only_match_identities": 0,
+      "egglog_selected_matches": 52,
+      "inputs": 20,
+      "suite": "llama_forward",
+      "syntactic_matched_bodies": 65,
+      "syntactic_only_match_identities": 0,
+      "syntactic_selected_matches": 52
+    },
+    {
+      "common_success_inputs": 15,
+      "egglog_matched_bodies": 498,
+      "egglog_only_match_identities": 0,
+      "egglog_selected_matches": 250,
+      "inputs": 16,
+      "suite": "mfem_application",
+      "syntactic_matched_bodies": 498,
+      "syntactic_only_match_identities": 0,
+      "syntactic_selected_matches": 250
+    },
+    {
+      "common_success_inputs": 20,
+      "egglog_matched_bodies": 256,
+      "egglog_only_match_identities": 0,
+      "egglog_selected_matches": 128,
+      "inputs": 20,
+      "suite": "mfem_kernel",
+      "syntactic_matched_bodies": 256,
+      "syntactic_only_match_identities": 0,
+      "syntactic_selected_matches": 128
+    },
+    {
+      "common_success_inputs": 30,
+      "egglog_matched_bodies": 32,
+      "egglog_only_match_identities": 4,
+      "egglog_selected_matches": 27,
+      "inputs": 30,
+      "suite": "polybench",
+      "syntactic_matched_bodies": 28,
+      "syntactic_only_match_identities": 1,
+      "syntactic_selected_matches": 24
+    }
+  ],
+  "completed_proofs_over_10s": 0,
+  "egglog_only_examples": [
+    {
+      "body_indices": [
+        0,
+        1
+      ],
+      "input_id": "aten_addmm",
+      "suite": "aten",
+      "symbol": "cublasDgemm"
+    },
+    {
+      "body_indices": [
+        1
+      ],
+      "input_id": "2mm",
+      "suite": "polybench",
+      "symbol": "cublasDgemm_alpha_only"
+    },
+    {
+      "body_indices": [
+        0,
+        1
+      ],
+      "input_id": "gemm",
+      "suite": "polybench",
+      "symbol": "cublasDgemm"
+    },
+    {
+      "body_indices": [
+        1
+      ],
+      "input_id": "gemver",
+      "suite": "polybench",
+      "symbol": "cublasDgemv_alpha"
+    },
+    {
+      "body_indices": [
+        3
+      ],
+      "input_id": "gemver",
+      "suite": "polybench",
+      "symbol": "cublasDgemv_alpha"
+    }
+  ],
+  "failures": [
+    {
+      "input_id": "mfem_app_navier_tgv_pa_operators_3d",
+      "mode": "egglog",
+      "repetition": "1",
+      "status": "input_timeout",
+      "suite": "mfem_application"
+    },
+    {
+      "input_id": "mfem_app_navier_tgv_pa_operators_3d",
+      "mode": "egglog",
+      "repetition": "2",
+      "status": "input_timeout",
+      "suite": "mfem_application"
+    },
+    {
+      "input_id": "mfem_app_navier_tgv_pa_operators_3d",
+      "mode": "egglog",
+      "repetition": "3",
+      "status": "input_timeout",
+      "suite": "mfem_application"
+    },
+    {
+      "input_id": "mfem_app_navier_tgv_pa_operators_3d",
+      "mode": "egglog",
+      "repetition": "4",
+      "status": "input_timeout",
+      "suite": "mfem_application"
+    },
+    {
+      "input_id": "mfem_app_navier_tgv_pa_operators_3d",
+      "mode": "egglog",
+      "repetition": "5",
+      "status": "input_timeout",
+      "suite": "mfem_application"
+    }
+  ],
+  "manifest_inputs": 687,
+  "nondeterministic_match_sets": [],
+  "paired_deltas": {
+    "matcher_elapsed_ms": {
+      "median": 16.827311366796494,
+      "pairs": 3430,
+      "q1": -4.306409507989883,
+      "q3": 74.35219082981348
+    },
+    "peak_rss_kib": {
+      "median": 288.0,
+      "pairs": 3430,
+      "q1": -8.0,
+      "q3": 4159.0
+    },
+    "process_wall_ms": {
+      "median": 20.797597244381905,
+      "pairs": 3430,
+      "q1": -12.294984422624111,
+      "q3": 93.38100254535675
+    }
+  },
+  "parameters": {
+    "binding_proposal_limit": 8,
+    "candidate_time_limit_s": 10,
+    "candidate_timeout_enforcement": "post-run classification; each fresh input process also has an outer watchdog",
+    "collect_egraph_sizes": false,
+    "cpu_affinity": 0,
+    "distributivity": false,
+    "egglog_iteration_limit": 8,
+    "egglog_version": "11.4.0",
+    "explicit_egraph_size_limit": null,
+    "explicit_memory_limit": null,
+    "handwritten_semantic_fallback": false,
+    "input_ast_node_ceiling": 32,
+    "modes": [
+      "egglog",
+      "syntactic"
+    ],
+    "outer_input_watchdog_s": 120.0,
+    "parallel_jobs": 1,
+    "python": "/usr/bin/python3",
+    "repetitions_per_mode": 5
+  },
+  "run_rows": 6870,
+  "successful_rows": 6865,
+  "timing": {
+    "egglog_matcher_elapsed_ms": {
+      "max": 30129.864368587732,
+      "median": 365.142036229372,
+      "min": 246.9637766480446,
+      "q1": 299.22677017748356,
+      "q3": 561.9188211858273
+    },
+    "egglog_peak_rss_kib": {
+      "max": 75132.0,
+      "median": 66570.0,
+      "min": 64288.0,
+      "q1": 65520.0,
+      "q3": 69668.0
+    },
+    "egglog_process_wall_ms": {
+      "max": 42624.23545494676,
+      "median": 826.4713250100613,
+      "min": 640.4564529657364,
+      "q1": 738.33495285362,
+      "q3": 1123.0182191357017
+    },
+    "egglog_proof_elapsed_ms": {
+      "max": 14208.601355552673,
+      "median": 0.0,
+      "min": 0.0,
+      "q1": 0.0,
+      "q3": 41.74838773906231
+    },
+    "syntactic_matcher_elapsed_ms": {
+      "max": 62716.277699917555,
+      "median": 331.84679225087166,
+      "min": 246.232807636261,
+      "q1": 287.1400322765112,
+      "q3": 461.96843683719635
+    },
+    "syntactic_peak_rss_kib": {
+      "max": 84620.0,
+      "median": 65628.0,
+      "min": 64276.0,
+      "q1": 64768.0,
+      "q3": 65896.0
+    },
+    "syntactic_process_wall_ms": {
+      "max": 105111.43285036087,
+      "median": 800.1182712614536,
+      "min": 641.2542127072811,
+      "q1": 722.550680860877,
+      "q3": 1003.8455426692963
+    },
+    "syntactic_proof_elapsed_ms": {
+      "max": 20.339500159025192,
+      "median": 0.03073364496231079,
+      "min": 0.0,
+      "q1": 0.015541911125183105,
+      "q3": 0.1292899250984192
+    }
+  }
+}

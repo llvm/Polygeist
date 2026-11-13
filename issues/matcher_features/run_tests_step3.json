@@ -1,0 +1,2049 @@
+{
+ "spec_load_ms": 23.9,
+ "spec_validation": {
+  "netlib_dpotf2_u": "debufferized stage NOT equivalent (element reads differ on piece [v0 >= 0, p%arg0 - v0 - 1 >= 0, v0 - v1 == 0]: app [\"('in:%arg2', (v1, r0))\", \"('in:%arg2', (v1, v1))\"] vs spec [\"('in:%arg2', (v1, v1))\", \"('out:%arg2', (v1, r0))\"])",
+  "netlib_dpotf2_l": "debufferized stage NOT equivalent (element reads differ on piece [v0 >= 0, p%arg0 - v0 - 1 >= 0, v0 - v1 == 0]: app [\"('in:%arg2', (r0, v1))\", \"('in:%arg2', (v1, v1))\"] vs spec [\"('in:%arg2', (v1, v1))\", \"('out:%arg2', (r0, v1))\"])",
+  "netlib_dtrsv_unn": "debufferized stage NOT equivalent (element reads differ on piece [p%arg0 - v0 - 1 >= 0, v0 >= 0]: app [\"('in:%arg2', (v0, v0))\", \"('in:%arg3', (v0,))\"] vs spec [\"('in:%arg2', (r0, v0))\", \"('in:%arg2', (v0, v0))\", \"('in:%arg3', (v0,))\", \"('out:%arg3', (r0,))\"])",
+  "netlib_dtrsv_unu": "debufferized stage NOT equivalent (element reads differ on piece [v0 >= 0, p%arg0 - v0 - 2 >= 0]: app [\"('in:%arg3', (v0,))\"] vs spec [\"('in:%arg2', (r0, v0))\", \"('in:%arg3', (v0,))\", \"('out:%arg3', (r0,))\"])",
+  "netlib_dtrsv_utn": "debufferized stage equivalent to cgeist stage",
+  "netlib_dtrsv_utu": "debufferized stage equivalent to cgeist stage; under memref (sequential, aliasing) semantics only -- linalg.generic dim g1_0 is annotated parallel but carries a dependence through %arg3 (memref/sequential semantics used); tensor-value semantics of this IR differ",
+  "netlib_dtrsv_lnn": "debufferized stage equivalent to cgeist stage",
+  "netlib_dtrsv_lnu": "debufferized stage equivalent to cgeist stage; under memref (sequential, aliasing) semantics only -- linalg.generic dim g1_1 is annotated parallel but carries a dependence through %arg3 (memref/sequential semantics used); tensor-value semantics of this IR differ",
+  "netlib_dtrsv_ltn": "debufferized stage equivalent to cgeist stage",
+  "netlib_dtrsv_ltu": "debufferized stage equivalent to cgeist stage; under memref (sequential, aliasing) semantics only -- linalg.generic dim g1_0 is annotated parallel but carries a dependence through %arg3 (memref/sequential semantics used); tensor-value semantics of this IR differ"
+ },
+ "results": [
+  {
+   "test": "pb_trisolv_saved",
+   "source": "issues/polybench_section42/ir/trisolv/raised_debufferized.mlir",
+   "function": "kernel_trisolv",
+   "expect": {
+    "match": "netlib_dtrsv_utn",
+    "not": [
+     "netlib_dtrsv_utu"
+    ]
+   },
+   "recipe": "saved campaign artifact",
+   "selected": "netlib_dtrsv_utn",
+   "also_equal": [
+    "netlib_dtrsv_lnn[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 279.1,
+   "windows": [
+    {
+     "window": [
+      6,
+      8
+     ],
+     "matched": "netlib_dtrsv_utn",
+     "kind": "single",
+     "also": [
+      "netlib_dtrsv_lnn[transposed]"
+     ],
+     "bindings_tried": 42,
+     "pieces": 1,
+     "egraph_nodes": [
+      63
+     ],
+     "egraph_classes": [
+      49
+     ],
+     "egg_ms": [
+      22.47
+     ],
+     "normalise_ms": 7.85,
+     "match_ms": 38.08
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dtrsv_utn: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1', 'X': '%arg2 (in: %arg3, copied into %arg2 before the launch)'}; e-graph max 63 nodes, egglog 22.5 ms; dependence checks 15 (reads: input 3, final 1, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dtrsv_lnn[transposed]; copy-in %arg3 -> %arg2; assumes %arg3 and %arg2 do not alias (restrict)"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1",
+     "X": "%arg2 (in: %arg3, copied into %arg2 before the launch)"
+    }
+   ],
+   "launch": [
+    "    %rm6_8_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm6_8_ld2 = arith.index_cast %rm6_8_md1#4 : index to i32\n    memref.copy %arg3, %arg2 : memref<?xf64> to memref<?xf64>\n    kernel.launch @netlib_dtrsv_utn(%arg0, %rm6_8_ld2, %arg1, %arg2) : (i32, i32, memref<?x?xf64>, memref<?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 63,
+   "egg_ms_total": 22.5,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 23.91,
+    "n": 23,
+    "specs": [
+     "netlib_dtrsv_utn"
+    ]
+   }
+  },
+  {
+   "test": "pb_trisolv_fresh",
+   "source": "tools/cgeist/Test/polybench/linear-algebra/solvers/trisolv/trisolv.c",
+   "function": "kernel_trisolv",
+   "expect": {
+    "match": "netlib_dtrsv_utn",
+    "not": [
+     "netlib_dtrsv_utu"
+    ]
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist tools/cgeist/Test/polybench/linear-algebra/solvers/trisolv/trisolv.c --function=kernel_trisolv --resource-dir=/usr/lib/clang/14 -O3 -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/solvers/trisolv '-Dstatic=__attribute__((noipa))' -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO -DPOLYBENCH_DUMP_ARRAYS --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/kernel_trisolv.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=kernel_trisolv externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/kernel_trisolv.mlir -o scripts/correctness/region_match/tests/raised/kernel_trisolv_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/kernel_trisolv_linalg.mlir -o scripts/correctness/region_match/tests/raised/kernel_trisolv_debuf.mlir"
+   ],
+   "selected": "netlib_dtrsv_utn",
+   "also_equal": [
+    "netlib_dtrsv_lnn[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 215.6,
+   "windows": [
+    {
+     "window": [
+      6,
+      8
+     ],
+     "matched": "netlib_dtrsv_utn",
+     "kind": "single",
+     "also": [
+      "netlib_dtrsv_lnn[transposed]"
+     ],
+     "bindings_tried": 42,
+     "pieces": 1,
+     "egraph_nodes": [
+      63
+     ],
+     "egraph_classes": [
+      49
+     ],
+     "egg_ms": [
+      27.26
+     ],
+     "normalise_ms": 8.12,
+     "match_ms": 47.21
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dtrsv_utn: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1', 'X': '%arg2 (in: %arg3, copied into %arg2 before the launch)'}; e-graph max 63 nodes, egglog 27.3 ms; dependence checks 15 (reads: input 3, final 1, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dtrsv_lnn[transposed]; copy-in %arg3 -> %arg2; assumes %arg3 and %arg2 do not alias (pipeline-wide noalias assumption)"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1",
+     "X": "%arg2 (in: %arg3, copied into %arg2 before the launch)"
+    }
+   ],
+   "launch": [
+    "    %rm6_8_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm6_8_ld2 = arith.index_cast %rm6_8_md1#4 : index to i32\n    memref.copy %arg3, %arg2 : memref<?xf64> to memref<?xf64>\n    kernel.launch @netlib_dtrsv_utn(%arg0, %rm6_8_ld2, %arg1, %arg2) : (i32, i32, memref<?x?xf64>, memref<?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 63,
+   "egg_ms_total": 27.3,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 23.91,
+    "n": 23,
+    "specs": [
+     "netlib_dtrsv_utn"
+    ]
+   },
+   "saved_vs_fresh": "equivalent"
+  },
+  {
+   "test": "trsv_axpy",
+   "source": "scripts/correctness/region_match/tests/c/trsv_axpy.c",
+   "function": "trsv_axpy",
+   "expect": {
+    "match": "netlib_dtrsv_utn",
+    "not": [
+     "netlib_dtrsv_utu"
+    ]
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/trsv_axpy.c --function=trsv_axpy --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/trsv_axpy.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=trsv_axpy externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/trsv_axpy.mlir -o scripts/correctness/region_match/tests/raised/trsv_axpy_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/trsv_axpy_linalg.mlir -o scripts/correctness/region_match/tests/raised/trsv_axpy_debuf.mlir"
+   ],
+   "selected": "netlib_dtrsv_utn",
+   "also_equal": [
+    "netlib_dtrsv_lnn[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 200.8,
+   "windows": [
+    {
+     "window": [
+      6,
+      10
+     ],
+     "matched": "netlib_dtrsv_utn",
+     "kind": "single",
+     "also": [
+      "netlib_dtrsv_lnn[transposed]"
+     ],
+     "bindings_tried": 42,
+     "pieces": 1,
+     "egraph_nodes": [
+      59
+     ],
+     "egraph_classes": [
+      46
+     ],
+     "egg_ms": [
+      20.94
+     ],
+     "normalise_ms": 12.51,
+     "match_ms": 36.51
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dtrsv_utn: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1', 'X': '%arg2 (in: %arg3, copied into %arg2 before the launch)'}; e-graph max 59 nodes, egglog 20.9 ms; dependence checks 20 (reads: input 3, final 1, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dtrsv_lnn[transposed]; copy-in %arg3 -> %arg2; assumes %arg3 and %arg2 do not alias (pipeline-wide noalias assumption)"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1",
+     "X": "%arg2 (in: %arg3, copied into %arg2 before the launch)"
+    }
+   ],
+   "launch": [
+    "    %rm6_10_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm6_10_ld2 = arith.index_cast %rm6_10_md1#4 : index to i32\n    memref.copy %arg3, %arg2 : memref<?xf64> to memref<?xf64>\n    kernel.launch @netlib_dtrsv_utn(%arg0, %rm6_10_ld2, %arg1, %arg2) : (i32, i32, memref<?x?xf64>, memref<?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 59,
+   "egg_ms_total": 20.9,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 23.91,
+    "n": 23,
+    "specs": [
+     "netlib_dtrsv_utn"
+    ]
+   }
+  },
+  {
+   "test": "trsv_temp",
+   "source": "scripts/correctness/region_match/tests/c/trsv_temp.c",
+   "function": "trsv_temp",
+   "expect": {
+    "match": "netlib_dtrsv_utn",
+    "not": [
+     "netlib_dtrsv_utu"
+    ]
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/trsv_temp.c --function=trsv_temp --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/trsv_temp.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=trsv_temp externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/trsv_temp.mlir -o scripts/correctness/region_match/tests/raised/trsv_temp_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/trsv_temp_linalg.mlir -o scripts/correctness/region_match/tests/raised/trsv_temp_debuf.mlir"
+   ],
+   "selected": "netlib_dtrsv_utn",
+   "also_equal": [
+    "netlib_dtrsv_lnn[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 201.2,
+   "windows": [
+    {
+     "window": [
+      7,
+      9
+     ],
+     "matched": "netlib_dtrsv_utn",
+     "kind": "single",
+     "also": [
+      "netlib_dtrsv_lnn[transposed]"
+     ],
+     "bindings_tried": 42,
+     "pieces": 1,
+     "egraph_nodes": [
+      63
+     ],
+     "egraph_classes": [
+      49
+     ],
+     "egg_ms": [
+      22.37
+     ],
+     "normalise_ms": 8.54,
+     "match_ms": 37.6
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dtrsv_utn: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1', 'X': '%arg2 (in: %arg3, copied into %arg2 before the launch)'}; e-graph max 63 nodes, egglog 22.4 ms; dependence checks 9 (reads: input 3, final 1, accumulator 1, scratch-inlined 1); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dtrsv_lnn[transposed]; copy-in %arg3 -> %arg2; assumes %arg3 and %arg2 do not alias (pipeline-wide noalias assumption)"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1",
+     "X": "%arg2 (in: %arg3, copied into %arg2 before the launch)"
+    }
+   ],
+   "launch": [
+    "    %rm7_9_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm7_9_ld2 = arith.index_cast %rm7_9_md1#4 : index to i32\n    memref.copy %arg3, %arg2 : memref<?xf64> to memref<?xf64>\n    kernel.launch @netlib_dtrsv_utn(%arg0, %rm7_9_ld2, %arg1, %arg2) : (i32, i32, memref<?x?xf64>, memref<?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 63,
+   "egg_ms_total": 22.4,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 23.91,
+    "n": 23,
+    "specs": [
+     "netlib_dtrsv_utn"
+    ]
+   }
+  },
+  {
+   "test": "trsv_unit",
+   "source": "scripts/correctness/region_match/tests/c/trsv_unit.c",
+   "function": "trsv_unit",
+   "expect": {
+    "match": "netlib_dtrsv_utu",
+    "not": [
+     "netlib_dtrsv_utn"
+    ]
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/trsv_unit.c --function=trsv_unit --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/trsv_unit.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=trsv_unit externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/trsv_unit.mlir -o scripts/correctness/region_match/tests/raised/trsv_unit_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/trsv_unit_linalg.mlir -o scripts/correctness/region_match/tests/raised/trsv_unit_debuf.mlir"
+   ],
+   "selected": "netlib_dtrsv_utu",
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 117.3,
+   "windows": [
+    {
+     "window": [
+      6,
+      8
+     ],
+     "matched": "netlib_dtrsv_utu",
+     "kind": "single",
+     "also": [],
+     "bindings_tried": 42,
+     "pieces": 1,
+     "egraph_nodes": [
+      55
+     ],
+     "egraph_classes": [
+      43
+     ],
+     "egg_ms": [
+      22.08
+     ],
+     "normalise_ms": 7.5,
+     "match_ms": 35.53
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dtrsv_utu: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1', 'X': '%arg2 (in: %arg3, copied into %arg2 before the launch)'}; e-graph max 55 nodes, egglog 22.1 ms; dependence checks 7 (reads: input 2, final 1, accumulator 1, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage; under memref (sequential, aliasing) semantics only -- linalg.generic dim g1_0 is annotated parallel but carries a dependence through %arg3 (memref/sequential semantics used); tensor-value semantics of this IR differ); copy-in %arg3 -> %arg2; assumes %arg3 and %arg2 do not alias (pipeline-wide noalias assumption)"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1",
+     "X": "%arg2 (in: %arg3, copied into %arg2 before the launch)"
+    }
+   ],
+   "launch": [
+    "    %rm6_8_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm6_8_ld2 = arith.index_cast %rm6_8_md1#4 : index to i32\n    memref.copy %arg3, %arg2 : memref<?xf64> to memref<?xf64>\n    kernel.launch @netlib_dtrsv_utu(%arg0, %rm6_8_ld2, %arg1, %arg2) : (i32, i32, memref<?x?xf64>, memref<?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 55,
+   "egg_ms_total": 22.1,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 23.91,
+    "n": 23,
+    "specs": [
+     "netlib_dtrsv_utu"
+    ]
+   }
+  },
+  {
+   "test": "trsv_upper_back",
+   "source": "scripts/correctness/region_match/tests/c/trsv_upper_back.c",
+   "function": "trsv_upper_back",
+   "expect": {
+    "match": "netlib_dtrsv_ltn",
+    "not": [
+     "netlib_dtrsv_utn"
+    ]
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/trsv_upper_back.c --function=trsv_upper_back --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/trsv_upper_back.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=trsv_upper_back externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/trsv_upper_back.mlir -o scripts/correctness/region_match/tests/raised/trsv_upper_back_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/trsv_upper_back_linalg.mlir -o scripts/correctness/region_match/tests/raised/trsv_upper_back_debuf.mlir"
+   ],
+   "selected": "netlib_dtrsv_ltn",
+   "also_equal": [
+    "netlib_dtrsv_unn[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 189.7,
+   "windows": [
+    {
+     "window": [
+      5,
+      7
+     ],
+     "matched": "netlib_dtrsv_ltn",
+     "kind": "single",
+     "also": [
+      "netlib_dtrsv_unn[transposed]"
+     ],
+     "bindings_tried": 42,
+     "pieces": 1,
+     "egraph_nodes": [
+      63
+     ],
+     "egraph_classes": [
+      49
+     ],
+     "egg_ms": [
+      20.02
+     ],
+     "normalise_ms": 8.36,
+     "match_ms": 34.53
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dtrsv_ltn: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1', 'X': '%arg2 (in: %arg3, copied into %arg2 before the launch)'}; e-graph max 63 nodes, egglog 20.0 ms; dependence checks 9 (reads: input 3, final 1, accumulator 1, scratch-inlined 1); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dtrsv_unn[transposed]; copy-in %arg3 -> %arg2; assumes %arg3 and %arg2 do not alias (pipeline-wide noalias assumption)"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1",
+     "X": "%arg2 (in: %arg3, copied into %arg2 before the launch)"
+    }
+   ],
+   "launch": [
+    "    %rm5_7_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm5_7_ld2 = arith.index_cast %rm5_7_md1#4 : index to i32\n    memref.copy %arg3, %arg2 : memref<?xf64> to memref<?xf64>\n    kernel.launch @netlib_dtrsv_ltn(%arg0, %rm5_7_ld2, %arg1, %arg2) : (i32, i32, memref<?x?xf64>, memref<?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 63,
+   "egg_ms_total": 20.0,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 6.939e-18,
+    "max_abs_val": 23.91,
+    "n": 23,
+    "specs": [
+     "netlib_dtrsv_ltn"
+    ]
+   }
+  },
+  {
+   "test": "trsv_inplace (b aliases x)",
+   "source": "scripts/correctness/region_match/tests/c/trsv_inplace.c",
+   "function": "trsv_inplace",
+   "expect": {
+    "match": "netlib_dtrsv_utn",
+    "flag": "in-place"
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/trsv_inplace.c --function=trsv_inplace --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/trsv_inplace.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=trsv_inplace externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/trsv_inplace.mlir -o scripts/correctness/region_match/tests/raised/trsv_inplace_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/trsv_inplace_linalg.mlir -o scripts/correctness/region_match/tests/raised/trsv_inplace_debuf.mlir"
+   ],
+   "selected": "netlib_dtrsv_utn",
+   "also_equal": [
+    "netlib_dtrsv_lnn[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 227.7,
+   "windows": [
+    {
+     "window": [
+      5,
+      7
+     ],
+     "matched": "netlib_dtrsv_utn",
+     "kind": "single",
+     "also": [
+      "netlib_dtrsv_lnn[transposed]"
+     ],
+     "bindings_tried": 24,
+     "pieces": 1,
+     "egraph_nodes": [
+      63
+     ],
+     "egraph_classes": [
+      49
+     ],
+     "egg_ms": [
+      28.68
+     ],
+     "normalise_ms": 8.19,
+     "match_ms": 47.58
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dtrsv_utn: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1', 'X': '%arg2 (in-place)'}; e-graph max 63 nodes, egglog 28.7 ms; dependence checks 10 (reads: input 2, final 1, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dtrsv_lnn[transposed]; in-place: X in/out both bound to %arg2"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1",
+     "X": "%arg2 (in-place)"
+    }
+   ],
+   "launch": [
+    "    %rm5_7_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm5_7_ld2 = arith.index_cast %rm5_7_md1#4 : index to i32\n    kernel.launch @netlib_dtrsv_utn(%arg0, %rm5_7_ld2, %arg1, %arg2) : (i32, i32, memref<?x?xf64>, memref<?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 63,
+   "egg_ms_total": 28.7,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 23.91,
+    "n": 23,
+    "specs": [
+     "netlib_dtrsv_utn"
+    ]
+   }
+  },
+  {
+   "test": "NEG trsv_transposed L[j][i]",
+   "source": "scripts/correctness/region_match/tests/c/trsv_transposed.c",
+   "function": "trsv_transposed",
+   "expect": {
+    "not": [
+     "netlib_dtrsv_utn",
+     "netlib_dtrsv_utu"
+    ]
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/trsv_transposed.c --function=trsv_transposed --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/trsv_transposed.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=trsv_transposed externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/trsv_transposed.mlir -o scripts/correctness/region_match/tests/raised/trsv_transposed_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/trsv_transposed_linalg.mlir -o scripts/correctness/region_match/tests/raised/trsv_transposed_debuf.mlir"
+   ],
+   "selected": "netlib_dtrsv_lnn",
+   "also_equal": [
+    "netlib_dtrsv_utn[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 206.6,
+   "windows": [
+    {
+     "window": [
+      6,
+      8
+     ],
+     "matched": "netlib_dtrsv_lnn",
+     "kind": "single",
+     "also": [
+      "netlib_dtrsv_utn[transposed]"
+     ],
+     "bindings_tried": 42,
+     "pieces": 1,
+     "egraph_nodes": [
+      63
+     ],
+     "egraph_classes": [
+      49
+     ],
+     "egg_ms": [
+      22.85
+     ],
+     "normalise_ms": 10.79,
+     "match_ms": 39.26
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dtrsv_lnn: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1', 'X': '%arg2 (in: %arg3, copied into %arg2 before the launch)'}; e-graph max 63 nodes, egglog 22.8 ms; dependence checks 15 (reads: input 3, final 1, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dtrsv_utn[transposed]; copy-in %arg3 -> %arg2; assumes %arg3 and %arg2 do not alias (pipeline-wide noalias assumption)"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg1)",
+     "A": "%arg1",
+     "X": "%arg2 (in: %arg3, copied into %arg2 before the launch)"
+    }
+   ],
+   "launch": [
+    "    %rm6_8_md1:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm6_8_ld2 = arith.index_cast %rm6_8_md1#4 : index to i32\n    memref.copy %arg3, %arg2 : memref<?xf64> to memref<?xf64>\n    kernel.launch @netlib_dtrsv_lnn(%arg0, %rm6_8_ld2, %arg1, %arg2) : (i32, i32, memref<?x?xf64>, memref<?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 63,
+   "egg_ms_total": 22.9,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 23.91,
+    "n": 23,
+    "specs": [
+     "netlib_dtrsv_lnn"
+    ]
+   }
+  },
+  {
+   "test": "NEG trsv_swapdiv L[i][i]/x[i]",
+   "source": "scripts/correctness/region_match/tests/c/trsv_swapdiv.c",
+   "function": "trsv_swapdiv",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/trsv_swapdiv.c --function=trsv_swapdiv --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/trsv_swapdiv.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=trsv_swapdiv externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/trsv_swapdiv.mlir -o scripts/correctness/region_match/tests/raised/trsv_swapdiv_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/trsv_swapdiv_linalg.mlir -o scripts/correctness/region_match/tests/raised/trsv_swapdiv_debuf.mlir"
+   ],
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 762.9,
+   "windows": [
+    {
+     "window": [
+      6,
+      8
+     ],
+     "composite_pairs": 160,
+     "composites_built": 56,
+     "matched": null,
+     "bindings_tried": 234,
+     "normalise_ms": 10.563783347606659
+    }
+   ],
+   "rejections": [
+    "window 6-8: no specification matched (234 bindings tried)"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "NEG trsv_mask_le j<=i",
+   "source": "scripts/correctness/region_match/tests/c/trsv_mask_le.c",
+   "function": "trsv_mask_le",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/trsv_mask_le.c --function=trsv_mask_le --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/trsv_mask_le.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=trsv_mask_le externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/trsv_mask_le.mlir -o scripts/correctness/region_match/tests/raised/trsv_mask_le_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/trsv_mask_le_linalg.mlir -o scripts/correctness/region_match/tests/raised/trsv_mask_le_debuf.mlir"
+   ],
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 13.0,
+   "windows": [],
+   "rejections": [
+    "window 7-9: dependence check failed: read of %arg2[g1_0] at [29, v0, 21, g1_0, 0] observes an intermediate value (written both before and after)"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "NEG trsv_alias_shift b=x+1",
+   "source": "scripts/correctness/region_match/tests/c/trsv_alias_shift.c",
+   "function": "trsv_alias_shift",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/trsv_alias_shift.c --function=trsv_alias_shift --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/trsv_alias_shift.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=trsv_alias_shift externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/trsv_alias_shift.mlir -o scripts/correctness/region_match/tests/raised/trsv_alias_shift_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/trsv_alias_shift_linalg.mlir -o scripts/correctness/region_match/tests/raised/trsv_alias_shift_debuf.mlir"
+   ],
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 225.7,
+   "windows": [
+    {
+     "window": [
+      5,
+      7
+     ],
+     "composite_pairs": 160,
+     "composites_built": 56,
+     "matched": null,
+     "bindings_tried": 120,
+     "normalise_ms": 13.597182929515839
+    }
+   ],
+   "rejections": [
+    "window 5-7: no specification matched (120 bindings tried)"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "NEG trsv_reads_b x-=L*b",
+   "source": "scripts/correctness/region_match/tests/c/trsv_reads_b.c",
+   "function": "trsv_reads_b",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/trsv_reads_b.c --function=trsv_reads_b --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/trsv_reads_b.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=trsv_reads_b externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/trsv_reads_b.mlir -o scripts/correctness/region_match/tests/raised/trsv_reads_b_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/trsv_reads_b_linalg.mlir -o scripts/correctness/region_match/tests/raised/trsv_reads_b_debuf.mlir"
+   ],
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 386.9,
+   "windows": [
+    {
+     "window": [
+      8,
+      20
+     ],
+     "composite_pairs": 64,
+     "composites_built": 32,
+     "matched": null,
+     "bindings_tried": 170,
+     "normalise_ms": 5.172647535800934
+    },
+    {
+     "window": [
+      13,
+      20
+     ],
+     "composite_pairs": 64,
+     "composites_built": 32,
+     "matched": null,
+     "bindings_tried": 312,
+     "normalise_ms": 4.411831498146057
+    },
+    {
+     "window": [
+      17,
+      20
+     ],
+     "composite_pairs": 0,
+     "composites_built": 0,
+     "matched": null,
+     "bindings_tried": 24,
+     "normalise_ms": 0.9831860661506653
+    }
+   ],
+   "rejections": [
+    "window 8-20: no specification matched (170 bindings tried)",
+    "window 13-20: no specification matched (312 bindings tried)",
+    "window 17-20: no specification matched (24 bindings tried)"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "NEG trsv_div_first",
+   "source": "scripts/correctness/region_match/tests/c/trsv_div_first.c",
+   "function": "trsv_div_first",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/trsv_div_first.c --function=trsv_div_first --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/trsv_div_first.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=trsv_div_first externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/trsv_div_first.mlir -o scripts/correctness/region_match/tests/raised/trsv_div_first_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/trsv_div_first_linalg.mlir -o scripts/correctness/region_match/tests/raised/trsv_div_first_debuf.mlir"
+   ],
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 779.1,
+   "windows": [
+    {
+     "window": [
+      6,
+      8
+     ],
+     "composite_pairs": 160,
+     "composites_built": 56,
+     "matched": null,
+     "bindings_tried": 234,
+     "normalise_ms": 5.505107343196869
+    }
+   ],
+   "rejections": [
+    "window 6-8: no specification matched (234 bindings tried)"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "NEG ldlt",
+   "source": "scripts/correctness/region_match/tests/c/ldlt.c",
+   "function": "ldlt",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/ldlt.c --function=ldlt --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/ldlt.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=ldlt externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/ldlt.mlir -o scripts/correctness/region_match/tests/raised/ldlt_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/ldlt_linalg.mlir -o scripts/correctness/region_match/tests/raised/ldlt_debuf.mlir"
+   ],
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 217.5,
+   "windows": [
+    {
+     "window": [
+      4,
+      6
+     ],
+     "composite_pairs": 0,
+     "composites_built": 0,
+     "matched": null,
+     "bindings_tried": 0,
+     "normalise_ms": 54.354675114154816
+    }
+   ],
+   "rejections": [
+    "window 4-6: no specification matched (0 bindings tried)"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "NEG cholesky_wrong_tri A[k][j]",
+   "source": "scripts/correctness/region_match/tests/c/cholesky_wrong_tri.c",
+   "function": "cholesky_wrong_tri",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/cholesky_wrong_tri.c --function=cholesky_wrong_tri --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/cholesky_wrong_tri.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=cholesky_wrong_tri externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/cholesky_wrong_tri.mlir -o scripts/correctness/region_match/tests/raised/cholesky_wrong_tri_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/cholesky_wrong_tri_linalg.mlir -o scripts/correctness/region_match/tests/raised/cholesky_wrong_tri_debuf.mlir"
+   ],
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 1210.1,
+   "windows": [
+    {
+     "window": [
+      4,
+      6
+     ],
+     "composite_pairs": 212,
+     "composites_built": 106,
+     "matched": null,
+     "bindings_tried": 50,
+     "normalise_ms": 49.33970421552658
+    }
+   ],
+   "rejections": [
+    "window 4-6: no specification matched (50 bindings tried)"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "lit axpy_unit (da=1.0)",
+   "source": "scripts/correctness/region_match/tests/c/axpy_unit.c",
+   "function": "axpy_unit",
+   "expect": {
+    "match": "netlib_daxpy_inc",
+    "flag": "bound to literals"
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/axpy_unit.c --function=axpy_unit --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/axpy_unit.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=axpy_unit externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/axpy_unit.mlir -o scripts/correctness/region_match/tests/raised/axpy_unit_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/axpy_unit_linalg.mlir -o scripts/correctness/region_match/tests/raised/axpy_unit_debuf.mlir"
+   ],
+   "selected": "netlib_daxpy_inc",
+   "also_equal": [
+    "netlib_daxpy_inc[copy-in]"
+   ],
+   "ok": true,
+   "match_ms": 67.0,
+   "windows": [
+    {
+     "window": [
+      5,
+      8
+     ],
+     "matched": "netlib_daxpy_inc",
+     "kind": "single",
+     "also": [
+      "netlib_daxpy_inc[copy-in]"
+     ],
+     "bindings_tried": 8,
+     "pieces": 1,
+     "egraph_nodes": [
+      33
+     ],
+     "egraph_classes": [
+      24
+     ],
+     "egg_ms": [
+      19.66
+     ],
+     "normalise_ms": 1.1,
+     "match_ms": 26.66
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_daxpy_inc: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'da': 'literal 1.0', 'dx': '%arg1', 'incx': 'literal 1 (specialised)', 'dy': '%arg2 (in-place)', 'incy': 'literal 1 (specialised)'}; e-graph max 33 nodes, egglog 19.7 ms; dependence checks 2 (reads: input 1, final 0, accumulator 1, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage; integer parameter(s) specialised: {'incx': 1, 'incy': 1}); also equal: netlib_daxpy_inc[copy-in]; in-place: dy in/out both bound to %arg2; scalar parameter(s) bound to literals {'%arg1': 1.0} (e-graph union with Term.Lit)"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "da": "literal 1.0",
+     "dx": "%arg1",
+     "incx": "literal 1 (specialised)",
+     "dy": "%arg2 (in-place)",
+     "incy": "literal 1 (specialised)"
+    }
+   ],
+   "launch": [
+    "    %rm5_8_c1 = arith.constant 1.0 : f64\n    %rm5_8_c2 = arith.constant 1 : i32\n    kernel.launch @netlib_daxpy_inc(%arg0, %rm5_8_c1, %arg1, %rm5_8_c2, %arg2, %rm5_8_c2) : (i32, f64, memref<?xf64>, i32, memref<?xf64>, i32) -> ()"
+   ],
+   "egraph_nodes_max": 33,
+   "egg_ms_total": 19.7,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 1.931,
+    "n": 23,
+    "specs": [
+     "netlib_daxpy_inc"
+    ]
+   }
+  },
+  {
+   "test": "lit axpy_const (da=2.5)",
+   "source": "scripts/correctness/region_match/tests/c/axpy_const.c",
+   "function": "axpy_const",
+   "expect": {
+    "match": "netlib_daxpy_inc",
+    "flag": "2.5"
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/axpy_const.c --function=axpy_const --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/axpy_const.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=axpy_const externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/axpy_const.mlir -o scripts/correctness/region_match/tests/raised/axpy_const_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/axpy_const_linalg.mlir -o scripts/correctness/region_match/tests/raised/axpy_const_debuf.mlir"
+   ],
+   "selected": "netlib_daxpy_inc",
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 124.5,
+   "windows": [
+    {
+     "window": [
+      6,
+      9
+     ],
+     "matched": "netlib_daxpy_inc",
+     "kind": "single",
+     "also": [],
+     "bindings_tried": 18,
+     "pieces": 1,
+     "egraph_nodes": [
+      33
+     ],
+     "egraph_classes": [
+      25
+     ],
+     "egg_ms": [
+      15.88
+     ],
+     "normalise_ms": 1.16,
+     "match_ms": 52.05
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_daxpy_inc: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'da': 'literal 2.5', 'dx': '%arg1', 'incx': 'literal 1 (specialised)', 'dy': '%arg2 (in-place)', 'incy': 'literal 1 (specialised)'}; e-graph max 33 nodes, egglog 15.9 ms; dependence checks 2 (reads: input 1, final 0, accumulator 1, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage; integer parameter(s) specialised: {'incx': 1, 'incy': 1}); in-place: dy in/out both bound to %arg2; scalar parameter(s) bound to literals {'%arg1': 2.5} (e-graph union with Term.Lit)"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "da": "literal 2.5",
+     "dx": "%arg1",
+     "incx": "literal 1 (specialised)",
+     "dy": "%arg2 (in-place)",
+     "incy": "literal 1 (specialised)"
+    }
+   ],
+   "launch": [
+    "    %rm6_9_c1 = arith.constant 2.5 : f64\n    %rm6_9_c2 = arith.constant 1 : i32\n    kernel.launch @netlib_daxpy_inc(%arg0, %rm6_9_c1, %arg1, %rm6_9_c2, %arg2, %rm6_9_c2) : (i32, f64, memref<?xf64>, i32, memref<?xf64>, i32) -> ()"
+   ],
+   "egraph_nodes_max": 33,
+   "egg_ms_total": 15.9,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 3.429,
+    "n": 23,
+    "specs": [
+     "netlib_daxpy_inc"
+    ]
+   }
+  },
+  {
+   "test": "lit ger_unit (alpha=1.0)",
+   "source": "scripts/correctness/region_match/tests/c/ger_unit.c",
+   "function": "ger_unit",
+   "expect": {
+    "match": "netlib_dger",
+    "flag": "bound to literals"
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/ger_unit.c --function=ger_unit --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/ger_unit.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=ger_unit externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/ger_unit.mlir -o scripts/correctness/region_match/tests/raised/ger_unit_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/ger_unit_linalg.mlir -o scripts/correctness/region_match/tests/raised/ger_unit_debuf.mlir"
+   ],
+   "selected": "netlib_dger",
+   "also_equal": [
+    "netlib_dger[transposed]",
+    "netlib_dger_inc[literal]",
+    "netlib_dger_inc[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 953.8,
+   "windows": [
+    {
+     "window": [
+      8,
+      11
+     ],
+     "matched": "netlib_dger",
+     "kind": "single",
+     "also": [
+      "netlib_dger[transposed]",
+      "netlib_dger_inc[literal]",
+      "netlib_dger_inc[transposed]"
+     ],
+     "bindings_tried": 274,
+     "pieces": 1,
+     "egraph_nodes": [
+      52
+     ],
+     "egraph_classes": [
+      38
+     ],
+     "egg_ms": [
+      26.22
+     ],
+     "normalise_ms": 11.3,
+     "match_ms": 45.95
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dger: 1 element equation(s), 1 domain piece(s) equal under binding {'m': '%arg1', 'n': '%arg0', 'alpha': 'literal 1.0', 'x': '%arg4', 'y': '%arg3', 'lda': 'stride0(%arg2)', 'A': '%arg2 (in-place)'}; e-graph max 52 nodes, egglog 26.2 ms; dependence checks 2 (reads: input 2, final 0, accumulator 1, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dger[transposed], netlib_dger_inc[literal], netlib_dger_inc[transposed]; in-place: A in/out both bound to %arg2; scalar parameter(s) bound to literals {'%arg2': 1.0} (e-graph union with Term.Lit)"
+   ],
+   "binding": [
+    {
+     "m": "%arg1",
+     "n": "%arg0",
+     "alpha": "literal 1.0",
+     "x": "%arg4",
+     "y": "%arg3",
+     "lda": "stride0(%arg2)",
+     "A": "%arg2 (in-place)"
+    }
+   ],
+   "launch": [
+    "    %rm8_11_c1 = arith.constant 1.0 : f64\n    %rm8_11_md2:6 = memref.extract_strided_metadata %arg2 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm8_11_ld3 = arith.index_cast %rm8_11_md2#4 : index to i32\n    kernel.launch @netlib_dger(%arg1, %arg0, %rm8_11_c1, %arg4, %arg3, %rm8_11_ld3, %arg2) : (i32, i32, f64, memref<?xf64>, memref<?xf64>, i32, memref<?x?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 52,
+   "egg_ms_total": 26.2,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 1.901,
+    "n": 23,
+    "specs": [
+     "netlib_dger"
+    ]
+   }
+  },
+  {
+   "test": "lit gemm_beta1 (beta!=1 policy)",
+   "source": "scripts/correctness/region_match/tests/c/gemm_beta1.c",
+   "function": "gemm_beta1",
+   "expect": {
+    "match": "netlib_dgemm_nn_beta1",
+    "not": [
+     "netlib_dgemm_nn"
+    ]
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/gemm_beta1.c --function=gemm_beta1 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/gemm_beta1.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=gemm_beta1 externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/gemm_beta1.mlir -o scripts/correctness/region_match/tests/raised/gemm_beta1_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/gemm_beta1_linalg.mlir -o scripts/correctness/region_match/tests/raised/gemm_beta1_debuf.mlir"
+   ],
+   "selected": "netlib_dgemm_nn_beta1",
+   "also_equal": [
+    "netlib_dgemm_nn_beta1[transposed]",
+    "netlib_dgemm_nt_beta1[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 1569.7,
+   "windows": [
+    {
+     "window": [
+      9,
+      12
+     ],
+     "matched": "netlib_dgemm_nn_beta1",
+     "kind": "single",
+     "also": [
+      "netlib_dgemm_nn_beta1[transposed]",
+      "netlib_dgemm_nt_beta1[transposed]"
+     ],
+     "bindings_tried": 432,
+     "pieces": 1,
+     "egraph_nodes": [
+      62
+     ],
+     "egraph_classes": [
+      47
+     ],
+     "egg_ms": [
+      24.32
+     ],
+     "normalise_ms": 9.65,
+     "match_ms": 63.44
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dgemm_nn_beta1: 1 element equation(s), 1 domain piece(s) equal under binding {'m': '%arg1', 'n': '%arg0', 'k': '%arg2', 'alpha': 'literal 1.0', 'lda': 'stride0(%arg5)', 'A': '%arg5', 'ldb': 'stride0(%arg4)', 'B': '%arg4', 'ldc': 'stride0(%arg3)', 'C': '%arg3 (in-place)'}; e-graph max 62 nodes, egglog 24.3 ms; dependence checks 2 (reads: input 2, final 0, accumulator 1, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dgemm_nn_beta1[transposed], netlib_dgemm_nt_beta1[transposed]; in-place: C in/out both bound to %arg3; scalar parameter(s) bound to literals {'%arg3': 1.0} (e-graph union with Term.Lit)"
+   ],
+   "binding": [
+    {
+     "m": "%arg1",
+     "n": "%arg0",
+     "k": "%arg2",
+     "alpha": "literal 1.0",
+     "lda": "stride0(%arg5)",
+     "A": "%arg5",
+     "ldb": "stride0(%arg4)",
+     "B": "%arg4",
+     "ldc": "stride0(%arg3)",
+     "C": "%arg3 (in-place)"
+    }
+   ],
+   "launch": [
+    "    %rm9_12_c1 = arith.constant 1.0 : f64\n    %rm9_12_md2:6 = memref.extract_strided_metadata %arg5 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm9_12_ld3 = arith.index_cast %rm9_12_md2#4 : index to i32\n    %rm9_12_md4:6 = memref.extract_strided_metadata %arg4 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm9_12_ld5 = arith.index_cast %rm9_12_md4#4 : index to i32\n    %rm9_12_md6:6 = memref.extract_strided_metadata %arg3 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm9_12_ld7 = arith.index_cast %rm9_12_md6#4 : index to i32\n    kernel.launch @netlib_dgemm_nn_beta1(%arg1, %arg0, %arg2, %rm9_12_c1, %rm9_12_ld3, %arg5, %rm9_12_ld5, %arg4, %rm9_12_ld7, %arg3) : (i32, i32, i32, f64, i32, memref<?x?xf64>, i32, memref<?x?xf64>, i32, memref<?x?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 62,
+   "egg_ms_total": 24.3,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 7.818,
+    "n": 23,
+    "specs": [
+     "netlib_dgemm_nn_beta1"
+    ]
+   }
+  },
+  {
+   "test": "NEG lit zero_fill (no da=0.0)",
+   "source": "scripts/correctness/region_match/tests/c/zero_fill.c",
+   "function": "zero_fill",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/zero_fill.c --function=zero_fill --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/zero_fill.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=zero_fill externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/zero_fill.mlir -o scripts/correctness/region_match/tests/raised/zero_fill_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/zero_fill_linalg.mlir -o scripts/correctness/region_match/tests/raised/zero_fill_debuf.mlir"
+   ],
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 53.7,
+   "windows": [],
+   "rejections": [
+    "window 4-7: netlib_dgemv_t_alpha0_beta0 matched but unbound scalar argument m"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "comp axpby = DSCAL;DAXPY",
+   "source": "scripts/correctness/region_match/tests/c/axpby.c",
+   "function": "axpby",
+   "expect": {
+    "match": "netlib_dscal_inc+netlib_daxpy_inc",
+    "flag": "sequential composition"
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/axpby.c --function=axpby --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/axpby.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=axpby externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/axpby.mlir -o scripts/correctness/region_match/tests/raised/axpby_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/axpby_linalg.mlir -o scripts/correctness/region_match/tests/raised/axpby_debuf.mlir"
+   ],
+   "selected": "netlib_dscal_inc+netlib_daxpy_inc",
+   "also_equal": [
+    "netlib_dgemv_n_alpha0+netlib_daxpy_inc[literal]",
+    "netlib_dgemv_t_alpha0+netlib_daxpy_inc[literal]"
+   ],
+   "ok": true,
+   "match_ms": 907.5,
+   "windows": [
+    {
+     "window": [
+      5,
+      8
+     ],
+     "composite_pairs": 16,
+     "composites_built": 16,
+     "matched": "netlib_dscal_inc+netlib_daxpy_inc",
+     "kind": "composite",
+     "also": [
+      "netlib_dgemv_n_alpha0+netlib_daxpy_inc[literal]",
+      "netlib_dgemv_t_alpha0+netlib_daxpy_inc[literal]"
+     ],
+     "bindings_tried": 80,
+     "pieces": 1,
+     "egraph_nodes": [
+      42
+     ],
+     "egraph_classes": [
+      31
+     ],
+     "egg_ms": [
+      37.98
+     ],
+     "normalise_ms": 1.22,
+     "match_ms": 883.18
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dscal_inc+netlib_daxpy_inc: 1 element equation(s), 1 domain piece(s) equal under binding {'1:netlib_dscal_inc:n': '%arg0', '1:netlib_dscal_inc:da': '%arg2', '1:netlib_dscal_inc:dx': '%arg4 (in-place)', '1:netlib_dscal_inc:incx': 'literal 1 (specialised)', '2:netlib_daxpy_inc:n': '%arg0', '2:netlib_daxpy_inc:da': '%arg1', '2:netlib_daxpy_inc:dx': '%arg3', '2:netlib_daxpy_inc:incx': 'literal 1 (specialised)', '2:netlib_daxpy_inc:dy': '%arg4 (in-place)', '2:netlib_daxpy_inc:incy': 'literal 1 (specialised)'}; e-graph max 42 nodes, egglog 38.0 ms; dependence checks 2 (reads: input 1, final 0, accumulator 1, scratch-inlined 0); sequential composition netlib_dscal_inc ; netlib_daxpy_inc with link {'dy': 'dx'} (S1 final values substituted into S2); spec semantics from cgeist-affine/cgeist-affine stages; also equal: netlib_dgemv_n_alpha0+netlib_daxpy_inc[literal], netlib_dgemv_t_alpha0+netlib_daxpy_inc[literal]"
+   ],
+   "binding": [
+    {
+     "1:netlib_dscal_inc:n": "%arg0",
+     "1:netlib_dscal_inc:da": "%arg2",
+     "1:netlib_dscal_inc:dx": "%arg4 (in-place)",
+     "1:netlib_dscal_inc:incx": "literal 1 (specialised)",
+     "2:netlib_daxpy_inc:n": "%arg0",
+     "2:netlib_daxpy_inc:da": "%arg1",
+     "2:netlib_daxpy_inc:dx": "%arg3",
+     "2:netlib_daxpy_inc:incx": "literal 1 (specialised)",
+     "2:netlib_daxpy_inc:dy": "%arg4 (in-place)",
+     "2:netlib_daxpy_inc:incy": "literal 1 (specialised)"
+    }
+   ],
+   "launch": [
+    "    %rm5_8_c1 = arith.constant 1 : i32\n    kernel.launch @netlib_dscal_inc(%arg0, %arg2, %arg4, %rm5_8_c1) : (i32, f64, memref<?xf64>, i32) -> ()\n    kernel.launch @netlib_daxpy_inc(%arg0, %arg1, %arg3, %rm5_8_c1, %arg4, %rm5_8_c1) : (i32, f64, memref<?xf64>, i32, memref<?xf64>, i32) -> ()"
+   ],
+   "egraph_nodes_max": 42,
+   "egg_ms_total": 38.0,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 1.839,
+    "n": 23,
+    "specs": [
+     "netlib_dscal_inc",
+     "netlib_daxpy_inc"
+    ]
+   }
+  },
+  {
+   "test": "comp axpby_lit = DSCAL(2);DAXPY(1)",
+   "source": "scripts/correctness/region_match/tests/c/axpby_lit.c",
+   "function": "axpby_lit",
+   "expect": {
+    "match": "netlib_dscal_inc+netlib_daxpy_inc"
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/axpby_lit.c --function=axpby_lit --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/axpby_lit.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=axpby_lit externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/axpby_lit.mlir -o scripts/correctness/region_match/tests/raised/axpby_lit_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/axpby_lit_linalg.mlir -o scripts/correctness/region_match/tests/raised/axpby_lit_debuf.mlir"
+   ],
+   "selected": "netlib_daxpy_inc",
+   "also_equal": [],
+   "ok": false,
+   "match_ms": 132.1,
+   "windows": [
+    {
+     "window": [
+      6,
+      9
+     ],
+     "matched": "netlib_daxpy_inc",
+     "kind": "single",
+     "also": [],
+     "bindings_tried": 18,
+     "pieces": 1,
+     "egraph_nodes": [
+      33
+     ],
+     "egraph_classes": [
+      25
+     ],
+     "egg_ms": [
+      17.48
+     ],
+     "normalise_ms": 1.15,
+     "match_ms": 108.58
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_daxpy_inc: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'da': 'literal 2.0', 'dx': '%arg2', 'incx': 'literal 1 (specialised)', 'dy': '%arg2 (in: %arg1, copied into %arg2 before the launch)', 'incy': 'literal 1 (specialised)'}; e-graph max 33 nodes, egglog 17.5 ms; dependence checks 2 (reads: input 1, final 0, accumulator 1, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage; integer parameter(s) specialised: {'incx': 1, 'incy': 1}); copy-in %arg1 -> %arg2; assumes %arg1 and %arg2 do not alias (pipeline-wide noalias assumption); scalar parameter(s) bound to literals {'%arg1': 2.0} (e-graph union with Term.Lit)"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "da": "literal 2.0",
+     "dx": "%arg2",
+     "incx": "literal 1 (specialised)",
+     "dy": "%arg2 (in: %arg1, copied into %arg2 before the launch)",
+     "incy": "literal 1 (specialised)"
+    }
+   ],
+   "launch": [
+    "    %rm6_9_c1 = arith.constant 2.0 : f64\n    %rm6_9_c2 = arith.constant 1 : i32\n    memref.copy %arg1, %arg2 : memref<?xf64> to memref<?xf64>\n    kernel.launch @netlib_daxpy_inc(%arg0, %rm6_9_c1, %arg2, %rm6_9_c2, %arg2, %rm6_9_c2) : (i32, f64, memref<?xf64>, i32, memref<?xf64>, i32) -> ()"
+   ],
+   "egraph_nodes_max": 33,
+   "egg_ms_total": 17.5,
+   "numeric": {
+    "ok": false,
+    "max_abs_err": 1.656,
+    "max_abs_val": 2.862,
+    "n": 23,
+    "specs": [
+     "netlib_daxpy_inc"
+    ]
+   }
+  },
+  {
+   "test": "comp rank2 = DGER;DGER",
+   "source": "scripts/correctness/region_match/tests/c/rank2.c",
+   "function": "rank2",
+   "expect": {
+    "match": "netlib_dger+netlib_dger",
+    "flag": "sequential composition"
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/rank2.c --function=rank2 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/rank2.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=rank2 externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/rank2.mlir -o scripts/correctness/region_match/tests/raised/rank2_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/rank2_linalg.mlir -o scripts/correctness/region_match/tests/raised/rank2_debuf.mlir"
+   ],
+   "selected": "netlib_dger+netlib_dger",
+   "also_equal": [
+    "netlib_dger+netlib_dger[literal]",
+    "netlib_dger+netlib_dger[transposed]",
+    "netlib_dger+netlib_dger_inc[literal]",
+    "netlib_dger+netlib_dger_inc[transposed]",
+    "netlib_dger_inc+netlib_dger[literal]",
+    "netlib_dger_inc+netlib_dger[transposed]",
+    "netlib_dger_inc+netlib_dger_inc[literal]",
+    "netlib_dger_inc+netlib_dger_inc[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 2629.0,
+   "windows": [
+    {
+     "window": [
+      11,
+      14
+     ],
+     "composite_pairs": 48,
+     "composites_built": 48,
+     "matched": "netlib_dger+netlib_dger",
+     "kind": "composite",
+     "also": [
+      "netlib_dger+netlib_dger[literal]",
+      "netlib_dger+netlib_dger[transposed]",
+      "netlib_dger+netlib_dger_inc[literal]",
+      "netlib_dger+netlib_dger_inc[transposed]",
+      "netlib_dger_inc+netlib_dger[literal]",
+      "netlib_dger_inc+netlib_dger[transposed]",
+      "netlib_dger_inc+netlib_dger_inc[literal]",
+      "netlib_dger_inc+netlib_dger_inc[transposed]"
+     ],
+     "bindings_tried": 3202,
+     "pieces": 1,
+     "egraph_nodes": [
+      77
+     ],
+     "egraph_classes": [
+      52
+     ],
+     "egg_ms": [
+      22.72
+     ],
+     "normalise_ms": 8.53,
+     "match_ms": 66.03
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dger+netlib_dger: 1 element equation(s), 1 domain piece(s) equal under binding {'1:netlib_dger:m': '%arg0', '1:netlib_dger:n': '%arg0', '1:netlib_dger:alpha': 'literal 1.0', '1:netlib_dger:x': '%arg3', '1:netlib_dger:y': '%arg2', '1:netlib_dger:lda': 'stride0(%arg1)', '1:netlib_dger:A': '%arg1 (in-place)', '2:netlib_dger:m': '%arg0', '2:netlib_dger:n': '%arg0', '2:netlib_dger:alpha': 'literal 1.0', '2:netlib_dger:x': '%arg5', '2:netlib_dger:y': '%arg4', '2:netlib_dger:lda': 'stride0(%arg1)', '2:netlib_dger:A': '%arg1 (in-place)'}; e-graph max 77 nodes, egglog 22.7 ms; dependence checks 2 (reads: input 4, final 0, accumulator 1, scratch-inlined 0); sequential composition netlib_dger ; netlib_dger with link {'A': 'A'} (S1 final values substituted into S2); spec semantics from cgeist-affine/cgeist-affine stages; also equal: netlib_dger+netlib_dger[literal], netlib_dger+netlib_dger[transposed], netlib_dger+netlib_dger_inc[literal], netlib_dger+netlib_dger_inc[transposed], netlib_dger_inc+netlib_dger[literal], netlib_dger_inc+netlib_dger[transposed], netlib_dger_inc+netlib_dger_inc[literal], netlib_dger_inc+netlib_dger_inc[transposed]; scalar parameter(s) bound to literals {'a:%arg2': 1.0, 'b:%arg2': 1.0} (e-graph union with Term.Lit)"
+   ],
+   "binding": [
+    {
+     "1:netlib_dger:m": "%arg0",
+     "1:netlib_dger:n": "%arg0",
+     "1:netlib_dger:alpha": "literal 1.0",
+     "1:netlib_dger:x": "%arg3",
+     "1:netlib_dger:y": "%arg2",
+     "1:netlib_dger:lda": "stride0(%arg1)",
+     "1:netlib_dger:A": "%arg1 (in-place)",
+     "2:netlib_dger:m": "%arg0",
+     "2:netlib_dger:n": "%arg0",
+     "2:netlib_dger:alpha": "literal 1.0",
+     "2:netlib_dger:x": "%arg5",
+     "2:netlib_dger:y": "%arg4",
+     "2:netlib_dger:lda": "stride0(%arg1)",
+     "2:netlib_dger:A": "%arg1 (in-place)"
+    }
+   ],
+   "launch": [
+    "    %rm11_14_c1 = arith.constant 1.0 : f64\n    %rm11_14_md2:6 = memref.extract_strided_metadata %arg1 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm11_14_ld3 = arith.index_cast %rm11_14_md2#4 : index to i32\n    kernel.launch @netlib_dger(%arg0, %arg0, %rm11_14_c1, %arg3, %arg2, %rm11_14_ld3, %arg1) : (i32, i32, f64, memref<?xf64>, memref<?xf64>, i32, memref<?x?xf64>) -> ()\n    kernel.launch @netlib_dger(%arg0, %arg0, %rm11_14_c1, %arg5, %arg4, %rm11_14_ld3, %arg1) : (i32, i32, f64, memref<?xf64>, memref<?xf64>, i32, memref<?x?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 77,
+   "egg_ms_total": 22.7,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 25.02,
+    "n": 23,
+    "specs": [
+     "netlib_dger"
+    ]
+   }
+  },
+  {
+   "test": "comp pb_gesummv (after linalg)",
+   "source": "issues/lib_v2/polybench_raised/gesummv/debuf.mlir",
+   "function": "kernel_gesummv",
+   "expect": {
+    "match": "netlib_dscal_inc+netlib_daxpy_inc",
+    "flag": "copied into memory"
+   },
+   "recipe": "lib_v2 PolyBench raise + match_v2 linalg splice",
+   "selected": "netlib_dscal_inc+netlib_daxpy_inc",
+   "also_equal": [
+    "netlib_dgemv_n_alpha0+netlib_daxpy_inc[literal]",
+    "netlib_dgemv_t_alpha0+netlib_daxpy_inc[literal]"
+   ],
+   "ok": true,
+   "match_ms": 801.3,
+   "windows": [
+    {
+     "window": [
+      19,
+      22
+     ],
+     "composite_pairs": 16,
+     "composites_built": 16,
+     "matched": "netlib_dscal_inc+netlib_daxpy_inc",
+     "kind": "composite",
+     "also": [
+      "netlib_dgemv_n_alpha0+netlib_daxpy_inc[literal]",
+      "netlib_dgemv_t_alpha0+netlib_daxpy_inc[literal]"
+     ],
+     "bindings_tried": 80,
+     "pieces": 1,
+     "egraph_nodes": [
+      42
+     ],
+     "egraph_classes": [
+      31
+     ],
+     "egg_ms": [
+      21.41
+     ],
+     "normalise_ms": 1.21,
+     "match_ms": 781.42
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dscal_inc+netlib_daxpy_inc: 1 element equation(s), 1 domain piece(s) equal under binding {'1:netlib_dscal_inc:n': '%arg0', '1:netlib_dscal_inc:da': '%arg2', '1:netlib_dscal_inc:dx': '%arg7 (in-place)', '1:netlib_dscal_inc:incx': 'literal 1 (specialised)', '2:netlib_daxpy_inc:n': '%arg0', '2:netlib_daxpy_inc:da': '%arg1', '2:netlib_daxpy_inc:dx': '%arg5', '2:netlib_daxpy_inc:incx': 'literal 1 (specialised)', '2:netlib_daxpy_inc:dy': '%arg7 (in-place)', '2:netlib_daxpy_inc:incy': 'literal 1 (specialised)'}; e-graph max 42 nodes, egglog 21.4 ms; dependence checks 2 (reads: input 1, final 0, accumulator 1, scratch-inlined 0); sequential composition netlib_dscal_inc ; netlib_daxpy_inc with link {'dy': 'dx'} (S1 final values substituted into S2); spec semantics from cgeist-affine/cgeist-affine stages; %arg7: current value %22 copied into memory before the launch; also equal: netlib_dgemv_n_alpha0+netlib_daxpy_inc[literal], netlib_dgemv_t_alpha0+netlib_daxpy_inc[literal]"
+   ],
+   "binding": [
+    {
+     "1:netlib_dscal_inc:n": "%arg0",
+     "1:netlib_dscal_inc:da": "%arg2",
+     "1:netlib_dscal_inc:dx": "%arg7 (in-place)",
+     "1:netlib_dscal_inc:incx": "literal 1 (specialised)",
+     "2:netlib_daxpy_inc:n": "%arg0",
+     "2:netlib_daxpy_inc:da": "%arg1",
+     "2:netlib_daxpy_inc:dx": "%arg5",
+     "2:netlib_daxpy_inc:incx": "literal 1 (specialised)",
+     "2:netlib_daxpy_inc:dy": "%arg7 (in-place)",
+     "2:netlib_daxpy_inc:incy": "literal 1 (specialised)"
+    }
+   ],
+   "launch": [
+    "    %rm19_22_cur1 = bufferization.to_memref %22 : memref<?xf64>\n    memref.copy %rm19_22_cur1, %arg7 : memref<?xf64> to memref<?xf64>\n    %rm19_22_c2 = arith.constant 1 : i32\n    kernel.launch @netlib_dscal_inc(%arg0, %arg2, %arg7, %rm19_22_c2) : (i32, f64, memref<?xf64>, i32) -> ()\n    kernel.launch @netlib_daxpy_inc(%arg0, %arg1, %arg5, %rm19_22_c2, %arg7, %rm19_22_c2) : (i32, f64, memref<?xf64>, i32, memref<?xf64>, i32) -> ()"
+   ],
+   "egraph_nodes_max": 42,
+   "egg_ms_total": 21.4,
+   "numeric": {
+    "ok": true,
+    "deferred": "tests/e2e_region.py"
+   }
+  },
+  {
+   "test": "comp pb_gemver (after linalg)",
+   "source": "issues/lib_v2/polybench_raised/gemver/debuf.mlir",
+   "function": "kernel_gemver",
+   "expect": {
+    "match": "netlib_dger+netlib_dger",
+    "flag": "re-defined after the launch"
+   },
+   "recipe": "lib_v2 PolyBench raise + match_v2 linalg splice",
+   "selected": "netlib_dger+netlib_dger",
+   "also_equal": [
+    "netlib_dger+netlib_dger[literal]",
+    "netlib_dger+netlib_dger[transposed]",
+    "netlib_dger+netlib_dger_inc[literal]",
+    "netlib_dger+netlib_dger_inc[transposed]",
+    "netlib_dger_inc+netlib_dger[literal]",
+    "netlib_dger_inc+netlib_dger[transposed]",
+    "netlib_dger_inc+netlib_dger_inc[literal]",
+    "netlib_dger_inc+netlib_dger_inc[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 2636.3,
+   "windows": [
+    {
+     "window": [
+      15,
+      18
+     ],
+     "composite_pairs": 48,
+     "composites_built": 48,
+     "matched": "netlib_dger+netlib_dger",
+     "kind": "composite",
+     "also": [
+      "netlib_dger+netlib_dger[literal]",
+      "netlib_dger+netlib_dger[transposed]",
+      "netlib_dger+netlib_dger_inc[literal]",
+      "netlib_dger+netlib_dger_inc[transposed]",
+      "netlib_dger_inc+netlib_dger[literal]",
+      "netlib_dger_inc+netlib_dger[transposed]",
+      "netlib_dger_inc+netlib_dger_inc[literal]",
+      "netlib_dger_inc+netlib_dger_inc[transposed]"
+     ],
+     "bindings_tried": 3202,
+     "pieces": 1,
+     "egraph_nodes": [
+      77
+     ],
+     "egraph_classes": [
+      52
+     ],
+     "egg_ms": [
+      26.33
+     ],
+     "normalise_ms": 4.29,
+     "match_ms": 67.72
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dger+netlib_dger: 1 element equation(s), 1 domain piece(s) equal under binding {'1:netlib_dger:m': '%arg0', '1:netlib_dger:n': '%arg0', '1:netlib_dger:alpha': 'literal 1.0', '1:netlib_dger:x': '%arg5', '1:netlib_dger:y': '%arg4', '1:netlib_dger:lda': 'stride0(%arg3)', '1:netlib_dger:A': '%arg3 (in-place)', '2:netlib_dger:m': '%arg0', '2:netlib_dger:n': '%arg0', '2:netlib_dger:alpha': 'literal 1.0', '2:netlib_dger:x': '%arg7', '2:netlib_dger:y': '%arg6', '2:netlib_dger:lda': 'stride0(%arg3)', '2:netlib_dger:A': '%arg3 (in-place)'}; e-graph max 77 nodes, egglog 26.3 ms; dependence checks 2 (reads: input 4, final 0, accumulator 1, scratch-inlined 0); sequential composition netlib_dger ; netlib_dger with link {'A': 'A'} (S1 final values substituted into S2); spec semantics from cgeist-affine/cgeist-affine stages; 1 live-out value(s) re-defined after the launch; also equal: netlib_dger+netlib_dger[literal], netlib_dger+netlib_dger[transposed], netlib_dger+netlib_dger_inc[literal], netlib_dger+netlib_dger_inc[transposed], netlib_dger_inc+netlib_dger[literal], netlib_dger_inc+netlib_dger[transposed], netlib_dger_inc+netlib_dger_inc[literal], netlib_dger_inc+netlib_dger_inc[transposed]; scalar parameter(s) bound to literals {'a:%arg2': 1.0, 'b:%arg2': 1.0} (e-graph union with Term.Lit)"
+   ],
+   "binding": [
+    {
+     "1:netlib_dger:m": "%arg0",
+     "1:netlib_dger:n": "%arg0",
+     "1:netlib_dger:alpha": "literal 1.0",
+     "1:netlib_dger:x": "%arg5",
+     "1:netlib_dger:y": "%arg4",
+     "1:netlib_dger:lda": "stride0(%arg3)",
+     "1:netlib_dger:A": "%arg3 (in-place)",
+     "2:netlib_dger:m": "%arg0",
+     "2:netlib_dger:n": "%arg0",
+     "2:netlib_dger:alpha": "literal 1.0",
+     "2:netlib_dger:x": "%arg7",
+     "2:netlib_dger:y": "%arg6",
+     "2:netlib_dger:lda": "stride0(%arg3)",
+     "2:netlib_dger:A": "%arg3 (in-place)"
+    }
+   ],
+   "launch": [
+    "    %rm15_18_c1 = arith.constant 1.0 : f64\n    %rm15_18_md2:6 = memref.extract_strided_metadata %arg3 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm15_18_ld3 = arith.index_cast %rm15_18_md2#4 : index to i32\n    kernel.launch @netlib_dger(%arg0, %arg0, %rm15_18_c1, %arg5, %arg4, %rm15_18_ld3, %arg3) : (i32, i32, f64, memref<?xf64>, memref<?xf64>, i32, memref<?x?xf64>) -> ()\n    kernel.launch @netlib_dger(%arg0, %arg0, %rm15_18_c1, %arg7, %arg6, %rm15_18_ld3, %arg3) : (i32, i32, f64, memref<?xf64>, memref<?xf64>, i32, memref<?x?xf64>) -> ()\n    %16 = bufferization.to_tensor %arg3 : memref<?x?xf64>"
+   ],
+   "egraph_nodes_max": 77,
+   "egg_ms_total": 26.3,
+   "numeric": {
+    "ok": true,
+    "deferred": "tests/e2e_region.py"
+   }
+  },
+  {
+   "test": "NEG comp axpby_prod",
+   "source": "scripts/correctness/region_match/tests/c/axpby_prod.c",
+   "function": "axpby_prod",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/axpby_prod.c --function=axpby_prod --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/axpby_prod.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=axpby_prod externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/axpby_prod.mlir -o scripts/correctness/region_match/tests/raised/axpby_prod_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/axpby_prod_linalg.mlir -o scripts/correctness/region_match/tests/raised/axpby_prod_debuf.mlir"
+   ],
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 899.2,
+   "windows": [
+    {
+     "window": [
+      5,
+      8
+     ],
+     "composite_pairs": 16,
+     "composites_built": 16,
+     "matched": null,
+     "bindings_tried": 80,
+     "normalise_ms": 1.1676028370857239
+    }
+   ],
+   "rejections": [
+    "window 5-8: no specification matched (80 bindings tried)"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "NEG comp axpby_shift y[i+1]",
+   "source": "scripts/correctness/region_match/tests/c/axpby_shift.c",
+   "function": "axpby_shift",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/axpby_shift.c --function=axpby_shift --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/axpby_shift.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=axpby_shift externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/axpby_shift.mlir -o scripts/correctness/region_match/tests/raised/axpby_shift_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/axpby_shift_linalg.mlir -o scripts/correctness/region_match/tests/raised/axpby_shift_debuf.mlir"
+   ],
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 32.9,
+   "windows": [
+    {
+     "window": [
+      7,
+      10
+     ],
+     "composite_pairs": 16,
+     "composites_built": 16,
+     "matched": null,
+     "bindings_tried": 0,
+     "normalise_ms": 1.1782720685005188
+    }
+   ],
+   "rejections": [
+    "window 7-10: no specification matched (0 bindings tried)"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "NEG comp rank2_bad u2[j]*v2[j]",
+   "source": "scripts/correctness/region_match/tests/c/rank2_bad.c",
+   "function": "rank2_bad",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/rank2_bad.c --function=rank2_bad --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/rank2_bad.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=rank2_bad externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/rank2_bad.mlir -o scripts/correctness/region_match/tests/raised/rank2_bad_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/rank2_bad_linalg.mlir -o scripts/correctness/region_match/tests/raised/rank2_bad_debuf.mlir"
+   ],
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 1226.3,
+   "windows": [
+    {
+     "window": [
+      11,
+      14
+     ],
+     "composite_pairs": 48,
+     "composites_built": 48,
+     "matched": null,
+     "bindings_tried": 3202,
+     "normalise_ms": 8.086927235126495
+    }
+   ],
+   "rejections": [
+    "window 11-14: no specification matched (3202 bindings tried)"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "ld trsv_lda (ld > n)",
+   "source": "scripts/correctness/region_match/tests/c/trsv_lda.c",
+   "function": "trsv_lda",
+   "expect": {
+    "match": "netlib_dtrsv_utn",
+    "flag": "stride0",
+    "launch_has": [
+     "memref.extract_strided_metadata"
+    ],
+    "launch_not": [
+     "memref.dim"
+    ]
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/trsv_lda.c --function=trsv_lda --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/trsv_lda.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=trsv_lda externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/trsv_lda.mlir -o scripts/correctness/region_match/tests/raised/trsv_lda_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/trsv_lda_linalg.mlir -o scripts/correctness/region_match/tests/raised/trsv_lda_debuf.mlir"
+   ],
+   "selected": "netlib_dtrsv_utn",
+   "also_equal": [
+    "netlib_dtrsv_lnn[transposed]"
+   ],
+   "ok": true,
+   "match_ms": 259.5,
+   "windows": [
+    {
+     "window": [
+      6,
+      8
+     ],
+     "matched": "netlib_dtrsv_utn",
+     "kind": "single",
+     "also": [
+      "netlib_dtrsv_lnn[transposed]"
+     ],
+     "bindings_tried": 42,
+     "pieces": 1,
+     "egraph_nodes": [
+      63
+     ],
+     "egraph_classes": [
+      49
+     ],
+     "egg_ms": [
+      30.07
+     ],
+     "normalise_ms": 7.6,
+     "match_ms": 53.86
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dtrsv_utn: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg2)', 'A': '%arg2', 'X': '%arg3 (in: %arg4, copied into %arg3 before the launch)'}; e-graph max 63 nodes, egglog 30.1 ms; dependence checks 15 (reads: input 3, final 1, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dtrsv_lnn[transposed]; copy-in %arg4 -> %arg3; assumes %arg4 and %arg3 do not alias (pipeline-wide noalias assumption)"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "lda": "stride0(%arg2)",
+     "A": "%arg2",
+     "X": "%arg3 (in: %arg4, copied into %arg3 before the launch)"
+    }
+   ],
+   "launch": [
+    "    %rm6_8_md1:6 = memref.extract_strided_metadata %arg2 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm6_8_ld2 = arith.index_cast %rm6_8_md1#4 : index to i32\n    memref.copy %arg4, %arg3 : memref<?xf64> to memref<?xf64>\n    kernel.launch @netlib_dtrsv_utn(%arg0, %rm6_8_ld2, %arg2, %arg3) : (i32, i32, memref<?x?xf64>, memref<?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 63,
+   "egg_ms_total": 30.1,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 2174000.0,
+    "n": 23,
+    "specs": [
+     "netlib_dtrsv_utn"
+    ]
+   }
+  },
+  {
+   "test": "tr pb_syr2k -> dsyr2k_ut",
+   "source": "tools/cgeist/Test/polybench/linear-algebra/blas/syr2k/syr2k.c",
+   "function": "kernel_syr2k",
+   "expect": {
+    "match": "netlib_dsyr2k_ut",
+    "flag": "layout_transpose"
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist tools/cgeist/Test/polybench/linear-algebra/blas/syr2k/syr2k.c --function=kernel_syr2k --resource-dir=/usr/lib/clang/14 -O3 -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/blas/syr2k '-Dstatic=__attribute__((noipa))' -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO -DPOLYBENCH_DUMP_ARRAYS --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/kernel_syr2k.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=kernel_syr2k externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/kernel_syr2k.mlir -o scripts/correctness/region_match/tests/raised/kernel_syr2k_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/kernel_syr2k_linalg.mlir -o scripts/correctness/region_match/tests/raised/kernel_syr2k_debuf.mlir"
+   ],
+   "selected": "netlib_dsyr2k_ut",
+   "also_equal": [
+    "netlib_dsyr2k_ln[transposed]",
+    "netlib_dsyr2k_un[transposed]"
+   ],
+   "ok": false,
+   "match_ms": 2289.8,
+   "windows": [
+    {
+     "window": [
+      9,
+      21
+     ],
+     "matched": "netlib_dsyr2k_ut",
+     "kind": "single",
+     "also": [
+      "netlib_dsyr2k_ln[transposed]",
+      "netlib_dsyr2k_un[transposed]"
+     ],
+     "bindings_tried": 2016,
+     "pieces": 1,
+     "egraph_nodes": [
+      90
+     ],
+     "egraph_classes": [
+      63
+     ],
+     "egg_ms": [
+      23.44
+     ],
+     "normalise_ms": 14.45,
+     "match_ms": 304.41
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dsyr2k_ut: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'k': '%arg1', 'alpha': '%arg2', 'lda': 'stride0(%arg5)', 'A': '%arg5', 'ldb': 'stride0(%arg6)', 'B': '%arg6', 'beta': '%arg3', 'ldc': 'stride0(%arg4)', 'C': '%arg4 (in-place)'}; e-graph max 90 nodes, egglog 23.4 ms; dependence checks 7 (reads: input 4, final 0, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); netlib_dsyr2k_un proved with operands ['A', 'B'] stored transposed; launched as the equivalent netlib_dsyr2k_ut (manifest layout_transpose: A+B transposed -> flip TRANS); also equal: netlib_dsyr2k_ln[transposed], netlib_dsyr2k_un[transposed]; in-place: C in/out both bound to %arg4"
+   ],
+   "binding": [
+    {
+     "n": "%arg0",
+     "k": "%arg1",
+     "alpha": "%arg2",
+     "lda": "stride0(%arg5)",
+     "A": "%arg5",
+     "ldb": "stride0(%arg6)",
+     "B": "%arg6",
+     "beta": "%arg3",
+     "ldc": "stride0(%arg4)",
+     "C": "%arg4 (in-place)"
+    }
+   ],
+   "launch": [
+    "    %rm9_21_md1:6 = memref.extract_strided_metadata %arg5 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm9_21_ld2 = arith.index_cast %rm9_21_md1#4 : index to i32\n    %rm9_21_md3:6 = memref.extract_strided_metadata %arg6 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm9_21_ld4 = arith.index_cast %rm9_21_md3#4 : index to i32\n    %rm9_21_md5:6 = memref.extract_strided_metadata %arg4 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm9_21_ld6 = arith.index_cast %rm9_21_md5#4 : index to i32\n    kernel.launch @netlib_dsyr2k_ut(%arg0, %arg1, %arg2, %rm9_21_ld2, %arg5, %rm9_21_ld4, %arg6, %arg3, %rm9_21_ld6, %arg4) : (i32, i32, f64, i32, memref<?x?xf64>, i32, memref<?x?xf64>, f64, i32, memref<?x?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 90,
+   "egg_ms_total": 23.4,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 34.79,
+    "n": 23,
+    "specs": [
+     "netlib_dsyr2k_ut"
+    ]
+   },
+   "saved_vs_fresh": "DIFFERENT: formulas differ on piece [pdim%arg4_0 - v0 - 1 >= 0, v1 >= 0, pdim%arg4_1 - v1 - 1 >= 0, v0 - v1 >= 0, -p%arg0 + v0 >= 0]: app %arg4@in[v0, v1] vs spec (%arg4@in[v0, v1] * %arg3)"
+  },
+  {
+   "test": "tr pb_trmm -> dtrmm_rutu",
+   "source": "tools/cgeist/Test/polybench/linear-algebra/blas/trmm/trmm.c",
+   "function": "kernel_trmm",
+   "expect": {
+    "match": "netlib_dtrmm_rutu",
+    "flag": "layout_transpose"
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist tools/cgeist/Test/polybench/linear-algebra/blas/trmm/trmm.c --function=kernel_trmm --resource-dir=/usr/lib/clang/14 -O3 -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/blas/trmm '-Dstatic=__attribute__((noipa))' -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO -DPOLYBENCH_DUMP_ARRAYS --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/kernel_trmm.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=kernel_trmm externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/kernel_trmm.mlir -o scripts/correctness/region_match/tests/raised/kernel_trmm_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/kernel_trmm_linalg.mlir -o scripts/correctness/region_match/tests/raised/kernel_trmm_debuf.mlir"
+   ],
+   "selected": "netlib_dtrmm_rutu",
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 3891.4,
+   "windows": [
+    {
+     "window": [
+      4,
+      6
+     ],
+     "matched": "netlib_dtrmm_rutu",
+     "kind": "single",
+     "also": [],
+     "bindings_tried": 2932,
+     "pieces": 1,
+     "egraph_nodes": [
+      78
+     ],
+     "egraph_classes": [
+      61
+     ],
+     "egg_ms": [
+      34.48
+     ],
+     "normalise_ms": 19.22,
+     "match_ms": 64.15
+    }
+   ],
+   "rejections": [],
+   "evidence": [
+    "netlib_dtrmm_rutu: 1 element equation(s), 1 domain piece(s) equal under binding {'m': '%arg1', 'n': '%arg0', 'alpha': '%arg2', 'lda': 'stride0(%arg3)', 'A': '%arg3', 'ldb': 'stride0(%arg4)', 'B': '%arg4 (in-place)'}; e-graph max 78 nodes, egglog 34.5 ms; dependence checks 9 (reads: input 2, final 0, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage NOT equivalent (formulas differ on piece [v0 >= 0, p%arg1 - v0 - 1 >= 0, v1 >= 0, p%arg0 - v1 - 2 >= 0]: app (%arg6@in[v0, v1] + Sum[r0 in [0, p%arg0)](select(r0 - v1 - 1 >= 0, (%arg2 * (%arg4@in[v1, r0] * %arg6@in[v0, r0])), 0.0))) vs spec (%arg2 * (%arg6@in[v0, v1] + Sum[r0 in [v1 + 1, p%arg0)]((%arg4@in[v1, r0] )); netlib_dtrmm_lltu proved with operands ['A', 'B'] stored transposed; launched as the equivalent netlib_dtrmm_rutu (manifest layout_transpose: A transposed -> flip TRANSA,UPLO; B transposed -> flip SIDE,TRANSA, swap [['m', 'n']]); in-place: B in/out both bound to %arg4"
+   ],
+   "binding": [
+    {
+     "m": "%arg1",
+     "n": "%arg0",
+     "alpha": "%arg2",
+     "lda": "stride0(%arg3)",
+     "A": "%arg3",
+     "ldb": "stride0(%arg4)",
+     "B": "%arg4 (in-place)"
+    }
+   ],
+   "launch": [
+    "    %rm4_6_md1:6 = memref.extract_strided_metadata %arg3 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm4_6_ld2 = arith.index_cast %rm4_6_md1#4 : index to i32\n    %rm4_6_md3:6 = memref.extract_strided_metadata %arg4 : memref<?x?xf64> -> memref<f64>, index, index, index, index, index\n    %rm4_6_ld4 = arith.index_cast %rm4_6_md3#4 : index to i32\n    kernel.launch @netlib_dtrmm_rutu(%arg1, %arg0, %arg2, %rm4_6_ld2, %arg3, %rm4_6_ld4, %arg4) : (i32, i32, f64, i32, memref<?x?xf64>, i32, memref<?x?xf64>) -> ()"
+   ],
+   "egraph_nodes_max": 78,
+   "egg_ms_total": 34.5,
+   "numeric": {
+    "ok": true,
+    "max_abs_err": 0.0,
+    "max_abs_val": 23.88,
+    "n": 23,
+    "specs": [
+     "netlib_dtrmm_rutu"
+    ]
+   },
+   "saved_vs_fresh": "equivalent"
+  },
+  {
+   "test": "NEG tr syr2k_halfT (B only)",
+   "source": "scripts/correctness/region_match/tests/c/syr2k_halfT.c",
+   "function": "syr2k_halfT",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/syr2k_halfT.c --function=syr2k_halfT --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/syr2k_halfT.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=syr2k_halfT externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/syr2k_halfT.mlir -o scripts/correctness/region_match/tests/raised/syr2k_halfT_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/syr2k_halfT_linalg.mlir -o scripts/correctness/region_match/tests/raised/syr2k_halfT_debuf.mlir"
+   ],
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 2960.1,
+   "windows": [],
+   "rejections": [
+    "window 11-21: netlib_dsyr2k_ln matched but no layout_transpose rule covers transposed operands ['B', 'C']",
+    "window 18-21: netlib_dsyr2k_ln_beta1 matched but no layout_transpose rule covers transposed operands ['B', 'C']"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  },
+  {
+   "test": "NEG tr syr2k_beta1 (no flipped spec)",
+   "source": "scripts/correctness/region_match/tests/c/syr2k_beta1.c",
+   "function": "syr2k_beta1",
+   "expect": {
+    "match": null
+   },
+   "recipe": "production",
+   "commands": [
+    "build/bin/cgeist scripts/correctness/region_match/tests/c/syr2k_beta1.c --function=syr2k_beta1 --resource-dir=/usr/lib/clang/14 -O3 --raise-scf-to-affine -fPIC -S -o scripts/correctness/region_match/tests/raised/syr2k_beta1.mlir",
+    "build/bin/polygeist-opt '--select-func=func-name=syr2k_beta1 externalize-dependencies=true' --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline scripts/correctness/region_match/tests/raised/syr2k_beta1.mlir -o scripts/correctness/region_match/tests/raised/syr2k_beta1_linalg.mlir",
+    "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true scripts/correctness/region_match/tests/raised/syr2k_beta1_linalg.mlir -o scripts/correctness/region_match/tests/raised/syr2k_beta1_debuf.mlir"
+   ],
+   "selected": null,
+   "also_equal": [],
+   "ok": true,
+   "match_ms": 690.6,
+   "windows": [],
+   "rejections": [
+    "window 13-16: netlib_dsyr2k_ln_beta1 matched but no dsyr2k specification with defines {'UPLO': \"'U'\", 'TRANS': \"'T'\", 'BETA_CASE': '1'}"
+   ],
+   "evidence": [],
+   "binding": [],
+   "launch": [],
+   "egraph_nodes_max": 0,
+   "egg_ms_total": 0
+  }
+ ]
+}

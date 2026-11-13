@@ -1,0 +1,13 @@
+{
+  "kernel": "gesummv",
+  "variant": "reference",
+  "rc": 0,
+  "elapsed_s": 1.0932743549346924,
+  "sha256": "ae4946586bd1f1bb6447c37032633878286c7e0d7b4b95c09ad6d9d77bc8960a",
+  "cuda_graph": false,
+  "warmups": 5,
+  "measured": 5,
+  "dump_count": 1,
+  "max_temperature_c": 50.093,
+  "thermal_ok": true
+}

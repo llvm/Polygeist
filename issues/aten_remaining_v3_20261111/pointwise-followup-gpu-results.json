@@ -1,0 +1,606 @@
+[
+  {
+    "run_id": "20261111T223045Z",
+    "name": "clamp_min_scalar_cpu",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "scalars": 1,
+    "build_rc": 0,
+    "program_sha256": "00f7ca35370f7babf35de3eb5cb1b12120736ab14738032f63e544a15763f057",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.052000999
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.056577206
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.056736946
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.057888985
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.054305077
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.051775932
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.060321093
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.056193113
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.056192875
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.053313017
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.052000999,
+        "direct_cudnn": 0.051775932
+      }
+    }
+  },
+  {
+    "run_id": "20261111T223045Z",
+    "name": "gelu_cpu_exact",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "f097d11508c5fdc1e324588ba6c24dc2cf906b9fb25c1794b02a184a56b74621",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 0.000940733772
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 0.000940733772
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 8.94069672e-08,
+            "maxrel": 2.2077492e-05
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 8.94069672e-08,
+            "maxrel": 2.2077492e-05
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.056161165
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.053441048
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.064161062
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.059072971
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.055457115
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.054208994
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.052960873
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.056480885
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.054785013
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.053120852
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.054785013,
+        "direct_cudnn": 0.052960873
+      }
+    }
+  },
+  {
+    "run_id": "20261111T223045Z",
+    "name": "clamp_max_scalar_cpu",
+    "sizes": [
+      4096,
+      4096
+    ],
+    "scalars": 1,
+    "build_rc": 0,
+    "program_sha256": "3f7d2d556c2d8320509de9813f04f5e3337a24afb9b342a8dedbba1e2e61e115",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 0.0,
+            "maxrel": 0.0
+          }
+        ],
+        "vendor_calls": 4,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.056065083
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.045984983
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.054753065
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.0571208
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.059360981
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.05270505
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.056160927
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.058978081
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.056064844
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.059104919
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.056064844,
+        "direct_cudnn": 0.045984983
+      }
+    }
+  },
+  {
+    "run_id": "20261111T223045Z",
+    "name": "hardswish",
+    "sizes": [
+      256,
+      256
+    ],
+    "scalars": 0,
+    "build_rc": 0,
+    "program_sha256": "d063d3abbddb012b3a392c4558d3262050b2d6c19164f807a54ed679c59c9cab",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 256,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 1.08975138e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 256,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 1.08975138e-07
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 256,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 1.1920929e-07,
+            "maxrel": 7.15255754e-08
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 256,
+            "bad": 0,
+            "vendorbad": 0,
+            "maxabs": 1.1920929e-07,
+            "maxrel": 7.15255754e-08
+          }
+        ],
+        "vendor_calls": 2,
+        "mismatches": []
+      }
+    },
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.058560848
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 0,
+          "ms": 0.054111958
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 1,
+          "ms": 0.063328981
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.065600872
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.063040972
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 2,
+          "ms": 0.05808115
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 3,
+          "ms": 0.058017015
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.064640999
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.058400869
+        },
+        {
+          "path": "direct_cudnn",
+          "sample": 4,
+          "ms": 0.056641102
+        }
+      ],
+      "passed": true,
+      "statistic": "minimum of five synchronized resident samples after five warmups",
+      "baseline": "direct cuDNN graph from imported reference; not native ATen",
+      "minimum_ms": {
+        "raised": 0.058400869,
+        "direct_cudnn": 0.054111958
+      }
+    }
+  }
+]

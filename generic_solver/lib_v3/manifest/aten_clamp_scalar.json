@@ -1,0 +1,41 @@
+{
+  "routine": "aten_clamp_scalar",
+  "source": "Pinned ATen scalar implementation; reusable contiguous FP32 reference",
+  "upstream_files": [
+    {
+      "path": "third_party/pytorch/aten/src/ATen/native/cpu/TensorCompareKernel.cpp",
+      "sha256": "b5186ed76ffb42e1a93f8958f3c100bd7cc12ec26cd0f7aa21cd2a0788c96699"
+    }
+  ],
+  "adaptation": "clamp_scalar_kernel_impl specialized to float. TensorIterator maps to a C loop. Standard min/max/clamp keep comparison/select semantics; float math overloads map to equivalent C functions. C++ constexpr constants expand at their use sites. Scalars remain parameters. The proprietary cuDNN backend graph is mechanically emitted from this reference, with separately tested opcode semantics; this is not imported cuDNN source.",
+  "specs": [
+    {
+      "name": "aten_clamp_scalar_f32",
+      "target": {
+        "library": "cuDNN",
+        "call": "cudnnBackendExecute",
+        "backends": [
+          "cuda"
+        ],
+        "runtime_adapter": {
+          "schema": 1,
+          "kind": "pointwise_reference",
+          "extent_arg": "n"
+        }
+      },
+      "args": [
+        "n",
+        "a",
+        "output",
+        "min",
+        "max"
+      ],
+      "assumptions": [
+        "positive n <= INT_MAX",
+        "contiguous FP32 arrays; output disjoint from inputs",
+        "errno and floating exception flags not observed"
+      ],
+      "deviations": []
+    }
+  ]
+}

@@ -1,0 +1,100 @@
+{
+  "routine": "bincount",
+  "source": "numpy/_core/src/multiarray/compiled_base.c arr_bincount L178-L213 (numpy/numpy 9e2409c6bb6ee5814d139f436f93f587e03cf9ed)",
+  "notes": [
+    "counts[b] = #{i : numbers[i] == b} (or the sum of weights[i]); every update scatter-adds into counts[numbers[i]].",
+    "numbers/counts are int (CUB counter type) instead of npy_intp; weighted counts are double.",
+    "CUB DeviceHistogram::HistogramEven overwrites its output and drops out-of-range samples: the zero-filled spec maps to one call given 0 <= numbers[i] < nbins; the accumulate spec needs HistogramEven into scratch plus an add.",
+    "Recognition only: no runtime wrapper or ABI lowering exists for this target; a match is reported, not spliced."
+  ],
+  "specs": [
+    {
+      "name": "numpy_bincount",
+      "defines": {
+        "WEIGHTED": "0",
+        "ZERO_FILL": "1"
+      },
+      "source_lines": "compiled_base.c:L179-L186",
+      "target": {
+        "library": "CUB",
+        "call": "cub::DeviceHistogram::HistogramEven",
+        "recognition_only": true,
+        "fixed_args": {
+          "counter": "int"
+        }
+      },
+      "args": [
+        "len",
+        "numbers",
+        "nbins",
+        "ians"
+      ],
+      "assumptions": [
+        "0 <= numbers[i] < nbins (the reference raises otherwise)"
+      ],
+      "deviations": [
+        "argument conversion, result sizing (min/max scan) and error checks dropped; nbins is the reference's ans_size"
+      ]
+    },
+    {
+      "name": "numpy_bincount_accumulate",
+      "defines": {
+        "WEIGHTED": "0",
+        "ZERO_FILL": "0"
+      },
+      "source_lines": "compiled_base.c:L185-L186",
+      "target": {
+        "library": "CUB",
+        "call": "cub::DeviceHistogram::HistogramEven",
+        "recognition_only": true,
+        "fixed_args": {
+          "counter": "int",
+          "composition": "HistogramEven into scratch + elementwise add"
+        }
+      },
+      "args": [
+        "len",
+        "numbers",
+        "nbins",
+        "ians"
+      ],
+      "assumptions": [
+        "0 <= numbers[i] < nbins"
+      ],
+      "deviations": [
+        "argument conversion, result sizing and error checks dropped",
+        "PyArray_ZEROS dropped: counts accumulate into the caller's existing counts"
+      ]
+    },
+    {
+      "name": "numpy_bincount_weights",
+      "defines": {
+        "WEIGHTED": "1",
+        "ZERO_FILL": "1"
+      },
+      "source_lines": "compiled_base.c:L202-L209",
+      "target": {
+        "library": "CUB",
+        "call": "cub::DeviceHistogram::HistogramEven",
+        "recognition_only": true,
+        "fixed_args": {
+          "counter": "double",
+          "weighted": true
+        }
+      },
+      "args": [
+        "len",
+        "numbers",
+        "weights",
+        "nbins",
+        "dans"
+      ],
+      "assumptions": [
+        "0 <= numbers[i] < nbins"
+      ],
+      "deviations": [
+        "argument conversion, result sizing and error checks dropped; nbins is the reference's ans_size"
+      ]
+    }
+  ]
+}

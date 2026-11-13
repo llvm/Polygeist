@@ -1,0 +1,91 @@
+{
+  "mfem": {
+    "supported_fixtures": 18,
+    "raised_and_recognized_fixtures": 18,
+    "recognized_calls": 135,
+    "historical_calls": 128,
+    "abi_lowered_calls": 135,
+    "built_fixtures": 18,
+    "full_output_correct_fixtures": 18,
+    "output_values": 1305600,
+    "max_absolute_error": 2.7755575615628914e-17,
+    "unsupported": [
+      "elasticity_2d",
+      "elasticity_3d"
+    ],
+    "timings_required": false,
+    "evidence": "mfem-production-summary.json"
+  },
+  "pcg": {
+    "updates_recognized": 2,
+    "updates_abi_lowered": 2,
+    "updates_executed_and_correct": 2,
+    "integrated_application_correct": true,
+    "checked_values": 161,
+    "evidence": "pcg-application/result.json"
+  },
+  "pva": {
+    "target_operators": 6,
+    "target_datatype_routes": 18,
+    "full_pipeline_operators": 1,
+    "full_pipeline_datatype_routes": 4,
+    "complete": [
+      {
+        "operator": "morphology_dilation",
+        "types": [
+          "u8",
+          "s8",
+          "u16",
+          "s16"
+        ],
+        "raised_stages_exact": 12,
+        "full_output_values_each": 49152,
+        "evidence": "pva-production-attested"
+      }
+    ],
+    "pending": [
+      {
+        "operator": "box_filter",
+        "routes": 4,
+        "blocker": "retained fixture and vendor numerical contracts differ",
+        "evidence": "pva-box-contract/result.json"
+      },
+      {
+        "operator": "gaussian_filter",
+        "routes": 4,
+        "blocker": "generic rolling-memory dependence proof; signed public imports and vendor numerical binding incomplete",
+        "evidence": "staged-gaussian/STATUS.txt"
+      },
+      {
+        "operator": "image_histogram",
+        "routes": 4,
+        "blocker": "generic data-dependent index/control and memory-effect proof",
+        "evidence": "staged-histogram/STATUS.txt"
+      },
+      {
+        "operator": "bilateral_filter",
+        "routes": 1,
+        "blocker": "no exact public reference for retained semantics",
+        "evidence": "staged-cuda-bilateral/source.json"
+      },
+      {
+        "operator": "histogram_equalization",
+        "routes": 1,
+        "blocker": "public OpenCV semantics differ from retained fixture/vendor",
+        "evidence": "pva-equalization-contract/result.json"
+      }
+    ],
+    "timings_required": false
+  },
+  "regressions": {
+    "common_python": 174,
+    "previous_matches": 22,
+    "llama_calls": 22,
+    "llama_ir_identical": true,
+    "compiler_lit": 14,
+    "packing_focused": 3,
+    "resident_packing_actual_cublas": true,
+    "source_state": "final-shared-source-state.json"
+  },
+  "no_commit_or_push": true
+}

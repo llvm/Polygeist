@@ -85,3 +85,9 @@ pythonenv*
 # tmp output from tests
 *.exec1
 *.out1
+
+# Local-environment-specific scripts (carry SSH hostnames, IPs, usernames
+# for a particular dev machine + Jetson setup). Each developer has their
+# own version of these.
+scripts/correctness/run_jetson.sh
+scripts/correctness/logs/

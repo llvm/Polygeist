@@ -1,0 +1,12 @@
+In file included from tools/cgeist/Test/polybench/linear-algebra/kernels/2mm/2mm.c:35:
+tools/cgeist/Test/polybench/utilities/polybench.h:233:21: warning: inline function ‘polybench_alloc_data’ given attribute ‘noinline’ [-Wattributes]
+  233 | static inline void* polybench_alloc_data(unsigned long long int n, int elt_size) {
+      |                     ^~~~~~~~~~~~~~~~~~~~
+tools/cgeist/Test/polybench/utilities/polybench.h:236:20: warning: inline function ‘polybench_free_data’ given attribute ‘noinline’ [-Wattributes]
+  236 | static inline void polybench_free_data(void* ptr) {
+      |                    ^~~~~~~~~~~~~~~~~~~
+			5d4: R_AARCH64_CALL26	kernel_2mm
+ 5d8:	94000000 	bl	0 <polybench_timer_stop>
+			5d8: R_AARCH64_CALL26	polybench_timer_stop
+/tmp/polybench-publication-orin/2mm/native-timing-5x5-v2: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=8a7b281359687333eeb37166d9347b1c4a9306f0, for GNU/Linux 3.7.0, not stripped
+05f36d12cd609498208be4b810b0caf6f5e3f738cacbb6c0c2986648b624a857  /tmp/polybench-publication-orin/2mm/native-timing-5x5-v2

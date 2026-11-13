@@ -1,0 +1,10 @@
+kernel,native_libraries,native_symbol,raised_library,raised_call
+aten_conv_tbc_backward_cpu,cuBLAS,Tensor::addmm_,cuDNN,cudnnConvolutionTBCBackward_f32_memref
+aten_conv_tbc_cpu,cuBLAS,Tensor::addmm_,cuDNN,cudnnConvolutionTBC_f32_memref
+aten_conv_transpose2d,cuBLAS,at::cuda::blas::gemm,cuDNN,cudnnConvolutionTranspose2D_f32_memref
+aten_conv_transpose3d_backward_cpu,cuBLAS,at::cuda::blas::gemm,cuDNN,cudnnConvolution3D_f32
+aten_conv_transpose3d_cpu,cuBLAS,at::cuda::blas::gemm,cuDNN,cudnnConvolutionTranspose3D_f32_memref
+aten_conv_transpose3d_grad_weight_cpu,cuBLAS,at::cuda::blas::gemm,cuDNN,cudnnConvolutionBackwardFilter3D_f32_memref
+aten_dilated_convolution_cpu,cuBLAS,at::cuda::blas::gemm|gemv,cuDNN,cudnnConvolution2D_f32_dilated
+aten_nested_bmm_cpu,CUTLASS,cutlass::gemm::device::GemmGrouped,cuBLAS,cublasSgemm_strided_batched_nn_zero
+aten_nested_matmul_broadcast_cpu,CUTLASS,bmm_nested_cuda,cuBLAS,cublasSgemm_strided_batched_broadcast_rhs

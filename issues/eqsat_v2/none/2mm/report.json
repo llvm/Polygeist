@@ -1,0 +1,120 @@
+{
+ "launches": [
+  {
+   "spec": "netlib_dgemm_nn_beta0",
+   "root": "%16",
+   "func": "kernel_2mm",
+   "binding": {
+    "%m": "%arg1",
+    "%n": "%arg0",
+    "%k": "%arg2",
+    "%alpha": "%arg4",
+    "%lda": "stride0(%arg8)",
+    "%A": "%2",
+    "%ldb": "stride0(%arg7)",
+    "%B": "%1",
+    "%ldc": "stride0(%arg6)",
+    "%C": "%0"
+   },
+   "generics": {
+    "%12": {
+     "pi": [
+      0,
+      1
+     ],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0,
+      2,
+      1
+     ],
+     "app": "%15"
+    },
+    "%7": {
+     "pi": [],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0,
+      1
+     ],
+     "app": "%10"
+    }
+   },
+   "consumed_ops": 11
+  },
+  {
+   "spec": "netlib_dgemm_nn",
+   "root": "%25",
+   "func": "kernel_2mm",
+   "binding": {
+    "%m": "%arg3",
+    "%n": "%arg0",
+    "%k": "%arg1",
+    "%alpha": "literal 1.0",
+    "%lda": "stride0(%arg9)",
+    "%A": "%3",
+    "%ldb": "stride0(%arg6)",
+    "%B": "%16",
+    "%beta": "%arg5",
+    "%ldc": "stride0(%arg10)",
+    "%C": "%4"
+   },
+   "generics": {
+    "%12": {
+     "pi": [
+      0,
+      1
+     ],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0,
+      2,
+      1
+     ],
+     "app": "%24"
+    },
+    "%7": {
+     "pi": [],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0,
+      1
+     ],
+     "app": "%19"
+    }
+   },
+   "consumed_ops": 11
+  }
+ ],
+ "literal_policy_rejections": [],
+ "alternatives": [
+  "netlib_dgemm_nn_beta1@%16",
+  "netlib_dgemm_nn_beta1@%25"
+ ],
+ "rejected": [
+  {
+   "spec": "netlib_dsymm_lu_alpha0_beta0",
+   "root": "%11",
+   "why": "unbound parameters ['%lda', '%A', '%ldb', '%B']"
+  },
+  {
+   "spec": "netlib_dsymm_lu_alpha0",
+   "root": "%20",
+   "why": "unbound parameters ['%lda', '%A', '%ldb', '%B']"
+  },
+  {
+   "spec": "netlib_dtrmm_lunn_alpha0",
+   "root": "%11",
+   "why": "unbound parameters ['%lda', '%A']"
+  }
+ ],
+ "residual_generics": []
+}

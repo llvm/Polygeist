@@ -1,0 +1,80 @@
+[polygeist] keeping workdir: /tmp/tmp.E6DxDhyonc
+[polygeist] input=tools/cgeist/Test/polybench/linear-algebra/blas/gemm/gemm.c  function=kernel_gemm  target=host  output=/tmp/polybench-section42-gemm-openblas-fixed
+[polygeist] harness=tools/cgeist/Test/polybench/linear-algebra/blas/gemm/gemm.c
+[polygeist] gcc passthrough: -O3 -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/blas/gemm -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_DUMP_ARRAYS -Dstatic= -DPOLYBENCH_USE_C99_PROTO
+  [1-4/9] reuse stored semantic MLIR: issues/polybench_section42/ir/gemm/matched.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+         emitted 1 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+  [7/9] gen_wrapper.py: ABI bridge for kernel_gemm
+  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=host)
+         + optimized CPU CBLAS runtime enabled
+/home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cpu.c:1563:35: error: expected ')'
+ 1563 |     int32_t T, int32_t B, int32_t I, int32_t O, int32_t K,
+      |                                   ^
+/usr/include/complex.h:53:11: note: expanded from macro 'I'
+   53 | #define I _Complex_I
+      |           ^
+/usr/include/complex.h:48:21: note: expanded from macro '_Complex_I'
+   48 | #define _Complex_I      (__extension__ 1.0iF)
+      |                          ^
+/home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cpu.c:1563:35: note: to match this '('
+/usr/include/complex.h:53:11: note: expanded from macro 'I'
+   53 | #define I _Complex_I
+      |           ^
+/usr/include/complex.h:48:20: note: expanded from macro '_Complex_I'
+   48 | #define _Complex_I      (__extension__ 1.0iF)
+      |                         ^
+/home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cpu.c:1563:35: warning: omitting the parameter name in a function definition is a C23 extension [-Wc23-extensions]
+ 1563 |     int32_t T, int32_t B, int32_t I, int32_t O, int32_t K,
+      |                                   ^
+/usr/include/complex.h:53:11: note: expanded from macro 'I'
+   53 | #define I _Complex_I
+      |           ^
+/usr/include/complex.h:48:21: note: expanded from macro '_Complex_I'
+   48 | #define _Complex_I      (__extension__ 1.0iF)
+      |                          ^
+/home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cpu.c:1571:33: error: invalid operands to binary expression ('int32_t' (aka 'int') and '_Complex float')
+ 1571 |           for (int32_t i = 0; i < I; ++i)
+      |                               ~ ^ ~
+/home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cpu.c:1572:25: error: array subscript is not an integer
+ 1572 |             acc += input[((size_t)(t + k) * B + b) * I + i] *
+      |                         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cpu.c:1573:26: error: array subscript is not an integer
+ 1573 |                    filter[((size_t)k * I + i) * O + o];
+      |                          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cpu.c:1578:33: error: expected ')'
+ 1578 |     int32_t T,int32_t B,int32_t I,int32_t O,int32_t K,
+      |                                 ^
+/usr/include/complex.h:53:11: note: expanded from macro 'I'
+   53 | #define I _Complex_I
+      |           ^
+/usr/include/complex.h:48:21: note: expanded from macro '_Complex_I'
+   48 | #define _Complex_I      (__extension__ 1.0iF)
+      |                          ^
+/home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cpu.c:1578:33: note: to match this '('
+/usr/include/complex.h:53:11: note: expanded from macro 'I'
+   53 | #define I _Complex_I
+      |           ^
+/usr/include/complex.h:48:20: note: expanded from macro '_Complex_I'
+   48 | #define _Complex_I      (__extension__ 1.0iF)
+      |                         ^
+/home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cpu.c:1578:33: warning: omitting the parameter name in a function definition is a C23 extension [-Wc23-extensions]
+ 1578 |     int32_t T,int32_t B,int32_t I,int32_t O,int32_t K,
+      |                                 ^
+/usr/include/complex.h:53:11: note: expanded from macro 'I'
+   53 | #define I _Complex_I
+      |           ^
+/usr/include/complex.h:48:21: note: expanded from macro '_Complex_I'
+   48 | #define _Complex_I      (__extension__ 1.0iF)
+      |                          ^
+/home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cpu.c:1583:24: error: invalid operands to binary expression ('int32_t' (aka 'int') and '_Complex float')
+ 1583 |       for(int32_t i=0;i<I;++i)
+      |                       ~^~
+/home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cpu.c:1584:15: error: array subscript is not an integer
+ 1584 |         output[((size_t)(t+k)*B+b)*I+i]+=
+      |               ^~~~~~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cpu.c:1585:43: error: array subscript is not an integer
+ 1585 |           grad[((size_t)t*B+b)*O+o]*filter[((size_t)k*I+i)*O+o];
+      |                                           ^~~~~~~~~~~~~~~~~~~~
+2 warnings and 8 errors generated.

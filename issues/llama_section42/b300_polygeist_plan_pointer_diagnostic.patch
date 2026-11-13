@@ -1,0 +1,19 @@
+diff --git a/runtime/polygeist_cublas_rt_cuda.c b/runtime/polygeist_cublas_rt_cuda.c
+--- a/runtime/polygeist_cublas_rt_cuda.c
++++ b/runtime/polygeist_cublas_rt_cuda.c
+@@ -8963,10 +8963,13 @@ void polygeist_cudnn_rmsnorm_f32(int32_t n, const float *x,
+   CUDNN_CHECK(cudnnBackendExecute(g_cudnn, p->plan, p->variant_pack));
+   CUDA_CHECK(cudaStreamSynchronize(g_stream));
+   if (getenv("POLYGEIST_RMSNORM_POINTER_DIAGNOSTICS")) {
++    void *plan_out_device = NULL;
+     int out_is_device = pointer_is_device_resident(out, &out_device);
++    int plan_out_is_device = pointer_is_device_resident(p->out, &plan_out_device);
+     fprintf(stderr, "rmsnorm pointers n=%d bytes=%zu x=%p weight=%p out=%p "
+-                    "plan_x=%p plan_out=%p out_is_device=%d out_device=%p\n",
++                    "plan_x=%p plan_out=%p out_is_device=%d out_device=%p "
++                    "plan_out_is_device=%d plan_out_device=%p\n",
+             n, p->bytes, x, weight, out, p->x, p->out, out_is_device,
+-            out_device);
++            out_device, plan_out_is_device, plan_out_device);
+   }
+   if (pointer_is_device_resident(out, &out_device))

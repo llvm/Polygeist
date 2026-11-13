@@ -1,0 +1,42 @@
+{
+  "kernel": "correlation",
+  "source": "tools/cgeist/Test/polybench/datamining/correlation/correlation.c",
+  "source_sha256": "89c741ae83f0d996247580d7197d100bf01210b1407240a2d18db41b4d5bd3af",
+  "harness_sha256": "0d47ff907b19ca2a19628a55b092f657059b1530825e7d515a996c2c37e08aec",
+  "header_sha256": "aceaee651d3300d80083b05f341d1a982dfcb7aed0d114e03e8101206f81b2d8",
+  "flags": [
+    "-O3",
+    "-I/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench/utilities",
+    "-I/home/arjaiswal/Polygeist/issues/fig4_gpu_20261110/correlation",
+    "-DLARGE_DATASET",
+    "-DDATA_TYPE_IS_DOUBLE",
+    "-DPOLYBENCH_TIME"
+  ],
+  "scope": "isolated compiler-generated kernel, explicit ABI test harness",
+  "environment": {
+    "POLYGEIST_ROOT": "/home/arjaiswal/Polygeist",
+    "POLYGEIST_KEEP_WORK": "1",
+    "POLYGEIST_CGEIST_FLAGS": "--no-inline",
+    "POLYGEIST_WRAP_KERNEL_PIPELINE": "0",
+    "POLYGEIST_MINIMAL_CUDA_RUNTIME": "1",
+    "POLYGEIST_SKIP_LINK": "1",
+    "POLYGEIST_POLYBENCH_REPETITIONS": "0",
+    "POLYGEIST_HARNESS_CFLAGS": "-Dmain=polygeist_polybench_iteration",
+    "POLYGEIST_BUILD_WORK_DIR": "/home/arjaiswal/Polygeist/issues/fig4_gpu_20261110/correlation/gpu",
+    "POLYGEIST_LOWER_SUBMAP_BEFORE_DEBUFFERIZE": "auto",
+    "POLYGEIST_GPU_RESIDUAL_FUNCTION": "kernel_correlation",
+    "POLYGEIST_GPU_DATA_RESIDENCY_FUNCTION": "kernel_correlation",
+    "POLYGEIST_GPU_DATA_RESIDENCY_ASSUME_NO_ALIAS": "1",
+    "POLYGEIST_GPU_REGION_TIMING": "1",
+    "POLYGEIST_GPU_REGION_TIMING_FUNCTION": "kernel_correlation"
+  },
+  "source_build_rc": 0,
+  "matched_calls": [
+    "cublasDcorrelationRowMajor_memref"
+  ],
+  "gpu_build_rc": 0,
+  "raised_sha256": "3b98138e9647545b4bf78607214d3a40efd0b2686ccabd27f64b5b8027613457",
+  "reference_build_rc": 0,
+  "compiler_sha256": "286f0403427585447e5eb846dbe3be1236c320cc3750386a94b598b56e4d1759",
+  "runtime_source_sha256": "04a51e3b79dddaf11c8f10fc2b46c8c1cf37ba6833fc59e4766839cdf1137ff7"
+}

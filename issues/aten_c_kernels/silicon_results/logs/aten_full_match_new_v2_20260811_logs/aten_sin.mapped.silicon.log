@@ -1,0 +1,8 @@
+kernel=aten_sin correctness=PASS max_abs=0 max_rel=0
+kernel=aten_sin iterations=5 raised_gpu_us=1575.334417
+kernel=aten_sin correctness=PASS max_abs=0 max_rel=0
+kernel=aten_sin iterations=5 raised_gpu_us=1585.875219
+kernel=aten_sin correctness=PASS max_abs=0 max_rel=0
+kernel=aten_sin iterations=5 raised_gpu_us=1563.884784
+kernel=aten_sin correctness=PASS max_abs=0 max_rel=0
+kernel=aten_sin iterations=5 raised_gpu_us=1576.147228

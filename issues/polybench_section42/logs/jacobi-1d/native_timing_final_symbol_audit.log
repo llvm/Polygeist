@@ -1,0 +1,3 @@
+00000000000011c0 00000000000002b7 T kernel_jacobi_1d
+0000000000001480 0000000000000083 T main
+    14be:	e8 fd fc ff ff       	call   11c0 <kernel_jacobi_1d>

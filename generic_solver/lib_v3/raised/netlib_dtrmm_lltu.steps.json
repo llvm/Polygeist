@@ -1,0 +1,9 @@
+{
+ "recipe": "production",
+ "commands": [
+  "build/bin/cgeist generic_solver/lib_v3/raised/netlib_dtrmm_lltu.c --function=netlib_dtrmm_lltu --resource-dir=/usr/lib/clang/14 -O3 --no-inline --raise-scf-to-affine -fPIC -S -o generic_solver/lib_v3/raised/netlib_dtrmm_lltu.mlir",
+  "build/bin/polygeist-opt '--select-func=func-name=netlib_dtrmm_lltu externalize-dependencies=true' --delinearize-memref-accesses --remove-iter-args --affine-parallelize --raise-affine-to-linalg-pipeline generic_solver/lib_v3/raised/netlib_dtrmm_lltu.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lltu_linalg.mlir",
+  "build/bin/polygeist-opt --linalg-debufferize=use-multi-root=true generic_solver/lib_v3/raised/netlib_dtrmm_lltu_linalg.mlir -o generic_solver/lib_v3/raised/netlib_dtrmm_lltu_debuf.mlir"
+ ],
+ "failure": null
+}

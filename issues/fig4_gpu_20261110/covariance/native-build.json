@@ -1,0 +1,14 @@
+{
+  "upstream_source": "third_party/polybenchGpu/CUDA/COVAR/covariance.cu",
+  "upstream_sha256": "236cc00fb1f8a13246314682eb371973fd9363bc3ca911f22aef42726d585c64",
+  "kernel_sha256": [
+    "0bd46be47a9aa0dc33a9e75d4a67ab872626c053ed639ab5e0924863ed634469",
+    "b87afda7bfffe907226ee48f894454e337ca227f3ebb196dc5fd22a27a643505",
+    "182bdd1ee888c73a2dc3fc687e16e45bd6498c6935f844745df276d5f792aa8e"
+  ],
+  "computational_bodies_verbatim": true,
+  "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization; upstream CUDA plus timed cuBLAS normalization (not pure PolyBenchGPU)",
+  "generated_source_sha256": "db6d52b6d591af0df67bd78ad15c74576639f2242b4732407241abdd1e8fdbf0",
+  "build_rc": 0,
+  "executable_sha256": "b76ab940105f21b6d38d916cf76a7d2167e58f945dfa8074b4788ec9b3d8e3bf"
+}

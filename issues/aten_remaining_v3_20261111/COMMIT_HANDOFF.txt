@@ -1,0 +1,17 @@
+Validated ATen commit handoff — 2026-11-11
+
+Production sources/compiler/catalog are frozen at 59 fully GPU-validated targeted cases plus separately partial mean. No staging or commit performed by ATen child. Runtime --check passes after restoration; all282 boolean-symbol-source-before.json hashes match. Compiler/source restoration is recorded in commit-checkpoint-restoration.json.
+
+Validation:182/182 Python tests;22/22 previous application matches;22-call byte-identical Llama matcher replay. Latest full Llama GPU run was scan milestone (32,000 exact logits), not repeated for Boolean-only adapters. Ten Boolean additions pass40 exact full-array/guard/input checks (163,840 outputs). Catalog179/88 typed calls.
+
+Completed scalar-return/mean MUST remain included: kernel.launch scalar bufferization/verifier, typed float/double returns, signed-zero ABI binding, CUB scalar reductions and tests. Mean has actual GPU CUB sum plus host division/store, six output/guard/input checks; it is not counted among59 fully GPU cases. Direct vendor timings are not native ATen performance. The native43 report's version/domain/performance caveats remain.
+
+Unfinished initializer fusion is excluded. Exact WIP sources, new test, patch, path/hash manifest and all WIP binaries saved in staged-initializer-fusion/commit-wip-saved/. Production NormalizeLinalgMatchingViews.cpp restored from validated before-source, WIP test removed, and all build/bin restored from bin-before. Catalog was never regenerated with WIP compiler. Both compiler hashes equal validated manifest. Internal build object/library outputs still reflect WIP and must be rebuilt from restored sources before any later relink; do not blindly relink stale objects. Do not commit WIP saved files, diagnostic objects, binaries or giant raw build folders.
+
+RaiseToLinalg mixed hunk: only hasReductionOutput accumulation is new ATen work. Older same-buffer dependence guard is not my prerequisite and is untouched; all measured binaries include it. Omitting that source hunk from commit makes checked-in source differ from compiler provenance; retain that caveat or establish a new clean compiler checkpoint later.
+
+Exact owned source/test/reference list and mixed-file ownership are in commit-ownership.json. All reference/manifest files in that list are validated imports, including backend-blocked entries; a valid import is not an execution claim. Existing unowned PVA structural matchers, legacy CUB argreduce changes, gen_wrapper.py changes, old test routes and other dirty work should not be attributed to this task.
+
+No active source/proof/compiler/GPU jobs remain. Waiting for root commit completion before resuming saved work.
+
+Saved initializer WIP patch passes git apply --check against the restored current source.

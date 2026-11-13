@@ -1,0 +1,1 @@
+PASS values=1100000 failures=0 max_abs=0.01 max_rel=4.44879438e-05 rtol=0.0005 atol=0.011

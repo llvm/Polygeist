@@ -1,0 +1,35 @@
+Llama campaign changes (uncommitted; earlier dirty work preserved)
+
+References and manifests:
+- OpenBLAS SGEMV FP32 alpha=1, beta=0 (N and T); actual pinned portable C kernels.
+- ATen FP32 add; actual ufunc source, scalar contiguous row specialization.
+- ggml FP32 SwiGLU; actual scalar source.
+- CUTLASS FP32 RMSNorm; actual configured host reference, declared relaxed proof.
+- OpenBLAS FP32 copy and alpha=1 matrix copy; actual pinned portable C source.
+- Existing completed ATen FP32 softmax retained.
+
+Shared implementation:
+scripts/correctness/lib_v2/abi_v2.py: preserve FP32 types and typed backend availability.
+scripts/correctness/lib_v2/lower_v2.py: preserve ABI scalar precision; adapter dimensions/layout guards.
+scripts/correctness/lib_v2/gen_v2_runtime.py: typed wrappers and backend availability.
+scripts/correctness/lib_v2/runtime_adapter.py: imported pointwise-body instruction lowering and typed runtime adapters.
+scripts/correctness/lib_v2/build_lib_v2.py: type-independent VLA parameter metadata.
+scripts/correctness/lib_v2/spec_provenance.py: verify all pinned upstream source hashes.
+scripts/correctness/lib_v2/recipe.py: explicit keep-dependencies option; same raising pipeline for retained call graph.
+scripts/correctness/lib_v2/match_v2.py: exact integer extent folding, generic tensor-read shape specialization; prior softmax fixes retained.
+scripts/correctness/region_match/{symexec,equations,matcher}.py: typed integer dimensions, boolean conversions, preserved incoming scalar constants, scoped region live-outs.
+scripts/correctness/spec_match.py: include actual vendor runtime dependencies in proof hashes.
+scripts/correctness/polygeist_build.sh: dependency-preserving entry option and typed CUDA ABI build.
+scripts/correctness/build_llama_reproduction.sh: link generated specification runtime and retain inference callee for fresh matching.
+scripts/correctness/build_jetson.sh: versioned cuTENSOR link path.
+runtime/polygeist_cublas_rt{.h,_cuda.c}: typed vendor adapter contract and GPU-required execution scope; no silent CPU fallback.
+runtime/polygeist_v2_rt{.h,_cpu.c,_cuda.c}: generated typed bindings.
+
+Focused regressions:
+test_fp32_blas_abi.py, test_integer_float_extents.py, test_reference_runtime_adapter.py,
+test_region_boundaries.py, test_recipe_scope.py, test_tensor_extract_matching.py.
+Earlier completed softmax regression files retained.
+
+Shared compiler/residency changes belong to the separate PolyBench GPU verification campaign.
+Parent committed its independent PolyBench generic region fixes as 3763f6dc.
+This campaign created no commit, push, or worktree.

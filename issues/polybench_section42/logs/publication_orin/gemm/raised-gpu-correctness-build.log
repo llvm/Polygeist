@@ -1,0 +1,30 @@
+[polygeist] keeping workdir: /tmp/polybench-publication-orin/gemm/raised-gpu-correctness-work
+[polygeist] input=tools/cgeist/Test/polybench/linear-algebra/blas/gemm/gemm.c  function=kernel_gemm  target=jetson  output=/tmp/polybench-publication-orin/gemm/raised-gpu-correctness
+[polygeist] integration=whole-program-in-place
+[polygeist] gcc passthrough: -O3 -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/blas/gemm -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_DUMP_ARRAYS
+  [1/9] cgeist → affine MLIR
+  [2/9] polygeist-opt: raise + lower-submap + debufferize
+         using joint multi-root debufferization
+  [3/9] matcher: linalg.generic → kernel.launch
+         matched 1 kernel.launch op(s)
+  [4/9] inject canonical defns from kernel_library_phase2.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+         emitted 3 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+  [7/9] prepare ABI bridge for kernel_gemm
+  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=jetson)
+         + minimal cuBLAS/CUDA runtime linkage
+warning: overriding the module target triple with aarch64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+/home/arjaiswal/Polygeist/runtime/polygeist_cublas_rt_cuda.c: In function ‘polygeist_cudnn_batchnorm_inference’:
+/home/arjaiswal/Polygeist/runtime/polygeist_cublas_rt_cuda.c:7259:34: warning: passing argument 1 of ‘pointer_is_device_resident’ discards ‘const’ qualifier from pointer target type [-Wdiscarded-qualifiers]
+ 7259 |   if (pointer_is_device_resident(inv_std, &inv_std_device)) {
+      |                                  ^~~~~~~
+/home/arjaiswal/Polygeist/runtime/polygeist_cublas_rt_cuda.c:851:45: note: expected ‘void *’ but argument is of type ‘const float *’
+  851 | static int pointer_is_device_resident(void *ptr, void **device_ptr) {
+      |                                       ~~~~~~^~~
+         + polybench utility from tools/cgeist/Test/polybench/utilities/polybench.c
+  [9/9] link → /tmp/polybench-publication-orin/gemm/raised-gpu-correctness
+
+═══ build complete ═══
+/tmp/polybench-publication-orin/gemm/raised-gpu-correctness: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=a298ebbeba47efd169b1b38ad5e8289c901d474a, for GNU/Linux 3.7.0, not stripped

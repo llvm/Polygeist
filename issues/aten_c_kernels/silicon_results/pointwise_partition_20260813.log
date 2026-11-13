@@ -1,0 +1,9 @@
+hardware: Jetson Orin, sm87, MAXN, CUDA 12.6 cuDNN 9.7
+kernel: aten_gelu_backward_cpu_tanh
+problem: N=4194304 f32 elements
+lowering: one 18-node linalg.generic DAG partitioned into two cuDNN graphs
+partition: graph 1 = 6 nodes; graph 2 = 13 nodes; one shared cut value
+runtime diagnostics: both graph plans active; no CPU fallback reported
+correctness: PASS, max_error=4.88758e-06
+warm_us: 14316.694409 (mean of 10 calls after 3 warmups)
+note: device event field was zero in this runtime trace; warm host time is published

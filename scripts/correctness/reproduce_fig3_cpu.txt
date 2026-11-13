@@ -1,0 +1,75 @@
+Figure 3 CPU reproduction: repaired cases
+
+Run from the repository root after sourcing envsetup.sh and rebuilding
+build/bin/polygeist-opt and build/bin/cgeist. The default cases are ATAX,
+BiCG, Cholesky, Doitgen, GEMVER, GESUMMV, and MVT, in LARGE FP64 form.
+
+Build on the x86 host:
+
+  python3 scripts/correctness/reproduce_fig3_cpu.py --stage build \
+    --output /path/to/results \
+    --openblas-root /path/to/aarch64-openblas-sysroot
+
+The OpenBLAS sysroot must provide the AArch64 OpenBLAS pthread library and
+headers under usr/lib/aarch64-linux-gnu/openblas-pthread and
+usr/include/aarch64-linux-gnu/openblas-pthread. The 2026-11-10 campaign uses
+Ubuntu's OpenBLAS 0.3.20 package and aarch64-linux-gnu-gcc 11.4.0.
+The native build records its actual compiler version and all flags.
+
+Execute on the configured, idle Orin:
+
+  python3 scripts/correctness/reproduce_fig3_cpu.py --stage run \
+    --output /path/to/results --remote-helper /private/path/to/board.py
+
+Board access belongs outside the repository. The helper implements
+upload(local_path, destination) -> status and
+run(command, timeout=seconds) -> (status, combined_output).
+Never put board credentials or endpoints in the result directory.
+
+The board probe rejects other active CPU work, accelerator activity, CPU
+clocks that are not fixed, and temperatures at or above 85 degrees Celsius.
+It records power-mode status, clock settings, fan settings, temperatures,
+software version and utilization. Thermal samples are retained throughout
+each executable. Set the board's performance/fan configuration before running.
+No compiler runs on the board. Native/raised executions alternate order
+across workloads and never overlap. CPU 0 and one BLAS/OpenMP thread are
+the defaults; --cpu selects a different declared core.
+
+Each variant is one executable, invoked once. Its process executes five
+warmups and five measured iterations, retaining all raw kernel-region times.
+The original PolyBench timed region excludes initialization, output printing
+and process startup. The raised region includes compiler-generated temporary
+management inside that region; do not relabel it as isolated BLAS-call time.
+Statistics are the minimum, median, maximum and inclusive-quartile IQR of the
+five measured samples. Correctness uses all canonical live-out values from
+the final iteration, with atol=rtol=1e-8 for FP64, rejecting non-finite values.
+
+Source and build integrity:
+
+- Every case starts from the original tracked C source, copied byte for byte.
+  Only the copied benchmark header's output format changes to %.17g.
+- Both variants retain the complete original initialization and computation.
+  The raised build uses --whole-program and the ordinary production driver.
+- Cholesky uses --no-debuf because its supported factorization matcher consumes
+  memory-form Linalg. --memory-form controls this explicit build recipe.
+- No matched IR or old executable is an input. All transformed IR and objects
+  are retained in the output directory, with hashes and exact build commands.
+- Only the complete compiled program's main entry is renamed when attaching
+  the algorithm-neutral repetition driver. No kernel is deleted, weakened,
+  intercepted or replaced at link time.
+- POLYBENCH_DUMP_ARRAYS is enabled to avoid the current frontend/lowering gap
+  in the conditional strcmp-based output path. POLYGEIST_DUMP_LAST=1 keeps
+  only the final dump; other dumps go to /dev/null, outside the timed region.
+- The historical native compiler was GCC, not Clang. The native build retains
+  the historical no-inline and IPA flags, and records the exact compiler.
+
+RESULTS.csv is a compact summary; results.json contains samples and statistics;
+manifest.json, source.diff and per-case build logs carry build provenance.
+Per-case compare.log and complete native/raised logs retain correctness evidence.
+Only PASS rows with valid timings are eligible for reporting. Compare regenerated
+GEMVER against the corrected operation; the historical GEMVER tolerance admitted
+an incorrect transpose and its old timing is not a validated reference result.
+
+For compiler regression coverage, --target host --size MINI --dtype float
+and an explicitly declared FP32 tolerance exercise the same whole-program
+pipeline. Such short host runs are correctness checks, not paper timing data.

@@ -1,0 +1,53 @@
+{
+  "routine": "ssyr2k",
+  "source": "OpenBLAS 0.3.31 lapack-netlib/BLAS/SRC/ssyr2k.f; C transliteration shared with DSYR2K, with REAL arguments, arrays, constants and temporaries instantiated as float.",
+  "ref_c": "dsyr2k.c",
+  "upstream_files": [
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/lapack-netlib/BLAS/SRC/ssyr2k.f",
+      "sha256": "9c2cff23b62bcb699b95e1eff0b4cc5f6c158aa5e38a4d2b310bed8d9e57c453"
+    },
+    {
+      "path": "generic_solver/lib_v3/upstream/openblas-0.3.31/LICENSE",
+      "sha256": "190b5a9c8d9723fe958ad33916bd7346d96fab3c5ea90832bb02d854f620fcff"
+    }
+  ],
+  "specs": [
+    {
+      "name": "netlib_ssyr2k_ut",
+      "defines": {
+        "UPLO": "'U'",
+        "TRANS": "'T'",
+        "BETA_CASE": "2",
+        "NETLIB_SCALAR": "float"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasSsyr2k",
+        "fixed_args": {
+          "uplo": "CUBLAS_FILL_MODE_UPPER",
+          "trans": "CUBLAS_OP_T"
+        },
+        "openblas_call": "cblas_ssyr2k"
+      },
+      "args": [
+        "n",
+        "k",
+        "alpha",
+        "lda",
+        "A",
+        "ldb",
+        "B",
+        "beta",
+        "ldc",
+        "C"
+      ],
+      "assumptions": [
+        "alpha != 0 (ALPHA.EQ.ZERO branch not taken)",
+        "beta != 0 (this branch has no BETA.NE.ONE test; beta == 1 is covered)"
+      ],
+      "deviations": [],
+      "fortran_lines": "OpenBLAS 0.3.31 ssyr2k.f L360-L375, UPLO=U and TRANS=T"
+    }
+  ]
+}

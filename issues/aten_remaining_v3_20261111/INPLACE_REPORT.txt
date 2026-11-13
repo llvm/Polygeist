@@ -1,0 +1,43 @@
+In-place addition validation, 2026-11-11
+
+Completed targeted ATen cases: 35. This is a targeted validated set, not the
+paper-wide 271/598 coverage or 115-case native ATen CUDA performance result.
+
+Source flow: the unchanged rank-four ATen fixture is normalized on both sides
+with upstream Linalg transforms, then strictly matched against the existing
+parameterized FP32 addition reference. No new scalar formula/reference or
+operation-specific recognizer was added.
+
+Generic changes:
+- Move read destination values into explicit Linalg inputs; collapse a dynamic
+  outer dimension only when the inner dimensions are known and contiguous.
+- Bind an enclosing write destination before matching an overwritten temporary;
+  ignore its unused initial value only for a fully covered parallel output map.
+- Determine scalar output block arguments from output arity, not SSA spelling.
+- A validated rank-one pointwise backend may explicitly permit exact aliases.
+  Lowering derives this capability from the ABI contract and strips untrusted
+  input assertions. Kernel bufferization ignores only same-op/same-SSA conflicts;
+  old values read elsewhere still force a copy. Partial overlap is rejected.
+
+GPU: all 8 normal/edge, separate/exact-alias and host/resident checks pass with
+all 4,096 outputs, inputs, and guards checked. Real cuDNN executes; no CPU
+fallback. Partial overlap rejects before vendor execution. Resident minimum
+of five synchronized measurements after five warmups: raised 0.060866 ms,
+direct cuDNN 0.061761 ms. This direct graph is not a native ATen baseline.
+
+Regression: 116 Python tests pass; focused normalization and kernel-bufferization
+MLIR regressions pass. The earlier 22-case matcher recheck retains all prior
+matches after the matcher changes; the final bufferization capability changes
+only lowering. Fresh Llama proof retains 22 calls. A fresh compiled Llama
+binary matches all 32,000 outputs exactly against the previous candidate and
+expert. Same-window minima: before 11.310144 ms, after 11.381440 ms. No material
+performance regression is observed. Runtime generated-file check passes.
+
+Evidence: inplace-source-state.json and inplace-source-snapshot/;
+inplace-gpu-results.json; inplace_add/; inplace-previous-matches.json;
+inplace-alias-regression-tests.log; inplace-llama-regression/;
+inplace-llama-recheck/; inplace-alias-bufferized.mlir.
+
+The 34 previous completed GPU cases retain their frozen evidence. They were
+not all recompiled and rerun for this change. The shared tests, prior matcher
+checks, focused alias checks and fresh Llama run define the regression scope.

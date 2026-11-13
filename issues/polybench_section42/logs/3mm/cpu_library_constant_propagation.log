@@ -1,0 +1,56 @@
+PolyBench Section 4.2: 3mm generalized constant propagation + OpenBLAS
+Date: 2026-09-07 PDT
+
+Source:
+  tools/cgeist/Test/polybench/linear-algebra/kernels/3mm/3mm.c
+  sha256 5525bcbb6669580d7973c347920ee6962055bedb8d64527502041aa61787ec83
+  dataset LARGE
+  datatype double
+
+Semantic input:
+  /tmp/polybench-beta-zero/3mm/with_defns.mlir
+  sha256 41f48d5f510d109a63c52e8a7c3eee2020b58a59f92d4635fe1cdcbffa536beb
+
+Build command:
+  CLANG=/tmp/polybench-const-general/clang-filter.sh \
+  POLYGEIST_CPU_BLAS=1 OPENBLAS_NUM_THREADS=1 \
+  scripts/correctness/polygeist_build.sh --target=host \
+    --semantic-mlir=/tmp/polybench-beta-zero/3mm/with_defns.mlir \
+    --function=kernel_3mm -o /tmp/polybench-const-general/3mm-cpu-time/3mm \
+    tools/cgeist/Test/polybench/linear-algebra/kernels/3mm/3mm.c \
+    -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_TIME \
+    -I tools/cgeist/Test/polybench/utilities
+
+The temporary clang-filter wrapper removes GCC-only harness flags
+(-fno-ipa-cp, -fno-ipa-cp-clone, -fno-ipa-sra, and
+-fsemantic-interposition) before invoking the configured Clang compiler.
+
+Binary:
+  /tmp/polybench-const-general/3mm-cpu-time/3mm
+  sha256 57a49cdb0e347f456b2553147178f5fd7150eb550905ab8b1b4cf43677453c42
+  dynamic dependency: /lib/x86_64-linux-gnu/libopenblas.so.0
+  Debian OpenBLAS package: 0.3.20+ds-1
+  dynamic symbol audit: U cblas_dgemm
+
+Correctness:
+  PASS
+  compared values: 880000
+  mismatches: 0
+  identical canonical LARGE/FP64 source initialization and output contract
+
+Timing protocol:
+  OPENBLAS_NUM_THREADS=1 taskset -c 21 <binary>
+  PolyBench kernel-call timer
+  one discarded warmup, five accepted samples
+
+Raw seconds:
+  warmup  0.129508
+  sample1 0.126663
+  sample2 0.127505
+  sample3 0.127482
+  sample4 0.129263
+  sample5 0.125305
+
+Accepted median: 127.482 ms
+Accepted native baseline: 5526.133 ms
+Speedup versus native: 43.348339x

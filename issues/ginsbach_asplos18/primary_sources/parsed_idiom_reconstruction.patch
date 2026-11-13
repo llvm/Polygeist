@@ -1,0 +1,67 @@
+diff --git a/include/llvm/CAnDLParser/IdiomSpecifications.hpp b/include/llvm/CAnDLParser/IdiomSpecifications.hpp
+index 741d10fd0f..fb6f66a288 100644
+--- a/include/llvm/CAnDLParser/IdiomSpecifications.hpp
++++ b/include/llvm/CAnDLParser/IdiomSpecifications.hpp
+@@ -14,6 +14,11 @@ class Value;
+ // This file containts the constraint specifications that are used for idiom detection.
+ //using IdiomSpecification = std::vector<std::pair<std::string,std::unique_ptr<SolverAtom>>>;
+ using IdiomSpecification = std::vector<Solution>;
++IdiomSpecification DetectReduction(llvm::Function& function, unsigned max_solutions = UINT_MAX);
++IdiomSpecification DetectHisto    (llvm::Function& function, unsigned max_solutions = UINT_MAX);
++IdiomSpecification DetectStencil  (llvm::Function& function, unsigned max_solutions = UINT_MAX);
++IdiomSpecification DetectGEMM     (llvm::Function& function, unsigned max_solutions = UINT_MAX);
++IdiomSpecification DetectSPMV     (llvm::Function& function, unsigned max_solutions = UINT_MAX);
+ IdiomSpecification DetectDistributive(llvm::Function& function, unsigned max_solutions = UINT_MAX);
+ IdiomSpecification DetectHoistSelect (llvm::Function& function, unsigned max_solutions = UINT_MAX);
+ IdiomSpecification DetectSCoP        (llvm::Function& function, unsigned max_solutions = UINT_MAX);
+diff --git a/lib/CAnDLParser/CMakeLists.txt b/lib/CAnDLParser/CMakeLists.txt
+index c5706d6beb..a631186a00 100644
+--- a/lib/CAnDLParser/CMakeLists.txt
++++ b/lib/CAnDLParser/CMakeLists.txt
+@@ -18,9 +18,9 @@ ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/CAnDLParser
+                    COMMENT "Generate CAnDL program parser")
+ 
+ ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/IdiomSpecifications.cpp
+-                   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/CAnDLParser < ${CMAKE_CURRENT_SOURCE_DIR}/IdiomSpecification.txt | pypy ${CMAKE_CURRENT_SOURCE_DIR}/stage3.py > ${CMAKE_CURRENT_BINARY_DIR}/IdiomSpecifications.cpp
+-                   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/CAnDLParser ${CMAKE_CURRENT_SOURCE_DIR}/IdiomSpecification.txt ${CMAKE_CURRENT_SOURCE_DIR}/stage3.py
+-                   COMMENT "Generate idiom specifications C++ file")
++                   COMMAND pypy ${CMAKE_CURRENT_SOURCE_DIR}/stage3.py < ${CMAKE_CURRENT_SOURCE_DIR}/parsed.txt > ${CMAKE_CURRENT_BINARY_DIR}/IdiomSpecifications.cpp
++                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/parsed.txt ${CMAKE_CURRENT_SOURCE_DIR}/stage3.py
++                   COMMENT "EXPERIMENTAL: generate specifications from retained parsed IDL")
+ 
+ ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/IdiomSpecifications.s
+                    COMMAND ${CMAKE_CXX_COMPILER} -std=c++11 -fPIC -fno-rtti -fno-exceptions -S -O0 ${CMAKE_CURRENT_BINARY_DIR}/IdiomSpecifications.cpp -o ${CMAKE_CURRENT_BINARY_DIR}/IdiomSpecifications.s -I ${CMAKE_CURRENT_SOURCE_DIR}/../../include/ -I ${CMAKE_CURRENT_BINARY_DIR}/../../include/
+diff --git a/lib/CAnDLParser/stage3.py b/lib/CAnDLParser/stage3.py
+index d085e2ae04..fa9b481921 100644
+--- a/lib/CAnDLParser/stage3.py
++++ b/lib/CAnDLParser/stage3.py
+@@ -1,6 +1,9 @@
+ #!/usr/bin/pypy
+ 
+-whitelist = ["Distributive", "HoistSelect", "SCoP", "Experiment"]
++# EXPERIMENTAL RECONSTRUCTION: these five top-level specifications survive in
++# the committed parsed.txt but are not enabled by the public CC'18 snapshot.
++whitelist = ["Distributive", "HoistSelect", "SCoP", "Experiment",
++             "Reduction", "Histo", "Stencil", "GEMM", "SPMV"]
+ 
+ def partial_evaluator(syntax, handler, *extras):
+     handler_result = handler(syntax, *extras)
+diff --git a/lib/CAnDLPasses/CustomPassReplace.cpp b/lib/CAnDLPasses/CustomPassReplace.cpp
+index 65a741d8bb..182eff023d 100644
+--- a/lib/CAnDLPasses/CustomPassReplace.cpp
++++ b/lib/CAnDLPasses/CustomPassReplace.cpp
+@@ -22,8 +22,12 @@ public:
+     static char ID;
+ 
+     ResearchReplacer() : ModulePass(ID),
+-                         simple_constraint_specs{{"Experiment", DetectExperiment}},
+-                         loop_constraint_specs{{"SCoP", DetectSCoP}} { }
++                         simple_constraint_specs{},
++                         loop_constraint_specs{{"Reduction", DetectReduction},
++                                               {"Histo", DetectHisto},
++                                               {"Stencil", DetectStencil},
++                                               {"GEMM", DetectGEMM},
++                                               {"SPMV", DetectSPMV}} { }
+ 
+     bool runOnModule(Module& module) override;
+ 

@@ -1,0 +1,11 @@
+{
+  "name": "mass_apply_2d",
+  "rc": 0,
+  "passed": true,
+  "actual_vendor_invocations": 2050,
+  "calls": [
+    "cublasDgemm"
+  ],
+  "program_sha256": "e0ccebeeafa6a81266e82e87110700e69b111af25a3c00c23901a6c11df872cf",
+  "command": "LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-mass_apply_2d-20261111"
+}

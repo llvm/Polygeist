@@ -1,0 +1,6121 @@
+{
+ "suite": "irvariants",
+ "finished": "2026-10-28T01:13:20",
+ "seconds": 2745.6,
+ "summary": {
+  "source_ir": "fresh raise of all 30 PolyBench kernels with the lib_v2 recipe",
+  "fresh_ir_identical_to_issues_lib_v2_polybench_raised": {
+   "2mm": false,
+   "3mm": false,
+   "adi": false,
+   "atax": false,
+   "bicg": false,
+   "cholesky": false,
+   "correlation": false,
+   "covariance": false,
+   "deriche": false,
+   "doitgen": false,
+   "durbin": false,
+   "fdtd-2d": false,
+   "floyd-warshall": false,
+   "gemm": false,
+   "gemver": false,
+   "gesummv": false,
+   "gramschmidt": false,
+   "heat-3d": false,
+   "jacobi-1d": false,
+   "jacobi-2d": false,
+   "lu": false,
+   "ludcmp": false,
+   "mvt": false,
+   "nussinov": false,
+   "seidel-2d": false,
+   "symm": false,
+   "syr2k": false,
+   "syrk": false,
+   "trisolv": false,
+   "trmm": false
+  },
+  "variants_generated": 245,
+  "variants_not_applicable": 55,
+  "variants_verifier_failed": 0,
+  "primary_excludes": "identity_pair (as in the production campaign)",
+  "egglog_retention": [
+   184,
+   208,
+   88.5
+  ],
+  "by_variant": {
+   "add_zero_lhs": {
+    "inputs": 30,
+    "opportunities": 28,
+    "retained": 22
+   },
+   "add_zero_rhs": {
+    "inputs": 30,
+    "opportunities": 28,
+    "retained": 22
+   },
+   "identity_pair": {
+    "inputs": 30,
+    "opportunities": 28,
+    "retained": 8
+   },
+   "mul_one_lhs": {
+    "inputs": 30,
+    "opportunities": 28,
+    "retained": 22
+   },
+   "mul_one_rhs": {
+    "inputs": 30,
+    "opportunities": 28,
+    "retained": 22
+   },
+   "reassociate_add": {
+    "inputs": 6,
+    "opportunities": 5,
+    "retained": 5
+   },
+   "reassociate_mul": {
+    "inputs": 6,
+    "opportunities": 10,
+    "retained": 10
+   },
+   "swap_add": {
+    "inputs": 26,
+    "opportunities": 25,
+    "retained": 25
+   },
+   "swap_add_mul": {
+    "inputs": 30,
+    "opportunities": 28,
+    "retained": 28
+   },
+   "swap_mul": {
+    "inputs": 27,
+    "opportunities": 28,
+    "retained": 28
+   }
+  },
+  "kernels_with_original_launches": {
+   "2mm": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "3mm": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0"
+   ],
+   "atax": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "bicg": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "cholesky": [
+    "netlib_dpotf2_u"
+   ],
+   "doitgen": [
+    "netlib_dgemv_n_beta0"
+   ],
+   "gemm": [
+    "netlib_dgemm_nn"
+   ],
+   "gemver": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "gesummv": [
+    "netlib_dgemv_t_beta0",
+    "netlib_dgemv_t_beta0",
+    "netlib_dscal_inc",
+    "netlib_daxpy_inc"
+   ],
+   "ludcmp": [
+    "netlib_dtrsv_ltn"
+   ],
+   "mvt": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1"
+   ],
+   "syr2k": [
+    "netlib_dsyr2k_ut"
+   ],
+   "syrk": [
+    "netlib_dsyrk_ut"
+   ],
+   "trisolv": [
+    "netlib_dtrsv_utn"
+   ],
+   "trmm": [
+    "netlib_dtrmm_rutu"
+   ]
+  },
+  "inputs_with_extra_launches": [],
+  "matcher_errors": [
+   "2mm__identity_pair: crash",
+   "3mm__identity_pair: crash",
+   "adi__identity_pair: crash",
+   "atax__identity_pair: crash",
+   "bicg__identity_pair: crash",
+   "correlation__identity_pair: crash",
+   "covariance__identity_pair: crash",
+   "deriche__identity_pair: crash",
+   "doitgen__identity_pair: crash",
+   "gesummv__identity_pair: crash"
+  ],
+  "production_reference": {
+   "egglog": "207/221 (93.7%)",
+   "syntactic": "98/221 (44.3%)",
+   "note": "production = old Term-formula matcher on campaign-recipe IR"
+  },
+  "campaign_recipe_inputs": {
+   "originals_with_v2_launch": [
+    "atax",
+    "bicg",
+    "cholesky",
+    "gemver",
+    "gesummv",
+    "ludcmp",
+    "mvt",
+    "trisolv",
+    "trmm"
+   ],
+   "originals": {
+    "2mm": [],
+    "3mm": [],
+    "adi": [],
+    "atax": [
+     "netlib_dgemv_n_beta1"
+    ],
+    "bicg": [
+     "netlib_dgemv_t_beta1"
+    ],
+    "cholesky": [
+     "netlib_dpotf2_u"
+    ],
+    "correlation": [],
+    "covariance": [],
+    "deriche": [],
+    "doitgen": [],
+    "durbin": [],
+    "fdtd-2d": [],
+    "floyd-warshall": [],
+    "gemm": [],
+    "gemver": [
+     "netlib_dgemv_t_beta1"
+    ],
+    "gesummv": [
+     "netlib_dscal_inc",
+     "netlib_daxpy_inc"
+    ],
+    "gramschmidt": [],
+    "heat-3d": [],
+    "jacobi-1d": [],
+    "jacobi-2d": [],
+    "lu": [],
+    "ludcmp": [
+     "netlib_dtrsv_ltn"
+    ],
+    "mvt": [
+     "netlib_dgemv_n_beta1"
+    ],
+    "nussinov": [],
+    "seidel-2d": [],
+    "symm": [],
+    "syr2k": [],
+    "syrk": [],
+    "trisolv": [
+     "netlib_dtrsv_utn"
+    ],
+    "trmm": [
+     "netlib_dtrmm_rutu"
+    ]
+   },
+   "variants_run": 71,
+   "retention": [
+    45,
+    69
+   ]
+  },
+  "syntactic_arm": "see ablation/results.json"
+ },
+ "generation": [
+  {
+   "kernel": "2mm",
+   "variant": "swap_add",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/2mm__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "2mm",
+   "variant": "swap_mul",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/2mm__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "2mm",
+   "variant": "swap_add_mul",
+   "sites": 6,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/2mm__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "2mm",
+   "variant": "add_zero_rhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/2mm__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "2mm",
+   "variant": "add_zero_lhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/2mm__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "2mm",
+   "variant": "mul_one_rhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/2mm__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "2mm",
+   "variant": "mul_one_lhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/2mm__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "2mm",
+   "variant": "identity_pair",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/2mm__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "2mm",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "2mm",
+   "variant": "reassociate_mul",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/2mm__reassociate_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "3mm",
+   "variant": "swap_add",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/3mm__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "3mm",
+   "variant": "swap_mul",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/3mm__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "3mm",
+   "variant": "swap_add_mul",
+   "sites": 6,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/3mm__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "3mm",
+   "variant": "add_zero_rhs",
+   "sites": 6,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/3mm__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "3mm",
+   "variant": "add_zero_lhs",
+   "sites": 6,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/3mm__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "3mm",
+   "variant": "mul_one_rhs",
+   "sites": 6,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/3mm__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "3mm",
+   "variant": "mul_one_lhs",
+   "sites": 6,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/3mm__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "3mm",
+   "variant": "identity_pair",
+   "sites": 6,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/3mm__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "3mm",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "3mm",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "adi",
+   "variant": "swap_add",
+   "sites": 6,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/adi__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "adi",
+   "variant": "swap_mul",
+   "sites": 12,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/adi__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "adi",
+   "variant": "swap_add_mul",
+   "sites": 18,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/adi__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "adi",
+   "variant": "add_zero_rhs",
+   "sites": 10,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/adi__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "adi",
+   "variant": "add_zero_lhs",
+   "sites": 10,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/adi__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "adi",
+   "variant": "mul_one_rhs",
+   "sites": 10,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/adi__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "adi",
+   "variant": "mul_one_lhs",
+   "sites": 10,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/adi__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "adi",
+   "variant": "identity_pair",
+   "sites": 10,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/adi__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "adi",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "adi",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "atax",
+   "variant": "swap_add",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/atax__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "atax",
+   "variant": "swap_mul",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/atax__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "atax",
+   "variant": "swap_add_mul",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/atax__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "atax",
+   "variant": "add_zero_rhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/atax__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "atax",
+   "variant": "add_zero_lhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/atax__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "atax",
+   "variant": "mul_one_rhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/atax__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "atax",
+   "variant": "mul_one_lhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/atax__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "atax",
+   "variant": "identity_pair",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/atax__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "atax",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "atax",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "bicg",
+   "variant": "swap_add",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/bicg__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "bicg",
+   "variant": "swap_mul",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/bicg__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "bicg",
+   "variant": "swap_add_mul",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/bicg__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "bicg",
+   "variant": "add_zero_rhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/bicg__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "bicg",
+   "variant": "add_zero_lhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/bicg__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "bicg",
+   "variant": "mul_one_rhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/bicg__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "bicg",
+   "variant": "mul_one_lhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/bicg__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "bicg",
+   "variant": "identity_pair",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/bicg__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "bicg",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "bicg",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "cholesky",
+   "variant": "swap_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "cholesky",
+   "variant": "swap_mul",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/cholesky__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "cholesky",
+   "variant": "swap_add_mul",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/cholesky__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "cholesky",
+   "variant": "add_zero_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/cholesky__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "cholesky",
+   "variant": "add_zero_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/cholesky__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "cholesky",
+   "variant": "mul_one_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/cholesky__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "cholesky",
+   "variant": "mul_one_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/cholesky__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "cholesky",
+   "variant": "identity_pair",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/cholesky__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "cholesky",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "cholesky",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "correlation",
+   "variant": "swap_add",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/correlation__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "correlation",
+   "variant": "swap_mul",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/correlation__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "correlation",
+   "variant": "swap_add_mul",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/correlation__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "correlation",
+   "variant": "add_zero_rhs",
+   "sites": 10,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/correlation__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "correlation",
+   "variant": "add_zero_lhs",
+   "sites": 10,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/correlation__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "correlation",
+   "variant": "mul_one_rhs",
+   "sites": 10,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/correlation__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "correlation",
+   "variant": "mul_one_lhs",
+   "sites": 10,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/correlation__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "correlation",
+   "variant": "identity_pair",
+   "sites": 10,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/correlation__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "correlation",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "correlation",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "covariance",
+   "variant": "swap_add",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/covariance__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "covariance",
+   "variant": "swap_mul",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/covariance__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "covariance",
+   "variant": "swap_add_mul",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/covariance__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "covariance",
+   "variant": "add_zero_rhs",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/covariance__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "covariance",
+   "variant": "add_zero_lhs",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/covariance__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "covariance",
+   "variant": "mul_one_rhs",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/covariance__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "covariance",
+   "variant": "mul_one_lhs",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/covariance__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "covariance",
+   "variant": "identity_pair",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/covariance__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "covariance",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "covariance",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "deriche",
+   "variant": "swap_add",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/deriche__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "deriche",
+   "variant": "swap_mul",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/deriche__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "deriche",
+   "variant": "swap_add_mul",
+   "sites": 7,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/deriche__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "deriche",
+   "variant": "add_zero_rhs",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/deriche__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "deriche",
+   "variant": "add_zero_lhs",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/deriche__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "deriche",
+   "variant": "mul_one_rhs",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/deriche__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "deriche",
+   "variant": "mul_one_lhs",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/deriche__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "deriche",
+   "variant": "identity_pair",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/deriche__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "deriche",
+   "variant": "reassociate_add",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/deriche__reassociate_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "deriche",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "doitgen",
+   "variant": "swap_add",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/doitgen__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "doitgen",
+   "variant": "swap_mul",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/doitgen__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "doitgen",
+   "variant": "swap_add_mul",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/doitgen__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "doitgen",
+   "variant": "add_zero_rhs",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/doitgen__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "doitgen",
+   "variant": "add_zero_lhs",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/doitgen__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "doitgen",
+   "variant": "mul_one_rhs",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/doitgen__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "doitgen",
+   "variant": "mul_one_lhs",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/doitgen__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "doitgen",
+   "variant": "identity_pair",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/doitgen__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "doitgen",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "doitgen",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "durbin",
+   "variant": "swap_add",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/durbin__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "durbin",
+   "variant": "swap_mul",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/durbin__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "durbin",
+   "variant": "swap_add_mul",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/durbin__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "durbin",
+   "variant": "add_zero_rhs",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/durbin__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "durbin",
+   "variant": "add_zero_lhs",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/durbin__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "durbin",
+   "variant": "mul_one_rhs",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/durbin__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "durbin",
+   "variant": "mul_one_lhs",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/durbin__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "durbin",
+   "variant": "identity_pair",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/durbin__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "durbin",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "durbin",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "fdtd-2d",
+   "variant": "swap_add",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/fdtd-2d__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "fdtd-2d",
+   "variant": "swap_mul",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/fdtd-2d__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "fdtd-2d",
+   "variant": "swap_add_mul",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/fdtd-2d__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "fdtd-2d",
+   "variant": "add_zero_rhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/fdtd-2d__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "fdtd-2d",
+   "variant": "add_zero_lhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/fdtd-2d__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "fdtd-2d",
+   "variant": "mul_one_rhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/fdtd-2d__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "fdtd-2d",
+   "variant": "mul_one_lhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/fdtd-2d__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "fdtd-2d",
+   "variant": "identity_pair",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/fdtd-2d__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "fdtd-2d",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "fdtd-2d",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "floyd-warshall",
+   "variant": "swap_add",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/floyd-warshall__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "floyd-warshall",
+   "variant": "swap_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "floyd-warshall",
+   "variant": "swap_add_mul",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/floyd-warshall__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "floyd-warshall",
+   "variant": "add_zero_rhs",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/floyd-warshall__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "floyd-warshall",
+   "variant": "add_zero_lhs",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/floyd-warshall__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "floyd-warshall",
+   "variant": "mul_one_rhs",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/floyd-warshall__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "floyd-warshall",
+   "variant": "mul_one_lhs",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/floyd-warshall__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "floyd-warshall",
+   "variant": "identity_pair",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/floyd-warshall__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "floyd-warshall",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "floyd-warshall",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "gemm",
+   "variant": "swap_add",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gemm__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gemm",
+   "variant": "swap_mul",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gemm__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gemm",
+   "variant": "swap_add_mul",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gemm__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gemm",
+   "variant": "add_zero_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gemm__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gemm",
+   "variant": "add_zero_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gemm__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gemm",
+   "variant": "mul_one_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gemm__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gemm",
+   "variant": "mul_one_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gemm__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gemm",
+   "variant": "identity_pair",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gemm__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gemm",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "gemm",
+   "variant": "reassociate_mul",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gemm__reassociate_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "swap_add",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gemver__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "swap_mul",
+   "sites": 6,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gemver__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "swap_add_mul",
+   "sites": 11,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gemver__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "add_zero_rhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gemver__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "add_zero_lhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gemver__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "mul_one_rhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gemver__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "mul_one_lhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gemver__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "identity_pair",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gemver__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "reassociate_add",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gemver__reassociate_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "reassociate_mul",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gemver__reassociate_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gesummv",
+   "variant": "swap_add",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gesummv__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gesummv",
+   "variant": "swap_mul",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gesummv__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gesummv",
+   "variant": "swap_add_mul",
+   "sites": 7,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gesummv__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gesummv",
+   "variant": "add_zero_rhs",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gesummv__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gesummv",
+   "variant": "add_zero_lhs",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gesummv__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gesummv",
+   "variant": "mul_one_rhs",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gesummv__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gesummv",
+   "variant": "mul_one_lhs",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gesummv__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gesummv",
+   "variant": "identity_pair",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gesummv__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gesummv",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "gesummv",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "gramschmidt",
+   "variant": "swap_add",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gramschmidt__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gramschmidt",
+   "variant": "swap_mul",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gramschmidt__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gramschmidt",
+   "variant": "swap_add_mul",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gramschmidt__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gramschmidt",
+   "variant": "add_zero_rhs",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gramschmidt__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gramschmidt",
+   "variant": "add_zero_lhs",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gramschmidt__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gramschmidt",
+   "variant": "mul_one_rhs",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gramschmidt__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gramschmidt",
+   "variant": "mul_one_lhs",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gramschmidt__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gramschmidt",
+   "variant": "identity_pair",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/gramschmidt__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "gramschmidt",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "gramschmidt",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "heat-3d",
+   "variant": "swap_add",
+   "sites": 12,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/heat-3d__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "heat-3d",
+   "variant": "swap_mul",
+   "sites": 8,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/heat-3d__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "heat-3d",
+   "variant": "swap_add_mul",
+   "sites": 20,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/heat-3d__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "heat-3d",
+   "variant": "add_zero_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/heat-3d__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "heat-3d",
+   "variant": "add_zero_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/heat-3d__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "heat-3d",
+   "variant": "mul_one_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/heat-3d__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "heat-3d",
+   "variant": "mul_one_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/heat-3d__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "heat-3d",
+   "variant": "identity_pair",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/heat-3d__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "heat-3d",
+   "variant": "reassociate_add",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/heat-3d__reassociate_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "heat-3d",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "jacobi-1d",
+   "variant": "swap_add",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/jacobi-1d__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "jacobi-1d",
+   "variant": "swap_mul",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/jacobi-1d__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "jacobi-1d",
+   "variant": "swap_add_mul",
+   "sites": 6,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/jacobi-1d__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "jacobi-1d",
+   "variant": "add_zero_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/jacobi-1d__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "jacobi-1d",
+   "variant": "add_zero_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/jacobi-1d__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "jacobi-1d",
+   "variant": "mul_one_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/jacobi-1d__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "jacobi-1d",
+   "variant": "mul_one_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/jacobi-1d__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "jacobi-1d",
+   "variant": "identity_pair",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/jacobi-1d__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "jacobi-1d",
+   "variant": "reassociate_add",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/jacobi-1d__reassociate_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "jacobi-1d",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "jacobi-2d",
+   "variant": "swap_add",
+   "sites": 8,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/jacobi-2d__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "jacobi-2d",
+   "variant": "swap_mul",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/jacobi-2d__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "jacobi-2d",
+   "variant": "swap_add_mul",
+   "sites": 10,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/jacobi-2d__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "jacobi-2d",
+   "variant": "add_zero_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/jacobi-2d__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "jacobi-2d",
+   "variant": "add_zero_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/jacobi-2d__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "jacobi-2d",
+   "variant": "mul_one_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/jacobi-2d__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "jacobi-2d",
+   "variant": "mul_one_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/jacobi-2d__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "jacobi-2d",
+   "variant": "identity_pair",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/jacobi-2d__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "jacobi-2d",
+   "variant": "reassociate_add",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/jacobi-2d__reassociate_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "jacobi-2d",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "lu",
+   "variant": "swap_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "lu",
+   "variant": "swap_mul",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/lu__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "lu",
+   "variant": "swap_add_mul",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/lu__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "lu",
+   "variant": "add_zero_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/lu__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "lu",
+   "variant": "add_zero_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/lu__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "lu",
+   "variant": "mul_one_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/lu__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "lu",
+   "variant": "mul_one_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/lu__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "lu",
+   "variant": "identity_pair",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/lu__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "lu",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "lu",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "ludcmp",
+   "variant": "swap_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "ludcmp",
+   "variant": "swap_mul",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/ludcmp__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "ludcmp",
+   "variant": "swap_add_mul",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/ludcmp__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "ludcmp",
+   "variant": "add_zero_rhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/ludcmp__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "ludcmp",
+   "variant": "add_zero_lhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/ludcmp__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "ludcmp",
+   "variant": "mul_one_rhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/ludcmp__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "ludcmp",
+   "variant": "mul_one_lhs",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/ludcmp__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "ludcmp",
+   "variant": "identity_pair",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/ludcmp__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "ludcmp",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "ludcmp",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "mvt",
+   "variant": "swap_add",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/mvt__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "mvt",
+   "variant": "swap_mul",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/mvt__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "mvt",
+   "variant": "swap_add_mul",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/mvt__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "mvt",
+   "variant": "add_zero_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/mvt__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "mvt",
+   "variant": "add_zero_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/mvt__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "mvt",
+   "variant": "mul_one_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/mvt__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "mvt",
+   "variant": "mul_one_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/mvt__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "mvt",
+   "variant": "identity_pair",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/mvt__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "mvt",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "mvt",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "nussinov",
+   "variant": "swap_add",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/nussinov__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "nussinov",
+   "variant": "swap_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "nussinov",
+   "variant": "swap_add_mul",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/nussinov__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "nussinov",
+   "variant": "add_zero_rhs",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/nussinov__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "nussinov",
+   "variant": "add_zero_lhs",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/nussinov__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "nussinov",
+   "variant": "mul_one_rhs",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/nussinov__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "nussinov",
+   "variant": "mul_one_lhs",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/nussinov__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "nussinov",
+   "variant": "identity_pair",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/nussinov__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "nussinov",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "nussinov",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "seidel-2d",
+   "variant": "swap_add",
+   "sites": 8,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/seidel-2d__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "seidel-2d",
+   "variant": "swap_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "seidel-2d",
+   "variant": "swap_add_mul",
+   "sites": 8,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/seidel-2d__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "seidel-2d",
+   "variant": "add_zero_rhs",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/seidel-2d__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "seidel-2d",
+   "variant": "add_zero_lhs",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/seidel-2d__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "seidel-2d",
+   "variant": "mul_one_rhs",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/seidel-2d__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "seidel-2d",
+   "variant": "mul_one_lhs",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/seidel-2d__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "seidel-2d",
+   "variant": "identity_pair",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/seidel-2d__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "seidel-2d",
+   "variant": "reassociate_add",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/seidel-2d__reassociate_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "seidel-2d",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "symm",
+   "variant": "swap_add",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/symm__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "symm",
+   "variant": "swap_mul",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/symm__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "symm",
+   "variant": "swap_add_mul",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/symm__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "symm",
+   "variant": "add_zero_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/symm__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "symm",
+   "variant": "add_zero_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/symm__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "symm",
+   "variant": "mul_one_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/symm__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "symm",
+   "variant": "mul_one_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/symm__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "symm",
+   "variant": "identity_pair",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/symm__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "symm",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "symm",
+   "variant": "reassociate_mul",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/symm__reassociate_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "syr2k",
+   "variant": "swap_add",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/syr2k__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "syr2k",
+   "variant": "swap_mul",
+   "sites": 5,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/syr2k__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "syr2k",
+   "variant": "swap_add_mul",
+   "sites": 7,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/syr2k__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "syr2k",
+   "variant": "add_zero_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/syr2k__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "syr2k",
+   "variant": "add_zero_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/syr2k__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "syr2k",
+   "variant": "mul_one_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/syr2k__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "syr2k",
+   "variant": "mul_one_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/syr2k__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "syr2k",
+   "variant": "identity_pair",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/syr2k__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "syr2k",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "syr2k",
+   "variant": "reassociate_mul",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/syr2k__reassociate_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "syrk",
+   "variant": "swap_add",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/syrk__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "syrk",
+   "variant": "swap_mul",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/syrk__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "syrk",
+   "variant": "swap_add_mul",
+   "sites": 4,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/syrk__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "syrk",
+   "variant": "add_zero_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/syrk__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "syrk",
+   "variant": "add_zero_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/syrk__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "syrk",
+   "variant": "mul_one_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/syrk__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "syrk",
+   "variant": "mul_one_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/syrk__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "syrk",
+   "variant": "identity_pair",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/syrk__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "syrk",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "syrk",
+   "variant": "reassociate_mul",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/syrk__reassociate_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "trisolv",
+   "variant": "swap_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "trisolv",
+   "variant": "swap_mul",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/trisolv__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "trisolv",
+   "variant": "swap_add_mul",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/trisolv__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "trisolv",
+   "variant": "add_zero_rhs",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/trisolv__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "trisolv",
+   "variant": "add_zero_lhs",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/trisolv__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "trisolv",
+   "variant": "mul_one_rhs",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/trisolv__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "trisolv",
+   "variant": "mul_one_lhs",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/trisolv__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "trisolv",
+   "variant": "identity_pair",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/trisolv__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "trisolv",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "trisolv",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "trmm",
+   "variant": "swap_add",
+   "sites": 1,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/trmm__swap_add.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "trmm",
+   "variant": "swap_mul",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/trmm__swap_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "trmm",
+   "variant": "swap_add_mul",
+   "sites": 3,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/trmm__swap_add_mul.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "trmm",
+   "variant": "add_zero_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/trmm__add_zero_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "trmm",
+   "variant": "add_zero_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/trmm__add_zero_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "trmm",
+   "variant": "mul_one_rhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/trmm__mul_one_rhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "trmm",
+   "variant": "mul_one_lhs",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/trmm__mul_one_lhs.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "trmm",
+   "variant": "identity_pair",
+   "sites": 2,
+   "path": "/home/arjaiswal/Polygeist/issues/lib_v2/tests/work/irvariants/inputs/trmm__identity_pair.mlir",
+   "status": "generated",
+   "verifier_stderr": ""
+  },
+  {
+   "kernel": "trmm",
+   "variant": "reassociate_add",
+   "sites": 0,
+   "status": "not_applicable"
+  },
+  {
+   "kernel": "trmm",
+   "variant": "reassociate_mul",
+   "sites": 0,
+   "status": "not_applicable"
+  }
+ ],
+ "cases": [
+  {
+   "kernel": "2mm",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 9.3,
+   "reason": ""
+  },
+  {
+   "kernel": "2mm",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 7.62,
+   "reason": ""
+  },
+  {
+   "kernel": "2mm",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 6.76,
+   "reason": ""
+  },
+  {
+   "kernel": "2mm",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 7.34,
+   "reason": ""
+  },
+  {
+   "kernel": "2mm",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 7.57,
+   "reason": ""
+  },
+  {
+   "kernel": "2mm",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 1.58,
+   "reason": ""
+  },
+  {
+   "kernel": "2mm",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 1.62,
+   "reason": ""
+  },
+  {
+   "kernel": "2mm",
+   "variant": "identity_pair",
+   "status": "crash",
+   "original": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "variant_launches": [],
+   "opportunities": 2,
+   "retained": 0,
+   "extra": [],
+   "seconds": null,
+   "reason": "matcher crash: "
+  },
+  {
+   "kernel": "2mm",
+   "variant": "reassociate_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 7.55,
+   "reason": ""
+  },
+  {
+   "kernel": "3mm",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0"
+   ],
+   "opportunities": 3,
+   "retained": 3,
+   "extra": [],
+   "seconds": 5.51,
+   "reason": ""
+  },
+  {
+   "kernel": "3mm",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0"
+   ],
+   "opportunities": 3,
+   "retained": 3,
+   "extra": [],
+   "seconds": 7.8,
+   "reason": ""
+  },
+  {
+   "kernel": "3mm",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0"
+   ],
+   "opportunities": 3,
+   "retained": 3,
+   "extra": [],
+   "seconds": 5.13,
+   "reason": ""
+  },
+  {
+   "kernel": "3mm",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0"
+   ],
+   "opportunities": 3,
+   "retained": 3,
+   "extra": [],
+   "seconds": 5.14,
+   "reason": ""
+  },
+  {
+   "kernel": "3mm",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0"
+   ],
+   "opportunities": 3,
+   "retained": 3,
+   "extra": [],
+   "seconds": 4.9,
+   "reason": ""
+  },
+  {
+   "kernel": "3mm",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0"
+   ],
+   "opportunities": 3,
+   "retained": 3,
+   "extra": [],
+   "seconds": 2.91,
+   "reason": ""
+  },
+  {
+   "kernel": "3mm",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0"
+   ],
+   "opportunities": 3,
+   "retained": 3,
+   "extra": [],
+   "seconds": 2.69,
+   "reason": ""
+  },
+  {
+   "kernel": "3mm",
+   "variant": "identity_pair",
+   "status": "crash",
+   "original": [
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta0"
+   ],
+   "variant_launches": [],
+   "opportunities": 3,
+   "retained": 0,
+   "extra": [],
+   "seconds": null,
+   "reason": "matcher crash: "
+  },
+  {
+   "kernel": "adi",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.5,
+   "reason": ""
+  },
+  {
+   "kernel": "adi",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.53,
+   "reason": ""
+  },
+  {
+   "kernel": "adi",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.44,
+   "reason": ""
+  },
+  {
+   "kernel": "adi",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.61,
+   "reason": ""
+  },
+  {
+   "kernel": "adi",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.34,
+   "reason": ""
+  },
+  {
+   "kernel": "adi",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.37,
+   "reason": ""
+  },
+  {
+   "kernel": "adi",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.09,
+   "reason": ""
+  },
+  {
+   "kernel": "adi",
+   "variant": "identity_pair",
+   "status": "crash",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": null,
+   "reason": ""
+  },
+  {
+   "kernel": "atax",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 2.47,
+   "reason": ""
+  },
+  {
+   "kernel": "atax",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 2.72,
+   "reason": ""
+  },
+  {
+   "kernel": "atax",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 3.6,
+   "reason": ""
+  },
+  {
+   "kernel": "atax",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 2.99,
+   "reason": ""
+  },
+  {
+   "kernel": "atax",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 3.07,
+   "reason": ""
+  },
+  {
+   "kernel": "atax",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 1.47,
+   "reason": ""
+  },
+  {
+   "kernel": "atax",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 1.58,
+   "reason": ""
+  },
+  {
+   "kernel": "atax",
+   "variant": "identity_pair",
+   "status": "crash",
+   "original": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "variant_launches": [],
+   "opportunities": 2,
+   "retained": 0,
+   "extra": [],
+   "seconds": null,
+   "reason": "matcher crash: "
+  },
+  {
+   "kernel": "bicg",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 29.83,
+   "reason": ""
+  },
+  {
+   "kernel": "bicg",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 29.07,
+   "reason": ""
+  },
+  {
+   "kernel": "bicg",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 31.33,
+   "reason": ""
+  },
+  {
+   "kernel": "bicg",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 31.24,
+   "reason": ""
+  },
+  {
+   "kernel": "bicg",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 27.97,
+   "reason": ""
+  },
+  {
+   "kernel": "bicg",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 1.28,
+   "reason": ""
+  },
+  {
+   "kernel": "bicg",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 1.56,
+   "reason": ""
+  },
+  {
+   "kernel": "bicg",
+   "variant": "identity_pair",
+   "status": "crash",
+   "original": [
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_t_beta0"
+   ],
+   "variant_launches": [],
+   "opportunities": 2,
+   "retained": 0,
+   "extra": [],
+   "seconds": null,
+   "reason": "matcher crash: "
+  },
+  {
+   "kernel": "cholesky",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dpotf2_u"
+   ],
+   "variant_launches": [
+    "netlib_dpotf2_u"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 1.25,
+   "reason": ""
+  },
+  {
+   "kernel": "cholesky",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dpotf2_u"
+   ],
+   "variant_launches": [
+    "netlib_dpotf2_u"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 1.09,
+   "reason": ""
+  },
+  {
+   "kernel": "cholesky",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dpotf2_u"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.63,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex2 || region: window 4-6: dependence check failed: read of %arg1[v0, g1_0] at [17, v0, 6, v1, 17, g1_0, 0] observes an intermediate value (written both before and a"
+  },
+  {
+   "kernel": "cholesky",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dpotf2_u"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.16,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex2 || region: window 4-6: dependence check failed: read of %arg1[v0, g1_0] at [17, v0, 6, v1, 17, g1_0, 0] observes an intermediate value (written both before and a"
+  },
+  {
+   "kernel": "cholesky",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dpotf2_u"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.62,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex2 || region: window 4-6: dependence check failed: read of %arg1[v0, g1_0] at [17, v0, 6, v1, 17, g1_0, 0] observes an intermediate value (written both before and a"
+  },
+  {
+   "kernel": "cholesky",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dpotf2_u"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.62,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex2 || region: window 4-6: dependence check failed: read of %arg1[v0, g1_0] at [17, v0, 6, v1, 17, g1_0, 0] observes an intermediate value (written both before and a"
+  },
+  {
+   "kernel": "cholesky",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [
+    "netlib_dpotf2_u"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.04,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex2 || region: window 4-6: dependence check failed: read of %arg1[v0, g1_0] at [17, v0, 6, v1, 21, g1_0, 0] observes an intermediate value (written both before and a"
+  },
+  {
+   "kernel": "correlation",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 46.36,
+   "reason": ""
+  },
+  {
+   "kernel": "correlation",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 42.88,
+   "reason": ""
+  },
+  {
+   "kernel": "correlation",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 42.0,
+   "reason": ""
+  },
+  {
+   "kernel": "correlation",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 7.11,
+   "reason": ""
+  },
+  {
+   "kernel": "correlation",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 8.42,
+   "reason": ""
+  },
+  {
+   "kernel": "correlation",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 7.34,
+   "reason": ""
+  },
+  {
+   "kernel": "correlation",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 46.75,
+   "reason": ""
+  },
+  {
+   "kernel": "correlation",
+   "variant": "identity_pair",
+   "status": "crash",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": null,
+   "reason": ""
+  },
+  {
+   "kernel": "covariance",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.65,
+   "reason": ""
+  },
+  {
+   "kernel": "covariance",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.21,
+   "reason": ""
+  },
+  {
+   "kernel": "covariance",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.24,
+   "reason": ""
+  },
+  {
+   "kernel": "covariance",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.25,
+   "reason": ""
+  },
+  {
+   "kernel": "covariance",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.57,
+   "reason": ""
+  },
+  {
+   "kernel": "covariance",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.4,
+   "reason": ""
+  },
+  {
+   "kernel": "covariance",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.1,
+   "reason": ""
+  },
+  {
+   "kernel": "covariance",
+   "variant": "identity_pair",
+   "status": "crash",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": null,
+   "reason": ""
+  },
+  {
+   "kernel": "deriche",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 12.03,
+   "reason": ""
+  },
+  {
+   "kernel": "deriche",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.72,
+   "reason": ""
+  },
+  {
+   "kernel": "deriche",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.78,
+   "reason": ""
+  },
+  {
+   "kernel": "deriche",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.96,
+   "reason": ""
+  },
+  {
+   "kernel": "deriche",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.12,
+   "reason": ""
+  },
+  {
+   "kernel": "deriche",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.0,
+   "reason": ""
+  },
+  {
+   "kernel": "deriche",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.06,
+   "reason": ""
+  },
+  {
+   "kernel": "deriche",
+   "variant": "identity_pair",
+   "status": "crash",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": null,
+   "reason": ""
+  },
+  {
+   "kernel": "deriche",
+   "variant": "reassociate_add",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.95,
+   "reason": ""
+  },
+  {
+   "kernel": "doitgen",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 2.12,
+   "reason": ""
+  },
+  {
+   "kernel": "doitgen",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 1.94,
+   "reason": ""
+  },
+  {
+   "kernel": "doitgen",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 1.65,
+   "reason": ""
+  },
+  {
+   "kernel": "doitgen",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 2.47,
+   "reason": ""
+  },
+  {
+   "kernel": "doitgen",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 1.26,
+   "reason": ""
+  },
+  {
+   "kernel": "doitgen",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 1.16,
+   "reason": ""
+  },
+  {
+   "kernel": "doitgen",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta0"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta0"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 1.19,
+   "reason": ""
+  },
+  {
+   "kernel": "doitgen",
+   "variant": "identity_pair",
+   "status": "crash",
+   "original": [
+    "netlib_dgemv_n_beta0"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": null,
+   "reason": "matcher crash: "
+  },
+  {
+   "kernel": "durbin",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.66,
+   "reason": ""
+  },
+  {
+   "kernel": "durbin",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 2.12,
+   "reason": ""
+  },
+  {
+   "kernel": "durbin",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.43,
+   "reason": ""
+  },
+  {
+   "kernel": "durbin",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.73,
+   "reason": ""
+  },
+  {
+   "kernel": "durbin",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.54,
+   "reason": ""
+  },
+  {
+   "kernel": "durbin",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.3,
+   "reason": ""
+  },
+  {
+   "kernel": "durbin",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.27,
+   "reason": ""
+  },
+  {
+   "kernel": "durbin",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.48,
+   "reason": ""
+  },
+  {
+   "kernel": "fdtd-2d",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.32,
+   "reason": ""
+  },
+  {
+   "kernel": "fdtd-2d",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 3.69,
+   "reason": ""
+  },
+  {
+   "kernel": "fdtd-2d",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.39,
+   "reason": ""
+  },
+  {
+   "kernel": "fdtd-2d",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.65,
+   "reason": ""
+  },
+  {
+   "kernel": "fdtd-2d",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.38,
+   "reason": ""
+  },
+  {
+   "kernel": "fdtd-2d",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.48,
+   "reason": ""
+  },
+  {
+   "kernel": "fdtd-2d",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.68,
+   "reason": ""
+  },
+  {
+   "kernel": "fdtd-2d",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.05,
+   "reason": ""
+  },
+  {
+   "kernel": "floyd-warshall",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 19.71,
+   "reason": ""
+  },
+  {
+   "kernel": "floyd-warshall",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.25,
+   "reason": ""
+  },
+  {
+   "kernel": "floyd-warshall",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.97,
+   "reason": ""
+  },
+  {
+   "kernel": "floyd-warshall",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.68,
+   "reason": ""
+  },
+  {
+   "kernel": "floyd-warshall",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.84,
+   "reason": ""
+  },
+  {
+   "kernel": "floyd-warshall",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.8,
+   "reason": ""
+  },
+  {
+   "kernel": "floyd-warshall",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.92,
+   "reason": ""
+  },
+  {
+   "kernel": "gemm",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 5.22,
+   "reason": ""
+  },
+  {
+   "kernel": "gemm",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 5.26,
+   "reason": ""
+  },
+  {
+   "kernel": "gemm",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 4.35,
+   "reason": ""
+  },
+  {
+   "kernel": "gemm",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 100.72,
+   "reason": ""
+  },
+  {
+   "kernel": "gemm",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 8.59,
+   "reason": ""
+  },
+  {
+   "kernel": "gemm",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 2.95,
+   "reason": ""
+  },
+  {
+   "kernel": "gemm",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 1.71,
+   "reason": ""
+  },
+  {
+   "kernel": "gemm",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 1.23,
+   "reason": ""
+  },
+  {
+   "kernel": "gemm",
+   "variant": "reassociate_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemm_nn"
+   ],
+   "variant_launches": [
+    "netlib_dgemm_nn"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 4.59,
+   "reason": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "opportunities": 5,
+   "retained": 5,
+   "extra": [],
+   "seconds": 6.67,
+   "reason": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "opportunities": 5,
+   "retained": 5,
+   "extra": [],
+   "seconds": 6.31,
+   "reason": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "opportunities": 5,
+   "retained": 5,
+   "extra": [],
+   "seconds": 8.24,
+   "reason": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "opportunities": 5,
+   "retained": 5,
+   "extra": [],
+   "seconds": 12.27,
+   "reason": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "opportunities": 5,
+   "retained": 5,
+   "extra": [],
+   "seconds": 10.52,
+   "reason": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "opportunities": 5,
+   "retained": 5,
+   "extra": [],
+   "seconds": 7.14,
+   "reason": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "opportunities": 5,
+   "retained": 5,
+   "extra": [],
+   "seconds": 5.7,
+   "reason": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "opportunities": 5,
+   "retained": 5,
+   "extra": [],
+   "seconds": 6.33,
+   "reason": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "reassociate_add",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "opportunities": 5,
+   "retained": 5,
+   "extra": [],
+   "seconds": 6.86,
+   "reason": ""
+  },
+  {
+   "kernel": "gemver",
+   "variant": "reassociate_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1",
+    "netlib_daxpy_inc",
+    "netlib_dger",
+    "netlib_dger"
+   ],
+   "opportunities": 5,
+   "retained": 5,
+   "extra": [],
+   "seconds": 6.27,
+   "reason": ""
+  },
+  {
+   "kernel": "gesummv",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_t_beta0",
+    "netlib_dgemv_t_beta0",
+    "netlib_dscal_inc",
+    "netlib_daxpy_inc"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_t_beta0",
+    "netlib_dgemv_t_beta0",
+    "netlib_dscal_inc",
+    "netlib_daxpy_inc"
+   ],
+   "opportunities": 4,
+   "retained": 4,
+   "extra": [],
+   "seconds": 37.13,
+   "reason": ""
+  },
+  {
+   "kernel": "gesummv",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_t_beta0",
+    "netlib_dgemv_t_beta0",
+    "netlib_dscal_inc",
+    "netlib_daxpy_inc"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_t_beta0",
+    "netlib_dgemv_t_beta0",
+    "netlib_dscal_inc",
+    "netlib_daxpy_inc"
+   ],
+   "opportunities": 4,
+   "retained": 4,
+   "extra": [],
+   "seconds": 36.78,
+   "reason": ""
+  },
+  {
+   "kernel": "gesummv",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_t_beta0",
+    "netlib_dgemv_t_beta0",
+    "netlib_dscal_inc",
+    "netlib_daxpy_inc"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_t_beta0",
+    "netlib_dgemv_t_beta0",
+    "netlib_dscal_inc",
+    "netlib_daxpy_inc"
+   ],
+   "opportunities": 4,
+   "retained": 4,
+   "extra": [],
+   "seconds": 34.94,
+   "reason": ""
+  },
+  {
+   "kernel": "gesummv",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_t_beta0",
+    "netlib_dgemv_t_beta0",
+    "netlib_dscal_inc",
+    "netlib_daxpy_inc"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_t_beta0",
+    "netlib_dgemv_t_beta0",
+    "netlib_dscal_inc",
+    "netlib_daxpy_inc"
+   ],
+   "opportunities": 4,
+   "retained": 4,
+   "extra": [],
+   "seconds": 31.48,
+   "reason": ""
+  },
+  {
+   "kernel": "gesummv",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_t_beta0",
+    "netlib_dgemv_t_beta0",
+    "netlib_dscal_inc",
+    "netlib_daxpy_inc"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_t_beta0",
+    "netlib_dgemv_t_beta0",
+    "netlib_dscal_inc",
+    "netlib_daxpy_inc"
+   ],
+   "opportunities": 4,
+   "retained": 4,
+   "extra": [],
+   "seconds": 25.59,
+   "reason": ""
+  },
+  {
+   "kernel": "gesummv",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_t_beta0",
+    "netlib_dgemv_t_beta0",
+    "netlib_dscal_inc",
+    "netlib_daxpy_inc"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_t_beta0",
+    "netlib_dgemv_t_beta0",
+    "netlib_dscal_inc",
+    "netlib_daxpy_inc"
+   ],
+   "opportunities": 4,
+   "retained": 4,
+   "extra": [],
+   "seconds": 5.34,
+   "reason": ""
+  },
+  {
+   "kernel": "gesummv",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_t_beta0",
+    "netlib_dgemv_t_beta0",
+    "netlib_dscal_inc",
+    "netlib_daxpy_inc"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_t_beta0",
+    "netlib_dgemv_t_beta0",
+    "netlib_dscal_inc",
+    "netlib_daxpy_inc"
+   ],
+   "opportunities": 4,
+   "retained": 4,
+   "extra": [],
+   "seconds": 5.14,
+   "reason": ""
+  },
+  {
+   "kernel": "gesummv",
+   "variant": "identity_pair",
+   "status": "crash",
+   "original": [
+    "netlib_dgemv_t_beta0",
+    "netlib_dgemv_t_beta0",
+    "netlib_dscal_inc",
+    "netlib_daxpy_inc"
+   ],
+   "variant_launches": [],
+   "opportunities": 4,
+   "retained": 0,
+   "extra": [],
+   "seconds": null,
+   "reason": "matcher crash: "
+  },
+  {
+   "kernel": "gramschmidt",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 3.52,
+   "reason": ""
+  },
+  {
+   "kernel": "gramschmidt",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.08,
+   "reason": ""
+  },
+  {
+   "kernel": "gramschmidt",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.95,
+   "reason": ""
+  },
+  {
+   "kernel": "gramschmidt",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.72,
+   "reason": ""
+  },
+  {
+   "kernel": "gramschmidt",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.95,
+   "reason": ""
+  },
+  {
+   "kernel": "gramschmidt",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.03,
+   "reason": ""
+  },
+  {
+   "kernel": "gramschmidt",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.99,
+   "reason": ""
+  },
+  {
+   "kernel": "gramschmidt",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.05,
+   "reason": ""
+  },
+  {
+   "kernel": "heat-3d",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.71,
+   "reason": ""
+  },
+  {
+   "kernel": "heat-3d",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.91,
+   "reason": ""
+  },
+  {
+   "kernel": "heat-3d",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.58,
+   "reason": ""
+  },
+  {
+   "kernel": "heat-3d",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.02,
+   "reason": ""
+  },
+  {
+   "kernel": "heat-3d",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.73,
+   "reason": ""
+  },
+  {
+   "kernel": "heat-3d",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.59,
+   "reason": ""
+  },
+  {
+   "kernel": "heat-3d",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.62,
+   "reason": ""
+  },
+  {
+   "kernel": "heat-3d",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.66,
+   "reason": ""
+  },
+  {
+   "kernel": "heat-3d",
+   "variant": "reassociate_add",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.7,
+   "reason": ""
+  },
+  {
+   "kernel": "jacobi-1d",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.62,
+   "reason": ""
+  },
+  {
+   "kernel": "jacobi-1d",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.59,
+   "reason": ""
+  },
+  {
+   "kernel": "jacobi-1d",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.68,
+   "reason": ""
+  },
+  {
+   "kernel": "jacobi-1d",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.64,
+   "reason": ""
+  },
+  {
+   "kernel": "jacobi-1d",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.6,
+   "reason": ""
+  },
+  {
+   "kernel": "jacobi-1d",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.85,
+   "reason": ""
+  },
+  {
+   "kernel": "jacobi-1d",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.68,
+   "reason": ""
+  },
+  {
+   "kernel": "jacobi-1d",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.58,
+   "reason": ""
+  },
+  {
+   "kernel": "jacobi-1d",
+   "variant": "reassociate_add",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.67,
+   "reason": ""
+  },
+  {
+   "kernel": "jacobi-2d",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.61,
+   "reason": ""
+  },
+  {
+   "kernel": "jacobi-2d",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.74,
+   "reason": ""
+  },
+  {
+   "kernel": "jacobi-2d",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.58,
+   "reason": ""
+  },
+  {
+   "kernel": "jacobi-2d",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.56,
+   "reason": ""
+  },
+  {
+   "kernel": "jacobi-2d",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.66,
+   "reason": ""
+  },
+  {
+   "kernel": "jacobi-2d",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.59,
+   "reason": ""
+  },
+  {
+   "kernel": "jacobi-2d",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.6,
+   "reason": ""
+  },
+  {
+   "kernel": "jacobi-2d",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.8,
+   "reason": ""
+  },
+  {
+   "kernel": "jacobi-2d",
+   "variant": "reassociate_add",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.62,
+   "reason": ""
+  },
+  {
+   "kernel": "lu",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 10.51,
+   "reason": ""
+  },
+  {
+   "kernel": "lu",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 10.01,
+   "reason": ""
+  },
+  {
+   "kernel": "lu",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 9.05,
+   "reason": ""
+  },
+  {
+   "kernel": "lu",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 5.08,
+   "reason": ""
+  },
+  {
+   "kernel": "lu",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 4.09,
+   "reason": ""
+  },
+  {
+   "kernel": "lu",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.54,
+   "reason": ""
+  },
+  {
+   "kernel": "lu",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.25,
+   "reason": ""
+  },
+  {
+   "kernel": "ludcmp",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dtrsv_ltn"
+   ],
+   "variant_launches": [
+    "netlib_dtrsv_ltn"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 3.63,
+   "reason": ""
+  },
+  {
+   "kernel": "ludcmp",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dtrsv_ltn"
+   ],
+   "variant_launches": [
+    "netlib_dtrsv_ltn"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 2.69,
+   "reason": ""
+  },
+  {
+   "kernel": "ludcmp",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dtrsv_ltn"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 2.12,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex4 || region: window 8-21: dependence check failed: read of scratch1[] at [41, v0, 6, v1, 33, 0] observes an intermediate value (written both before and after) | window 10-21: dependence check failed: read of scratch1[] at [41, v0, 6, v1, 33, 0] observes an intermediate value (written both before and after)"
+  },
+  {
+   "kernel": "ludcmp",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dtrsv_ltn"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 2.18,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex4 || region: window 8-21: dependence check failed: read of scratch1[] at [41, v0, 6, v1, 33, 0] observes an intermediate value (written both before and after) | window 10-21: dependence check failed: read of scratch1[] at [41, v0, 6, v1, 33, 0] observes an intermediate value (written both before and after)"
+  },
+  {
+   "kernel": "ludcmp",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dtrsv_ltn"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 2.23,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex4 || region: window 8-21: dependence check failed: read of scratch1[] at [41, v0, 6, v1, 33, 0] observes an intermediate value (written both before and after) | window 10-21: dependence check failed: read of scratch1[] at [41, v0, 6, v1, 33, 0] observes an intermediate value (written both before and after)"
+  },
+  {
+   "kernel": "ludcmp",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dtrsv_ltn"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 3.1,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex4 || region: window 8-21: dependence check failed: read of scratch1[] at [41, v0, 6, v1, 33, 0] observes an intermediate value (written both before and after) | window 10-21: dependence check failed: read of scratch1[] at [41, v0, 6, v1, 33, 0] observes an intermediate value (written both before and after)"
+  },
+  {
+   "kernel": "ludcmp",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [
+    "netlib_dtrsv_ltn"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 3.65,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex4 || region: window 8-21: dependence check failed: read of scratch1[] at [41, v0, 6, v1, 37, 0] observes an intermediate value (written both before and after) | window 10-21: dependence check failed: read of scratch1[] at [41, v0, 6, v1, 37, 0] observes an intermediate value (written both before and after)"
+  },
+  {
+   "kernel": "mvt",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 13.07,
+   "reason": ""
+  },
+  {
+   "kernel": "mvt",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 11.68,
+   "reason": ""
+  },
+  {
+   "kernel": "mvt",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 11.28,
+   "reason": ""
+  },
+  {
+   "kernel": "mvt",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 11.43,
+   "reason": ""
+  },
+  {
+   "kernel": "mvt",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 10.13,
+   "reason": ""
+  },
+  {
+   "kernel": "mvt",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 2.17,
+   "reason": ""
+  },
+  {
+   "kernel": "mvt",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 1.32,
+   "reason": ""
+  },
+  {
+   "kernel": "mvt",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1"
+   ],
+   "variant_launches": [
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_t_beta1"
+   ],
+   "opportunities": 2,
+   "retained": 2,
+   "extra": [],
+   "seconds": 2.14,
+   "reason": ""
+  },
+  {
+   "kernel": "nussinov",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.58,
+   "reason": ""
+  },
+  {
+   "kernel": "nussinov",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.99,
+   "reason": ""
+  },
+  {
+   "kernel": "nussinov",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.69,
+   "reason": ""
+  },
+  {
+   "kernel": "nussinov",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.9,
+   "reason": ""
+  },
+  {
+   "kernel": "nussinov",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.56,
+   "reason": ""
+  },
+  {
+   "kernel": "nussinov",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.65,
+   "reason": ""
+  },
+  {
+   "kernel": "nussinov",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.63,
+   "reason": ""
+  },
+  {
+   "kernel": "seidel-2d",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.15,
+   "reason": ""
+  },
+  {
+   "kernel": "seidel-2d",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.58,
+   "reason": ""
+  },
+  {
+   "kernel": "seidel-2d",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.87,
+   "reason": ""
+  },
+  {
+   "kernel": "seidel-2d",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.03,
+   "reason": ""
+  },
+  {
+   "kernel": "seidel-2d",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.2,
+   "reason": ""
+  },
+  {
+   "kernel": "seidel-2d",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.91,
+   "reason": ""
+  },
+  {
+   "kernel": "seidel-2d",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.87,
+   "reason": ""
+  },
+  {
+   "kernel": "seidel-2d",
+   "variant": "reassociate_add",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.74,
+   "reason": ""
+  },
+  {
+   "kernel": "symm",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.94,
+   "reason": ""
+  },
+  {
+   "kernel": "symm",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.97,
+   "reason": ""
+  },
+  {
+   "kernel": "symm",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.67,
+   "reason": ""
+  },
+  {
+   "kernel": "symm",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.0,
+   "reason": ""
+  },
+  {
+   "kernel": "symm",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.12,
+   "reason": ""
+  },
+  {
+   "kernel": "symm",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.1,
+   "reason": ""
+  },
+  {
+   "kernel": "symm",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.63,
+   "reason": ""
+  },
+  {
+   "kernel": "symm",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.85,
+   "reason": ""
+  },
+  {
+   "kernel": "symm",
+   "variant": "reassociate_mul",
+   "status": "ok",
+   "original": [],
+   "variant_launches": [],
+   "opportunities": 0,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.92,
+   "reason": ""
+  },
+  {
+   "kernel": "syr2k",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [
+    "netlib_dsyr2k_ut"
+   ],
+   "variant_launches": [
+    "netlib_dsyr2k_ut"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 15.22,
+   "reason": ""
+  },
+  {
+   "kernel": "syr2k",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dsyr2k_ut"
+   ],
+   "variant_launches": [
+    "netlib_dsyr2k_ut"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 11.71,
+   "reason": ""
+  },
+  {
+   "kernel": "syr2k",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dsyr2k_ut"
+   ],
+   "variant_launches": [
+    "netlib_dsyr2k_ut"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 10.5,
+   "reason": ""
+  },
+  {
+   "kernel": "syr2k",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dsyr2k_ut"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 635.74,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex2 || region: window 10-23: no specification matched (76032 bindings tried) | window 20-23: no specification matched (192 bindings tried)"
+  },
+  {
+   "kernel": "syr2k",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dsyr2k_ut"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 632.7,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex2 || region: window 10-23: no specification matched (88320 bindings tried) | window 20-23: no specification matched (192 bindings tried)"
+  },
+  {
+   "kernel": "syr2k",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dsyr2k_ut"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 6.95,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex2 || region: window 10-23: accumulation is not of the form acc (+|-) h: (select(v0 - v1 >= 0, (ACC + (((%arg5@in[v1, g2_1] * %arg2) * %arg6@in[v0, g2_1]) + ((%arg6 | window 20-23: accumulation is not of the form acc (+|-) h: (select(v0 - v1 >= 0, (ACC + (((%arg5@in[v1, g2_1] * %arg2) * %arg6@in[v0, g2_1]) + ((%arg6"
+  },
+  {
+   "kernel": "syr2k",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dsyr2k_ut"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 6.16,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex2 || region: window 10-23: accumulation is not of the form acc (+|-) h: (1.0 * select(v0 - v1 >= 0, (ACC + (((%arg5@in[v1, g2_1] * %arg2) * %arg6@in[v0, g2_1]) + ( | window 20-23: accumulation is not of the form acc (+|-) h: (1.0 * select(v0 - v1 >= 0, (ACC + (((%arg5@in[v1, g2_1] * %arg2) * %arg6@in[v0, g2_1]) + ("
+  },
+  {
+   "kernel": "syr2k",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [
+    "netlib_dsyr2k_ut"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 559.09,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex2 || region: window 11-25: accumulation is not of the form acc (+|-) h: (1.0 * (select(v0 - v1 >= 0, (ACC + (((%arg5@in[v1, g2_1] * %arg2) * %arg6@in[v0, g2_1]) +  | window 22-25: accumulation is not of the form acc (+|-) h: (1.0 * (select(v0 - v1 >= 0, (ACC + (((%arg5@in[v1, g2_1] * %arg2) * %arg6@in[v0, g2_1]) + "
+  },
+  {
+   "kernel": "syr2k",
+   "variant": "reassociate_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dsyr2k_ut"
+   ],
+   "variant_launches": [
+    "netlib_dsyr2k_ut"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 561.33,
+   "reason": ""
+  },
+  {
+   "kernel": "syrk",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [
+    "netlib_dsyrk_ut"
+   ],
+   "variant_launches": [
+    "netlib_dsyrk_ut"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 561.32,
+   "reason": ""
+  },
+  {
+   "kernel": "syrk",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dsyrk_ut"
+   ],
+   "variant_launches": [
+    "netlib_dsyrk_ut"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 5.52,
+   "reason": ""
+  },
+  {
+   "kernel": "syrk",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dsyrk_ut"
+   ],
+   "variant_launches": [
+    "netlib_dsyrk_ut"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 6.71,
+   "reason": ""
+  },
+  {
+   "kernel": "syrk",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dsyrk_ut"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 135.53,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex2 || region: window 9-20: no specification matched (43456 bindings tried) | window 17-20: no specification matched (1568 bindings tried)"
+  },
+  {
+   "kernel": "syrk",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dsyrk_ut"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 135.11,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex2 || region: window 9-20: no specification matched (43456 bindings tried) | window 17-20: no specification matched (1376 bindings tried)"
+  },
+  {
+   "kernel": "syrk",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dsyrk_ut"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.42,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex2 || region: window 9-20: accumulation is not of the form acc (+|-) h: (select(v0 - v1 >= 0, (ACC + ((%arg2 * %arg5@in[v0, g2_1]) * %arg5@in[v1, g2_1])), ACC) * 1. | window 17-20: accumulation is not of the form acc (+|-) h: (select(v0 - v1 >= 0, (ACC + ((%arg2 * %arg5@in[v0, g2_1]) * %arg5@in[v1, g2_1])), ACC) * 1"
+  },
+  {
+   "kernel": "syrk",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dsyrk_ut"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.21,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex2 || region: window 9-20: accumulation is not of the form acc (+|-) h: (1.0 * select(v0 - v1 >= 0, (ACC + ((%arg2 * %arg5@in[v0, g2_1]) * %arg5@in[v1, g2_1])), ACC | window 17-20: accumulation is not of the form acc (+|-) h: (1.0 * select(v0 - v1 >= 0, (ACC + ((%arg2 * %arg5@in[v0, g2_1]) * %arg5@in[v1, g2_1])), AC"
+  },
+  {
+   "kernel": "syrk",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [
+    "netlib_dsyrk_ut"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.21,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex2 || region: window 10-22: accumulation is not of the form acc (+|-) h: (1.0 * (select(v0 - v1 >= 0, (ACC + ((%arg2 * %arg5@in[v0, g2_1]) * %arg5@in[v1, g2_1])), A | window 19-22: accumulation is not of the form acc (+|-) h: (1.0 * (select(v0 - v1 >= 0, (ACC + ((%arg2 * %arg5@in[v0, g2_1]) * %arg5@in[v1, g2_1])), A"
+  },
+  {
+   "kernel": "syrk",
+   "variant": "reassociate_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dsyrk_ut"
+   ],
+   "variant_launches": [
+    "netlib_dsyrk_ut"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 4.69,
+   "reason": ""
+  },
+  {
+   "kernel": "trisolv",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dtrsv_utn"
+   ],
+   "variant_launches": [
+    "netlib_dtrsv_utn"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 1.34,
+   "reason": ""
+  },
+  {
+   "kernel": "trisolv",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dtrsv_utn"
+   ],
+   "variant_launches": [
+    "netlib_dtrsv_utn"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 1.59,
+   "reason": ""
+  },
+  {
+   "kernel": "trisolv",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dtrsv_utn"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.57,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex1 || region: window 6-8: dependence check failed: read of %arg2[g1_0] at [25, v0, 25, g1_0, 0] observes an intermediate value (written both before and after)"
+  },
+  {
+   "kernel": "trisolv",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dtrsv_utn"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.62,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex1 || region: window 6-8: dependence check failed: read of %arg2[g1_0] at [25, v0, 25, g1_0, 0] observes an intermediate value (written both before and after)"
+  },
+  {
+   "kernel": "trisolv",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dtrsv_utn"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.58,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex1 || region: window 6-8: dependence check failed: read of %arg2[g1_0] at [25, v0, 25, g1_0, 0] observes an intermediate value (written both before and after)"
+  },
+  {
+   "kernel": "trisolv",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dtrsv_utn"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.61,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex1 || region: window 6-8: dependence check failed: read of %arg2[g1_0] at [25, v0, 25, g1_0, 0] observes an intermediate value (written both before and after)"
+  },
+  {
+   "kernel": "trisolv",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [
+    "netlib_dtrsv_utn"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.78,
+   "reason": "Linalg level: residual generics furthest DAG stage shapex1 || region: window 6-8: dependence check failed: read of %arg2[g1_0] at [25, v0, 29, g1_0, 0] observes an intermediate value (written both before and after)"
+  },
+  {
+   "kernel": "trmm",
+   "variant": "swap_add",
+   "status": "ok",
+   "original": [
+    "netlib_dtrmm_rutu"
+   ],
+   "variant_launches": [
+    "netlib_dtrmm_rutu"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 3.41,
+   "reason": ""
+  },
+  {
+   "kernel": "trmm",
+   "variant": "swap_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dtrmm_rutu"
+   ],
+   "variant_launches": [
+    "netlib_dtrmm_rutu"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 3.26,
+   "reason": ""
+  },
+  {
+   "kernel": "trmm",
+   "variant": "swap_add_mul",
+   "status": "ok",
+   "original": [
+    "netlib_dtrmm_rutu"
+   ],
+   "variant_launches": [
+    "netlib_dtrmm_rutu"
+   ],
+   "opportunities": 1,
+   "retained": 1,
+   "extra": [],
+   "seconds": 4.05,
+   "reason": ""
+  },
+  {
+   "kernel": "trmm",
+   "variant": "add_zero_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dtrmm_rutu"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.4,
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1, shapex1 || region: window 4-6: dependence check failed: read of %arg4[g1_1, v1] at [17, v0, 17, v1, g1_1, 0] observes an intermediate value (written both before and afte"
+  },
+  {
+   "kernel": "trmm",
+   "variant": "add_zero_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dtrmm_rutu"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.94,
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1, shapex1 || region: window 4-6: dependence check failed: read of %arg4[g1_1, v1] at [17, v0, 17, v1, g1_1, 0] observes an intermediate value (written both before and afte"
+  },
+  {
+   "kernel": "trmm",
+   "variant": "mul_one_rhs",
+   "status": "ok",
+   "original": [
+    "netlib_dtrmm_rutu"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.5,
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1, shapex1 || region: window 4-6: dependence check failed: read of %arg4[g1_1, v1] at [17, v0, 17, v1, g1_1, 0] observes an intermediate value (written both before and afte"
+  },
+  {
+   "kernel": "trmm",
+   "variant": "mul_one_lhs",
+   "status": "ok",
+   "original": [
+    "netlib_dtrmm_rutu"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 0.99,
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1, shapex1 || region: window 4-6: dependence check failed: read of %arg4[g1_1, v1] at [17, v0, 17, v1, g1_1, 0] observes an intermediate value (written both before and afte"
+  },
+  {
+   "kernel": "trmm",
+   "variant": "identity_pair",
+   "status": "ok",
+   "original": [
+    "netlib_dtrmm_rutu"
+   ],
+   "variant_launches": [],
+   "opportunities": 1,
+   "retained": 0,
+   "extra": [],
+   "seconds": 1.34,
+   "reason": "Linalg level: residual generics furthest DAG stage bodyx1, shapex1 || region: window 4-6: dependence check failed: read of %arg4[g1_1, v1] at [17, v0, 21, v1, g1_1, 0] observes an intermediate value (written both before and afte"
+  }
+ ]
+}

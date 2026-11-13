@@ -259,4 +259,113 @@ def TypeAlignOp : Polygeist_Op<"typeAlign", [Pure]> {
   let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
+
+//Add check for result to be same as original memref/tensor type
+def SubmapInverseOp : Polygeist_Op<"submapInverse", [Pure, ViewLikeOpInterface]> {
+  let summary = "Inverse submap operation for scatter-back semantics";
+  let description = [{
+    The `polygeist.submapInverse` operation scatters a modified view back into
+    the original base tensor/memref, preserving elements not covered by the view.
+    
+    This is the inverse operation to `polygeist.submap` and is essential for
+    debufferization of strided memory operations.
+    
+    Example:
+    ```mlir
+    // Scatter strided view back into base tensor
+    %base_updated = polygeist.submapInverse(%base, %modified_view, %stride, %size)
+      <{map = affine_map<(d0)[s0] -> (d0 * s0)>}>
+      : (tensor<100xf32>, tensor<50xf32>) -> tensor<100xf32>
+    
+    // Semantics: base_updated[i*stride] = modified_view[i]
+    //            base_updated[other] = base[other] (preserved)
+    ```
+  }];
+  
+  let arguments = (ins 
+      Arg<AnyTypeOf<[AnyMemRef, AnyTensor]>, "the original base">:$base_original,
+      Arg<AnyTypeOf<[AnyMemRef, AnyTensor]>, "the modified view">:$view_modified,
+      Variadic<Index>:$indices_and_sizes,
+      AffineMapAttr:$map
+      );
+  let results = (outs AnyTypeOf<[AnyMemRef, AnyTensor]> : $result);
+  let hasFolder = 1;
+  let hasCanonicalizer = 1;
+  
+  let assemblyFormat = [{
+    `(` $base_original `,` $view_modified (`,` $indices_and_sizes^)? `)` 
+    attr-dict `:` functional-type(operands, results)
+  }];
+
+  let extraClassDeclaration = [{
+    ::mlir::ValueRange getSymbols() { return getOperands().slice(2, getMap().getNumSymbols()); }
+    ::mlir::ValueRange getSizes() { 
+      auto shapedType = ::llvm::cast<::mlir::ShapedType>(getType());
+      return getOperands().slice(getMap().getNumSymbols()+2, shapedType.getShape().size()); 
+    }
+    ::mlir::Value getViewSource() { return getBaseOriginal(); }
+    
+    // Type compatibility helpers
+    bool isMemRefVariant() { 
+      return ::llvm::isa<::mlir::MemRefType>(getBaseOriginal().getType());
+    }
+    bool isTensorVariant() { 
+      return ::llvm::isa<::mlir::TensorType>(getBaseOriginal().getType());
+    }
+  }];
+}
+
+def SubmapOp : Polygeist_Op<"submap", [Pure, ViewLikeOpInterface]> {
+  let summary = "Submap operation for strided view extraction";
+  let description = [{
+    The `polygeist.submap` operation creates a strided view of a tensor/memref
+    by applying an affine map to extract elements. This is used to represent
+    strided access patterns in a composable way.
+    
+    The operation works in both memref and tensor contexts, enabling
+    debufferization of strided operations.
+    
+    Example:
+    ```mlir
+    // Extract every other element (stride=2)
+    %view = polygeist.submap(%base, %stride, %size) 
+            <{map = affine_map<(d0)[s0] -> (d0 * s0)>}>
+            : tensor<100xf32> -> tensor<50xf32>
+    
+    // Semantics: view[i] = base[i * stride]
+    ```
+  }];
+  
+  let arguments = (ins 
+      Arg<AnyTypeOf<[AnyMemRef, AnyTensor]>, "the base to view">:$base,
+      Variadic<Index>:$indices_and_sizes,
+      AffineMapAttr:$map
+      );
+  let results = (outs AnyTypeOf<[AnyMemRef, AnyTensor]> : $result);
+  let hasFolder = 1;
+  let hasCanonicalizer = 1;
+  
+  let assemblyFormat = [{
+    `(` $base (`,` $indices_and_sizes^)? `)` 
+    attr-dict `:` functional-type(operands, results)
+  }];
+
+  let extraClassDeclaration = [{
+    ::mlir::ValueRange getSymbols() { return getOperands().slice(1, getMap().getNumSymbols()); }
+    ::mlir::ValueRange getSizes() { 
+      auto shapedType = ::llvm::cast<::mlir::ShapedType>(getType());
+      return getOperands().slice(getMap().getNumSymbols()+1, shapedType.getShape().size()); 
+    }
+    ::mlir::Value getViewSource() { return getBase(); }
+    
+    // Type compatibility helpers
+    bool isMemRefVariant() { 
+      return ::llvm::isa<::mlir::MemRefType>(getBase().getType());
+    }
+    bool isTensorVariant() { 
+      return ::llvm::isa<::mlir::TensorType>(getBase().getType());
+    }
+  }];
+}
+
 #endif // POLYGEIST_OPS

@@ -1,0 +1,707 @@
+{
+ "gemm": {
+  "kernel": "gemm",
+  "dataset": "LARGE",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dgemm_nn",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemm_nn"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemm"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "e2e_ms_samples": [
+   76.796,
+   76.932,
+   76.916,
+   76.673,
+   77.03599999999999
+  ],
+  "e2e_ms_median": 76.916,
+  "per_call": {
+   "cublasDgemm": {
+    "count": "1",
+    "lib_ms_median": 68.974564,
+    "h2d_ms_median": 5.607744,
+    "d2h_ms_median": 1.780864
+   }
+  },
+  "lib_ms_median": 68.974564,
+  "transfer_ms_median": 7.3708160000000005,
+  "status": "TIMED"
+ },
+ "2mm": {
+  "kernel": "2mm",
+  "dataset": "LARGE",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   },
+   {
+    "spec": "netlib_dgemm_nn",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemm_nn_beta0",
+   "netlib_dgemm_nn"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemm"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "e2e_ms_samples": [
+   92.637,
+   92.692,
+   93.113,
+   93.003,
+   92.95100000000001
+  ],
+  "e2e_ms_median": 92.95100000000001,
+  "per_call": {
+   "cublasDgemm": {
+    "count": "2",
+    "lib_ms_median": 78.139425,
+    "h2d_ms_median": 8.639328,
+    "d2h_ms_median": 4.182816
+   }
+  },
+  "lib_ms_median": 78.139425,
+  "transfer_ms_median": 12.837824000000001,
+  "status": "TIMED"
+ },
+ "3mm": {
+  "kernel": "3mm",
+  "dataset": "LARGE",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   },
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   },
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemm_nn_beta0",
+   "netlib_dgemm_nn_beta0",
+   "netlib_dgemm_nn_beta0"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemm"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "e2e_ms_samples": [
+   140.431,
+   140.603,
+   139.967,
+   141.129,
+   140.014
+  ],
+  "e2e_ms_median": 140.431,
+  "per_call": {
+   "cublasDgemm": {
+    "count": "3",
+    "lib_ms_median": 112.388031,
+    "h2d_ms_median": 14.462144,
+    "d2h_ms_median": 10.028256
+   }
+  },
+  "lib_ms_median": 112.388031,
+  "transfer_ms_median": 24.538944,
+  "status": "TIMED"
+ },
+ "atax": {
+  "kernel": "atax",
+  "dataset": "LARGE",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dgemv_n_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta0",
+   "netlib_dgemv_t_beta0"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemv"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "e2e_ms_samples": [
+   48.657,
+   48.525,
+   48.546,
+   48.807,
+   49.272000000000006
+  ],
+  "e2e_ms_median": 48.657,
+  "per_call": {
+   "cublasDgemv": {
+    "count": "2",
+    "lib_ms_median": 37.590495,
+    "h2d_ms_median": 10.34544,
+    "d2h_ms_median": 0.133824
+   }
+  },
+  "lib_ms_median": 37.590495,
+  "transfer_ms_median": 10.474688,
+  "status": "TIMED"
+ },
+ "bicg": {
+  "kernel": "bicg",
+  "dataset": "LARGE",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_n_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta0",
+   "netlib_dgemv_t_beta0"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemv"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "e2e_ms_samples": [
+   49.287,
+   48.978,
+   48.192,
+   48.601,
+   48.734
+  ],
+  "e2e_ms_median": 48.734,
+  "per_call": {
+   "cublasDgemv": {
+    "count": "2",
+    "lib_ms_median": 37.630943,
+    "h2d_ms_median": 10.35536,
+    "d2h_ms_median": 0.124096
+   }
+  },
+  "lib_ms_median": 37.630943,
+  "transfer_ms_median": 10.476992,
+  "status": "TIMED"
+ },
+ "mvt": {
+  "kernel": "mvt",
+  "dataset": "LARGE",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_t_beta1",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dgemv_n_beta1",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta1",
+   "netlib_dgemv_t_beta1"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemv"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "e2e_ms_samples": [
+   49.493,
+   49.131,
+   48.541000000000004,
+   49.865,
+   49.046
+  ],
+  "e2e_ms_median": 49.131,
+  "per_call": {
+   "cublasDgemv": {
+    "count": "2",
+    "lib_ms_median": 38.130527,
+    "h2d_ms_median": 10.326752,
+    "d2h_ms_median": 0.11456
+   }
+  },
+  "lib_ms_median": 38.130527,
+  "transfer_ms_median": 10.4616,
+  "status": "TIMED"
+ },
+ "gesummv": {
+  "kernel": "gesummv",
+  "dataset": "LARGE",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dscal_inc",
+    "call": "polygeist_v2_cublasDscal",
+    "cpu_entry": "dscal_",
+    "gpu_entry": "cublasDscal_v2"
+   },
+   {
+    "spec": "netlib_daxpy_inc",
+    "call": "polygeist_v2_cublasDaxpy",
+    "cpu_entry": "daxpy_",
+    "gpu_entry": "cublasDaxpy_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_t_beta0",
+   "netlib_dgemv_t_beta0",
+   "netlib_dscal_inc+netlib_daxpy_inc"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDaxpy",
+    "polygeist_v2_cublasDgemv",
+    "polygeist_v2_cublasDscal"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "e2e_ms_samples": [
+   40.075,
+   40.008,
+   40.038,
+   41.846000000000004,
+   40.995999999999995
+  ],
+  "e2e_ms_median": 40.075,
+  "per_call": {
+   "cublasDgemv": {
+    "count": "2",
+    "lib_ms_median": 32.656287,
+    "h2d_ms_median": 5.591584,
+    "d2h_ms_median": 0.114176
+   },
+   "cublasDscal": {
+    "count": "1",
+    "lib_ms_median": 0.999072,
+    "h2d_ms_median": 0.020704,
+    "d2h_ms_median": 0.036384
+   },
+   "cublasDaxpy": {
+    "count": "1",
+    "lib_ms_median": 0.954176,
+    "h2d_ms_median": 0.02928,
+    "d2h_ms_median": 0.036704
+   }
+  },
+  "lib_ms_median": 34.56208099999999,
+  "transfer_ms_median": 5.826816,
+  "status": "TIMED"
+ },
+ "gemver": {
+  "kernel": "gemver",
+  "dataset": "LARGE",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dger",
+    "call": "polygeist_v2_cublasDger",
+    "cpu_entry": "dger_",
+    "gpu_entry": "cublasDger_v2"
+   },
+   {
+    "spec": "netlib_dger",
+    "call": "polygeist_v2_cublasDger",
+    "cpu_entry": "dger_",
+    "gpu_entry": "cublasDger_v2"
+   },
+   {
+    "spec": "netlib_dgemv_n_beta1",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_daxpy_inc",
+    "call": "polygeist_v2_cublasDaxpy",
+    "cpu_entry": "daxpy_",
+    "gpu_entry": "cublasDaxpy_v2"
+   },
+   {
+    "spec": "netlib_dgemv_t_beta1",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta1",
+   "netlib_dgemv_t_beta1",
+   "netlib_daxpy_inc",
+   "netlib_dger+netlib_dger"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDaxpy",
+    "polygeist_v2_cublasDgemv",
+    "polygeist_v2_cublasDger"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "e2e_ms_samples": [
+   68.294,
+   68.566,
+   68.31,
+   68.074,
+   66.365
+  ],
+  "e2e_ms_median": 68.294,
+  "per_call": {
+   "cublasDger": {
+    "count": "2",
+    "lib_ms_median": 1.837568,
+    "h2d_ms_median": 10.600704,
+    "d2h_ms_median": 8.29776
+   },
+   "cublasDgemv": {
+    "count": "2",
+    "lib_ms_median": 37.631968,
+    "h2d_ms_median": 7.700672,
+    "d2h_ms_median": 0.100512
+   },
+   "cublasDaxpy": {
+    "count": "1",
+    "lib_ms_median": 1.031296,
+    "h2d_ms_median": 0.041664,
+    "d2h_ms_median": 0.044256
+   }
+  },
+  "lib_ms_median": 40.552479999999996,
+  "transfer_ms_median": 26.783488,
+  "status": "TIMED"
+ },
+ "doitgen": {
+  "kernel": "doitgen",
+  "dataset": "LARGE",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_n_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta0"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemv"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "e2e_ms_samples": [
+   2998.417,
+   2980.476,
+   3006.0280000000002,
+   3021.667,
+   3011.977
+  ],
+  "e2e_ms_median": 3006.0280000000002,
+  "per_call": {
+   "cublasDgemv": {
+    "count": "21000",
+    "lib_ms_median": 438.385728,
+    "h2d_ms_median": 1386.547488,
+    "d2h_ms_median": 655.29216
+   }
+  },
+  "lib_ms_median": 438.385728,
+  "transfer_ms_median": 2040.161376,
+  "status": "TIMED"
+ },
+ "trisolv": {
+  "kernel": "trisolv",
+  "dataset": "LARGE",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dtrsv_utn",
+    "call": "polygeist_v2_cublasDtrsv",
+    "cpu_entry": "dtrsv_",
+    "gpu_entry": "cublasDtrsv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dtrsv_utn"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDtrsv"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "e2e_ms_samples": [
+   9.918,
+   9.703,
+   9.934999999999999,
+   9.697000000000001,
+   9.905000000000001
+  ],
+  "e2e_ms_median": 9.905000000000001,
+  "per_call": {
+   "cublasDtrsv": {
+    "count": "1",
+    "lib_ms_median": 2.586816,
+    "h2d_ms_median": 6.711552,
+    "d2h_ms_median": 0.046784
+   }
+  },
+  "lib_ms_median": 2.586816,
+  "transfer_ms_median": 6.759968,
+  "status": "TIMED"
+ },
+ "cholesky": {
+  "kernel": "cholesky",
+  "dataset": "LARGE",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dpotf2_u",
+    "call": "polygeist_v2_cusolverDnDpotrf",
+    "cpu_entry": "dpotrf_",
+    "gpu_entry": "cusolverDnDpotrf"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dpotf2_u"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cusolverDnDpotrf"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "e2e_ms_samples": [
+   100.327,
+   100.236,
+   100.904,
+   99.18100000000001,
+   98.703
+  ],
+  "e2e_ms_median": 100.236,
+  "per_call": {
+   "cusolverDnDpotrf": {
+    "count": "1",
+    "lib_ms_median": 89.100929,
+    "h2d_ms_median": 6.076992,
+    "d2h_ms_median": 4.439232
+   }
+  },
+  "lib_ms_median": 89.100929,
+  "transfer_ms_median": 10.496192,
+  "status": "TIMED"
+ },
+ "syrk": {
+  "kernel": "syrk",
+  "dataset": "LARGE",
+  "target": "jetson",
+  "build_seconds": 0.0,
+  "launches": [
+   {
+    "spec": "netlib_dsyrk_ut",
+    "call": "polygeist_v2_cublasDsyrk",
+    "cpu_entry": "dsyrk_",
+    "gpu_entry": "cublasDsyrk_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dsyrk_ut"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDsyrk"
+   ],
+   "needed": [
+    "libcusolver.so.11",
+    "libcublas.so.12",
+    "libcudart.so.12",
+    "libc.so.6",
+    "ld-linux-aarch64.so.1"
+   ]
+  },
+  "e2e_ms_samples": [
+   57.226,
+   56.855999999999995,
+   56.967999999999996,
+   57.928,
+   58.763999999999996
+  ],
+  "e2e_ms_median": 57.226,
+  "per_call": {
+   "cublasDsyrk": {
+    "count": "1",
+    "lib_ms_median": 50.642368,
+    "h2d_ms_median": 3.732896,
+    "d2h_ms_median": 2.08352
+   }
+  },
+  "lib_ms_median": 50.642368,
+  "transfer_ms_median": 5.814368,
+  "status": "TIMED"
+ }
+}

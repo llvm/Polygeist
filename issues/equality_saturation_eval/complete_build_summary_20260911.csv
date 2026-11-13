@@ -1,0 +1,4 @@
+benchmark,attempted_inputs,timed_inputs,attempts_per_input,successful_attempts,failed_attempts,mean_seconds,median_seconds,min_seconds,max_seconds,median_peak_rss_mib
+PolyBench,30,28,3,84,6,9.011786,8.960000,8.550000,9.460000,153.257812
+Llama,23,17,3,51,18,8.510000,8.520000,7.860000,9.130000,153.304688
+MFEM,31,9,3,27,66,27.314444,22.400000,11.170000,52.040000,153.230469

@@ -1,0 +1,11 @@
+diff --git a/runtime/polygeist_cublas_rt_cuda.c b/runtime/polygeist_cublas_rt_cuda.c
+--- a/runtime/polygeist_cublas_rt_cuda.c
++++ b/runtime/polygeist_cublas_rt_cuda.c
+@@ -8960,6 +8960,7 @@ void polygeist_cudnn_rmsnorm_f32(int32_t n, const float *x,
+                                cudaMemcpyHostToDevice, g_stream));
+   timing_gpu_begin();
+   CUDNN_CHECK(cudnnBackendExecute(g_cudnn, p->plan, p->variant_pack));
++  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+   if (getenv("POLYGEIST_RMSNORM_POINTER_DIAGNOSTICS")) {
+     int out_is_device = pointer_is_device_resident(out, &out_device);
+     fprintf(stderr, "rmsnorm pointers n=%d bytes=%zu x=%p weight=%p out=%p "

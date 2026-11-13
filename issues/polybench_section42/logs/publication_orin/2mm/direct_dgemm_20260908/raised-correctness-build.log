@@ -1,0 +1,29 @@
+[polygeist] keeping workdir: /tmp/polybench-direct-dgemm-rerun-20260908/2mm/correctness-work
+[polygeist] input=tools/cgeist/Test/polybench/linear-algebra/kernels/2mm/2mm.c  function=kernel_2mm  target=jetson  output=/tmp/polybench-direct-dgemm-rerun-20260908/2mm/raised-correctness
+[polygeist] harness=/tmp/polybench-publication-orin/2mm/raised_harness.c
+[polygeist] gcc passthrough: -O3 -DCORRECTNESS_RUN -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/kernels/2mm -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO
+  [1/9] cgeist → affine MLIR
+  [2/9] polygeist-opt: raise + lower-submap + debufferize
+         using joint multi-root debufferization
+  [3/9] matcher: linalg.generic → kernel.launch
+         matched 3 kernel.launch op(s)
+  [4/9] inject canonical defns from kernel_library_phase2.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+         emitted 9 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+  [7/9] prepare ABI bridge for kernel_2mm
+  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=jetson)
+         + minimal cuBLAS/CUDA runtime linkage
+warning: overriding the module target triple with aarch64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+/home/arjaiswal/Polygeist/runtime/polygeist_cublas_rt_cuda.c: In function ‘polygeist_cudnn_batchnorm_inference’:
+/home/arjaiswal/Polygeist/runtime/polygeist_cublas_rt_cuda.c:7498:34: warning: passing argument 1 of ‘pointer_is_device_resident’ discards ‘const’ qualifier from pointer target type [-Wdiscarded-qualifiers]
+ 7498 |   if (pointer_is_device_resident(inv_std, &inv_std_device)) {
+      |                                  ^~~~~~~
+/home/arjaiswal/Polygeist/runtime/polygeist_cublas_rt_cuda.c:1073:45: note: expected ‘void *’ but argument is of type ‘const float *’
+ 1073 | static int pointer_is_device_resident(void *ptr, void **device_ptr) {
+      |                                       ~~~~~~^~~
+  [9/9] link → /tmp/polybench-direct-dgemm-rerun-20260908/2mm/raised-correctness
+
+═══ build complete ═══
+/tmp/polybench-direct-dgemm-rerun-20260908/2mm/raised-correctness: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=90e27fa476d4048d4ae9fa5e2e26bfcde8384d8a, for GNU/Linux 3.7.0, not stripped

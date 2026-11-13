@@ -1,0 +1,1 @@
+aarch64-linux-gnu-gcc -O3 -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_DUMP_ARRAYS -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/solvers/trisolv tools/cgeist/Test/polybench/linear-algebra/solvers/trisolv/trisolv.c tools/cgeist/Test/polybench/utilities/polybench.c -lm -o /tmp/polybench-publication-orin-cpu/trisolv/native-cpu-correctness

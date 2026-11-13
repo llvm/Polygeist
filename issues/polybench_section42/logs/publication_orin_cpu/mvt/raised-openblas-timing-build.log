@@ -1,0 +1,17 @@
+[polygeist] input=tools/cgeist/Test/polybench/linear-algebra/kernels/mvt/mvt.c  function=kernel_mvt  target=jetson-cpu  output=/tmp/polybench-publication-orin-cpu/mvt/raised-openblas-timing
+[polygeist] harness=issues/polybench_section42/logs/publication_orin_cpu/mvt/raised_cpu_harness.c
+[polygeist] gcc passthrough: -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/kernels/mvt
+  [1-4/9] reuse stored semantic MLIR: issues/polybench_section42/ir/mvt/cpu_library/matched.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+         emitted 2 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+  [7/9] prepare ABI bridge for kernel_mvt
+  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=jetson-cpu)
+         + optimized AArch64 CPU CBLAS runtime enabled
+warning: overriding the module target triple with aarch64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+         exported link objects to /tmp/polybench-publication-orin-cpu/mvt/openblas-timing-export
+  [9/9] link → /tmp/polybench-publication-orin-cpu/mvt/raised-openblas-timing
+
+═══ build complete ═══
+/tmp/polybench-publication-orin-cpu/mvt/raised-openblas-timing: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=dcc9508746934a219a7b99a5431fb0be969d3745, for GNU/Linux 3.7.0, not stripped

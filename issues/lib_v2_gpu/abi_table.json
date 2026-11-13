@@ -1,0 +1,12503 @@
+{
+ "generated_by": "scripts/correctness/lib_v2/abi_v2.py",
+ "calls": {
+  "cublasDaxpy": {
+   "call": "cublasDaxpy",
+   "library": "cuBLAS",
+   "header_symbol": "cublasDaxpy_v2",
+   "params": [
+    {
+     "name": "n",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "alpha",
+     "tkind": "scalar",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "x",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": true,
+     "rank": 1,
+     "layout_of": null,
+     "layout": "incx",
+     "written": false
+    },
+    {
+     "name": "incx",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "x",
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "y",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": false,
+     "rank": 1,
+     "layout_of": null,
+     "layout": "incy",
+     "written": true
+    },
+    {
+     "name": "incy",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "y",
+     "layout": null,
+     "written": false
+    }
+   ],
+   "managed": [],
+   "returns": null,
+   "buffer_size_symbol": null,
+   "buffer_size_params": [],
+   "fortran": {
+    "entry": "daxpy_",
+    "source": "BLAS/SRC/daxpy.f",
+    "is_function": false,
+    "ret": null,
+    "args": [
+     {
+      "fortran": "N",
+      "kind": "int",
+      "abi": "n"
+     },
+     {
+      "fortran": "DA",
+      "kind": "scalar",
+      "abi": "alpha"
+     },
+     {
+      "fortran": "DX",
+      "kind": "array",
+      "abi": "x"
+     },
+     {
+      "fortran": "INCX",
+      "kind": "int",
+      "abi": "incx"
+     },
+     {
+      "fortran": "DY",
+      "kind": "array",
+      "abi": "y"
+     },
+     {
+      "fortran": "INCY",
+      "kind": "int",
+      "abi": "incy"
+     }
+    ],
+    "dropped": [],
+    "enum_chars": {}
+   },
+   "specs": [
+    "netlib_daxpy",
+    "netlib_daxpy_inc"
+   ]
+  },
+  "cublasDdot": {
+   "call": "cublasDdot",
+   "library": "cuBLAS",
+   "header_symbol": "cublasDdot_v2",
+   "params": [
+    {
+     "name": "n",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "x",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": true,
+     "rank": 1,
+     "layout_of": null,
+     "layout": "incx",
+     "written": false
+    },
+    {
+     "name": "incx",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "x",
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "y",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": true,
+     "rank": 1,
+     "layout_of": null,
+     "layout": "incy",
+     "written": false
+    },
+    {
+     "name": "incy",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "y",
+     "layout": null,
+     "written": false
+    }
+   ],
+   "managed": [
+    {
+     "name": "result",
+     "role": "result",
+     "ctype": "double*"
+    }
+   ],
+   "returns": "double",
+   "buffer_size_symbol": null,
+   "buffer_size_params": [],
+   "fortran": {
+    "entry": "ddot_",
+    "source": "BLAS/SRC/ddot.f",
+    "is_function": true,
+    "ret": "DOUBLE PRECISION",
+    "args": [
+     {
+      "fortran": "N",
+      "kind": "int",
+      "abi": "n"
+     },
+     {
+      "fortran": "DX",
+      "kind": "array",
+      "abi": "x"
+     },
+     {
+      "fortran": "INCX",
+      "kind": "int",
+      "abi": "incx"
+     },
+     {
+      "fortran": "DY",
+      "kind": "array",
+      "abi": "y"
+     },
+     {
+      "fortran": "INCY",
+      "kind": "int",
+      "abi": "incy"
+     }
+    ],
+    "dropped": [],
+    "enum_chars": {}
+   },
+   "specs": [
+    "netlib_ddot",
+    "netlib_ddot_inc"
+   ]
+  },
+  "cublasDgemm": {
+   "call": "cublasDgemm",
+   "library": "cuBLAS",
+   "header_symbol": "cublasDgemm_v2",
+   "params": [
+    {
+     "name": "transa",
+     "tkind": "enum",
+     "enum_type": "cublasOperation_t",
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "transb",
+     "tkind": "enum",
+     "enum_type": "cublasOperation_t",
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "m",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "n",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "k",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "alpha",
+     "tkind": "scalar",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "A",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": true,
+     "rank": 2,
+     "layout_of": null,
+     "layout": "lda",
+     "written": false
+    },
+    {
+     "name": "lda",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "A",
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "B",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": true,
+     "rank": 2,
+     "layout_of": null,
+     "layout": "ldb",
+     "written": false
+    },
+    {
+     "name": "ldb",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "B",
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "beta",
+     "tkind": "scalar",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "C",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": false,
+     "rank": 2,
+     "layout_of": null,
+     "layout": "ldc",
+     "written": true
+    },
+    {
+     "name": "ldc",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "C",
+     "layout": null,
+     "written": false
+    }
+   ],
+   "managed": [],
+   "returns": null,
+   "buffer_size_symbol": null,
+   "buffer_size_params": [],
+   "fortran": {
+    "entry": "dgemm_",
+    "source": "BLAS/SRC/dgemm.f",
+    "is_function": false,
+    "ret": null,
+    "args": [
+     {
+      "fortran": "TRANSA",
+      "kind": "char",
+      "abi": "transa"
+     },
+     {
+      "fortran": "TRANSB",
+      "kind": "char",
+      "abi": "transb"
+     },
+     {
+      "fortran": "M",
+      "kind": "int",
+      "abi": "m"
+     },
+     {
+      "fortran": "N",
+      "kind": "int",
+      "abi": "n"
+     },
+     {
+      "fortran": "K",
+      "kind": "int",
+      "abi": "k"
+     },
+     {
+      "fortran": "ALPHA",
+      "kind": "scalar",
+      "abi": "alpha"
+     },
+     {
+      "fortran": "A",
+      "kind": "array",
+      "abi": "A"
+     },
+     {
+      "fortran": "LDA",
+      "kind": "int",
+      "abi": "lda"
+     },
+     {
+      "fortran": "B",
+      "kind": "array",
+      "abi": "B"
+     },
+     {
+      "fortran": "LDB",
+      "kind": "int",
+      "abi": "ldb"
+     },
+     {
+      "fortran": "BETA",
+      "kind": "scalar",
+      "abi": "beta"
+     },
+     {
+      "fortran": "C",
+      "kind": "array",
+      "abi": "C"
+     },
+     {
+      "fortran": "LDC",
+      "kind": "int",
+      "abi": "ldc"
+     }
+    ],
+    "dropped": [],
+    "enum_chars": {
+     "cublasOperation_t": {
+      "0": "N",
+      "1": "T"
+     }
+    }
+   },
+   "specs": [
+    "netlib_dgemm_nn",
+    "netlib_dgemm_nn_beta0",
+    "netlib_dgemm_nn_beta1",
+    "netlib_dgemm_nt",
+    "netlib_dgemm_nt_beta0",
+    "netlib_dgemm_nt_beta1",
+    "netlib_dgemm_tn",
+    "netlib_dgemm_tn_beta0",
+    "netlib_dgemm_tt",
+    "netlib_dgemm_tt_beta0"
+   ]
+  },
+  "cublasDgemv": {
+   "call": "cublasDgemv",
+   "library": "cuBLAS",
+   "header_symbol": "cublasDgemv_v2",
+   "params": [
+    {
+     "name": "trans",
+     "tkind": "enum",
+     "enum_type": "cublasOperation_t",
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "m",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "n",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "alpha",
+     "tkind": "scalar",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "A",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": true,
+     "rank": 2,
+     "layout_of": null,
+     "layout": "lda",
+     "written": false
+    },
+    {
+     "name": "lda",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "A",
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "x",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": true,
+     "rank": 1,
+     "layout_of": null,
+     "layout": "incx",
+     "written": false
+    },
+    {
+     "name": "incx",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "x",
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "beta",
+     "tkind": "scalar",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "y",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": false,
+     "rank": 1,
+     "layout_of": null,
+     "layout": "incy",
+     "written": true
+    },
+    {
+     "name": "incy",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "y",
+     "layout": null,
+     "written": false
+    }
+   ],
+   "managed": [],
+   "returns": null,
+   "buffer_size_symbol": null,
+   "buffer_size_params": [],
+   "fortran": {
+    "entry": "dgemv_",
+    "source": "BLAS/SRC/dgemv.f",
+    "is_function": false,
+    "ret": null,
+    "args": [
+     {
+      "fortran": "TRANS",
+      "kind": "char",
+      "abi": "trans"
+     },
+     {
+      "fortran": "M",
+      "kind": "int",
+      "abi": "m"
+     },
+     {
+      "fortran": "N",
+      "kind": "int",
+      "abi": "n"
+     },
+     {
+      "fortran": "ALPHA",
+      "kind": "scalar",
+      "abi": "alpha"
+     },
+     {
+      "fortran": "A",
+      "kind": "array",
+      "abi": "A"
+     },
+     {
+      "fortran": "LDA",
+      "kind": "int",
+      "abi": "lda"
+     },
+     {
+      "fortran": "X",
+      "kind": "array",
+      "abi": "x"
+     },
+     {
+      "fortran": "INCX",
+      "kind": "int",
+      "abi": "incx"
+     },
+     {
+      "fortran": "BETA",
+      "kind": "scalar",
+      "abi": "beta"
+     },
+     {
+      "fortran": "Y",
+      "kind": "array",
+      "abi": "y"
+     },
+     {
+      "fortran": "INCY",
+      "kind": "int",
+      "abi": "incy"
+     }
+    ],
+    "dropped": [],
+    "enum_chars": {
+     "cublasOperation_t": {
+      "0": "N",
+      "1": "T"
+     }
+    }
+   },
+   "specs": [
+    "netlib_dgemv_n",
+    "netlib_dgemv_n_alpha0",
+    "netlib_dgemv_n_alpha0_beta0",
+    "netlib_dgemv_n_beta0",
+    "netlib_dgemv_n_beta1",
+    "netlib_dgemv_n_inc",
+    "netlib_dgemv_t",
+    "netlib_dgemv_t_alpha0",
+    "netlib_dgemv_t_alpha0_beta0",
+    "netlib_dgemv_t_beta0",
+    "netlib_dgemv_t_beta1",
+    "netlib_dgemv_t_inc"
+   ]
+  },
+  "cublasDger": {
+   "call": "cublasDger",
+   "library": "cuBLAS",
+   "header_symbol": "cublasDger_v2",
+   "params": [
+    {
+     "name": "m",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "n",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "alpha",
+     "tkind": "scalar",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "x",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": true,
+     "rank": 1,
+     "layout_of": null,
+     "layout": "incx",
+     "written": false
+    },
+    {
+     "name": "incx",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "x",
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "y",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": true,
+     "rank": 1,
+     "layout_of": null,
+     "layout": "incy",
+     "written": false
+    },
+    {
+     "name": "incy",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "y",
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "A",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": false,
+     "rank": 2,
+     "layout_of": null,
+     "layout": "lda",
+     "written": true
+    },
+    {
+     "name": "lda",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "A",
+     "layout": null,
+     "written": false
+    }
+   ],
+   "managed": [],
+   "returns": null,
+   "buffer_size_symbol": null,
+   "buffer_size_params": [],
+   "fortran": {
+    "entry": "dger_",
+    "source": "BLAS/SRC/dger.f",
+    "is_function": false,
+    "ret": null,
+    "args": [
+     {
+      "fortran": "M",
+      "kind": "int",
+      "abi": "m"
+     },
+     {
+      "fortran": "N",
+      "kind": "int",
+      "abi": "n"
+     },
+     {
+      "fortran": "ALPHA",
+      "kind": "scalar",
+      "abi": "alpha"
+     },
+     {
+      "fortran": "X",
+      "kind": "array",
+      "abi": "x"
+     },
+     {
+      "fortran": "INCX",
+      "kind": "int",
+      "abi": "incx"
+     },
+     {
+      "fortran": "Y",
+      "kind": "array",
+      "abi": "y"
+     },
+     {
+      "fortran": "INCY",
+      "kind": "int",
+      "abi": "incy"
+     },
+     {
+      "fortran": "A",
+      "kind": "array",
+      "abi": "A"
+     },
+     {
+      "fortran": "LDA",
+      "kind": "int",
+      "abi": "lda"
+     }
+    ],
+    "dropped": [],
+    "enum_chars": {}
+   },
+   "specs": [
+    "netlib_dger",
+    "netlib_dger_inc"
+   ]
+  },
+  "cublasDscal": {
+   "call": "cublasDscal",
+   "library": "cuBLAS",
+   "header_symbol": "cublasDscal_v2",
+   "params": [
+    {
+     "name": "n",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "alpha",
+     "tkind": "scalar",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "x",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": false,
+     "rank": 1,
+     "layout_of": null,
+     "layout": "incx",
+     "written": true
+    },
+    {
+     "name": "incx",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "x",
+     "layout": null,
+     "written": false
+    }
+   ],
+   "managed": [],
+   "returns": null,
+   "buffer_size_symbol": null,
+   "buffer_size_params": [],
+   "fortran": {
+    "entry": "dscal_",
+    "source": "BLAS/SRC/dscal.f",
+    "is_function": false,
+    "ret": null,
+    "args": [
+     {
+      "fortran": "N",
+      "kind": "int",
+      "abi": "n"
+     },
+     {
+      "fortran": "DA",
+      "kind": "scalar",
+      "abi": "alpha"
+     },
+     {
+      "fortran": "DX",
+      "kind": "array",
+      "abi": "x"
+     },
+     {
+      "fortran": "INCX",
+      "kind": "int",
+      "abi": "incx"
+     }
+    ],
+    "dropped": [],
+    "enum_chars": {}
+   },
+   "specs": [
+    "netlib_dscal",
+    "netlib_dscal_inc"
+   ]
+  },
+  "cublasDsymm": {
+   "call": "cublasDsymm",
+   "library": "cuBLAS",
+   "header_symbol": "cublasDsymm_v2",
+   "params": [
+    {
+     "name": "side",
+     "tkind": "enum",
+     "enum_type": "cublasSideMode_t",
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "uplo",
+     "tkind": "enum",
+     "enum_type": "cublasFillMode_t",
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "m",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "n",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "alpha",
+     "tkind": "scalar",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "A",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": true,
+     "rank": 2,
+     "layout_of": null,
+     "layout": "lda",
+     "written": false
+    },
+    {
+     "name": "lda",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "A",
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "B",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": true,
+     "rank": 2,
+     "layout_of": null,
+     "layout": "ldb",
+     "written": false
+    },
+    {
+     "name": "ldb",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "B",
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "beta",
+     "tkind": "scalar",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "C",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": false,
+     "rank": 2,
+     "layout_of": null,
+     "layout": "ldc",
+     "written": true
+    },
+    {
+     "name": "ldc",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "C",
+     "layout": null,
+     "written": false
+    }
+   ],
+   "managed": [],
+   "returns": null,
+   "buffer_size_symbol": null,
+   "buffer_size_params": [],
+   "fortran": {
+    "entry": "dsymm_",
+    "source": "BLAS/SRC/dsymm.f",
+    "is_function": false,
+    "ret": null,
+    "args": [
+     {
+      "fortran": "SIDE",
+      "kind": "char",
+      "abi": "side"
+     },
+     {
+      "fortran": "UPLO",
+      "kind": "char",
+      "abi": "uplo"
+     },
+     {
+      "fortran": "M",
+      "kind": "int",
+      "abi": "m"
+     },
+     {
+      "fortran": "N",
+      "kind": "int",
+      "abi": "n"
+     },
+     {
+      "fortran": "ALPHA",
+      "kind": "scalar",
+      "abi": "alpha"
+     },
+     {
+      "fortran": "A",
+      "kind": "array",
+      "abi": "A"
+     },
+     {
+      "fortran": "LDA",
+      "kind": "int",
+      "abi": "lda"
+     },
+     {
+      "fortran": "B",
+      "kind": "array",
+      "abi": "B"
+     },
+     {
+      "fortran": "LDB",
+      "kind": "int",
+      "abi": "ldb"
+     },
+     {
+      "fortran": "BETA",
+      "kind": "scalar",
+      "abi": "beta"
+     },
+     {
+      "fortran": "C",
+      "kind": "array",
+      "abi": "C"
+     },
+     {
+      "fortran": "LDC",
+      "kind": "int",
+      "abi": "ldc"
+     }
+    ],
+    "dropped": [],
+    "enum_chars": {
+     "cublasSideMode_t": {
+      "0": "L",
+      "1": "R"
+     },
+     "cublasFillMode_t": {
+      "0": "L",
+      "1": "U"
+     }
+    }
+   },
+   "specs": [
+    "netlib_dsymm_ll",
+    "netlib_dsymm_ll_beta0",
+    "netlib_dsymm_lu",
+    "netlib_dsymm_lu_alpha0",
+    "netlib_dsymm_lu_alpha0_beta0",
+    "netlib_dsymm_lu_beta0",
+    "netlib_dsymm_rl",
+    "netlib_dsymm_rl_beta0",
+    "netlib_dsymm_ru",
+    "netlib_dsymm_ru_beta0"
+   ]
+  },
+  "cublasDsyr2k": {
+   "call": "cublasDsyr2k",
+   "library": "cuBLAS",
+   "header_symbol": "cublasDsyr2k_v2",
+   "params": [
+    {
+     "name": "uplo",
+     "tkind": "enum",
+     "enum_type": "cublasFillMode_t",
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "trans",
+     "tkind": "enum",
+     "enum_type": "cublasOperation_t",
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "n",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "k",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "alpha",
+     "tkind": "scalar",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "A",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": true,
+     "rank": 2,
+     "layout_of": null,
+     "layout": "lda",
+     "written": false
+    },
+    {
+     "name": "lda",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "A",
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "B",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": true,
+     "rank": 2,
+     "layout_of": null,
+     "layout": "ldb",
+     "written": false
+    },
+    {
+     "name": "ldb",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "B",
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "beta",
+     "tkind": "scalar",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "C",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": false,
+     "rank": 2,
+     "layout_of": null,
+     "layout": "ldc",
+     "written": true
+    },
+    {
+     "name": "ldc",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "C",
+     "layout": null,
+     "written": false
+    }
+   ],
+   "managed": [],
+   "returns": null,
+   "buffer_size_symbol": null,
+   "buffer_size_params": [],
+   "fortran": {
+    "entry": "dsyr2k_",
+    "source": "BLAS/SRC/dsyr2k.f",
+    "is_function": false,
+    "ret": null,
+    "args": [
+     {
+      "fortran": "UPLO",
+      "kind": "char",
+      "abi": "uplo"
+     },
+     {
+      "fortran": "TRANS",
+      "kind": "char",
+      "abi": "trans"
+     },
+     {
+      "fortran": "N",
+      "kind": "int",
+      "abi": "n"
+     },
+     {
+      "fortran": "K",
+      "kind": "int",
+      "abi": "k"
+     },
+     {
+      "fortran": "ALPHA",
+      "kind": "scalar",
+      "abi": "alpha"
+     },
+     {
+      "fortran": "A",
+      "kind": "array",
+      "abi": "A"
+     },
+     {
+      "fortran": "LDA",
+      "kind": "int",
+      "abi": "lda"
+     },
+     {
+      "fortran": "B",
+      "kind": "array",
+      "abi": "B"
+     },
+     {
+      "fortran": "LDB",
+      "kind": "int",
+      "abi": "ldb"
+     },
+     {
+      "fortran": "BETA",
+      "kind": "scalar",
+      "abi": "beta"
+     },
+     {
+      "fortran": "C",
+      "kind": "array",
+      "abi": "C"
+     },
+     {
+      "fortran": "LDC",
+      "kind": "int",
+      "abi": "ldc"
+     }
+    ],
+    "dropped": [],
+    "enum_chars": {
+     "cublasFillMode_t": {
+      "0": "L",
+      "1": "U"
+     },
+     "cublasOperation_t": {
+      "0": "N",
+      "1": "T"
+     }
+    }
+   },
+   "specs": [
+    "netlib_dsyr2k_ln",
+    "netlib_dsyr2k_ln_alpha0",
+    "netlib_dsyr2k_ln_alpha0_beta0",
+    "netlib_dsyr2k_ln_beta0",
+    "netlib_dsyr2k_ln_beta1",
+    "netlib_dsyr2k_lt",
+    "netlib_dsyr2k_lt_beta0",
+    "netlib_dsyr2k_un",
+    "netlib_dsyr2k_un_alpha0",
+    "netlib_dsyr2k_un_alpha0_beta0",
+    "netlib_dsyr2k_un_beta0",
+    "netlib_dsyr2k_un_beta1",
+    "netlib_dsyr2k_ut",
+    "netlib_dsyr2k_ut_beta0"
+   ]
+  },
+  "cublasDsyrk": {
+   "call": "cublasDsyrk",
+   "library": "cuBLAS",
+   "header_symbol": "cublasDsyrk_v2",
+   "params": [
+    {
+     "name": "uplo",
+     "tkind": "enum",
+     "enum_type": "cublasFillMode_t",
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "trans",
+     "tkind": "enum",
+     "enum_type": "cublasOperation_t",
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "n",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "k",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "alpha",
+     "tkind": "scalar",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "A",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": true,
+     "rank": 2,
+     "layout_of": null,
+     "layout": "lda",
+     "written": false
+    },
+    {
+     "name": "lda",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "A",
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "beta",
+     "tkind": "scalar",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "C",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": false,
+     "rank": 2,
+     "layout_of": null,
+     "layout": "ldc",
+     "written": true
+    },
+    {
+     "name": "ldc",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "C",
+     "layout": null,
+     "written": false
+    }
+   ],
+   "managed": [],
+   "returns": null,
+   "buffer_size_symbol": null,
+   "buffer_size_params": [],
+   "fortran": {
+    "entry": "dsyrk_",
+    "source": "BLAS/SRC/dsyrk.f",
+    "is_function": false,
+    "ret": null,
+    "args": [
+     {
+      "fortran": "UPLO",
+      "kind": "char",
+      "abi": "uplo"
+     },
+     {
+      "fortran": "TRANS",
+      "kind": "char",
+      "abi": "trans"
+     },
+     {
+      "fortran": "N",
+      "kind": "int",
+      "abi": "n"
+     },
+     {
+      "fortran": "K",
+      "kind": "int",
+      "abi": "k"
+     },
+     {
+      "fortran": "ALPHA",
+      "kind": "scalar",
+      "abi": "alpha"
+     },
+     {
+      "fortran": "A",
+      "kind": "array",
+      "abi": "A"
+     },
+     {
+      "fortran": "LDA",
+      "kind": "int",
+      "abi": "lda"
+     },
+     {
+      "fortran": "BETA",
+      "kind": "scalar",
+      "abi": "beta"
+     },
+     {
+      "fortran": "C",
+      "kind": "array",
+      "abi": "C"
+     },
+     {
+      "fortran": "LDC",
+      "kind": "int",
+      "abi": "ldc"
+     }
+    ],
+    "dropped": [],
+    "enum_chars": {
+     "cublasFillMode_t": {
+      "0": "L",
+      "1": "U"
+     },
+     "cublasOperation_t": {
+      "0": "N",
+      "1": "T"
+     }
+    }
+   },
+   "specs": [
+    "netlib_dsyrk_ln",
+    "netlib_dsyrk_ln_alpha0",
+    "netlib_dsyrk_ln_alpha0_beta0",
+    "netlib_dsyrk_ln_beta0",
+    "netlib_dsyrk_ln_beta1",
+    "netlib_dsyrk_lt",
+    "netlib_dsyrk_lt_beta0",
+    "netlib_dsyrk_un",
+    "netlib_dsyrk_un_alpha0",
+    "netlib_dsyrk_un_alpha0_beta0",
+    "netlib_dsyrk_un_beta0",
+    "netlib_dsyrk_un_beta1",
+    "netlib_dsyrk_ut",
+    "netlib_dsyrk_ut_beta0"
+   ]
+  },
+  "cublasDtrmm": {
+   "call": "cublasDtrmm",
+   "library": "cuBLAS",
+   "header_symbol": "cublasDtrmm_v2",
+   "params": [
+    {
+     "name": "side",
+     "tkind": "enum",
+     "enum_type": "cublasSideMode_t",
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "uplo",
+     "tkind": "enum",
+     "enum_type": "cublasFillMode_t",
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "trans",
+     "tkind": "enum",
+     "enum_type": "cublasOperation_t",
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "diag",
+     "tkind": "enum",
+     "enum_type": "cublasDiagType_t",
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "m",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "n",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "alpha",
+     "tkind": "scalar",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "A",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": true,
+     "rank": 2,
+     "layout_of": null,
+     "layout": "lda",
+     "written": false
+    },
+    {
+     "name": "lda",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "A",
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "B",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": true,
+     "rank": 2,
+     "layout_of": null,
+     "layout": "ldb",
+     "written": true
+    },
+    {
+     "name": "ldb",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "B",
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "C",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": false,
+     "rank": 2,
+     "layout_of": null,
+     "layout": "ldc",
+     "written": true
+    },
+    {
+     "name": "ldc",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "C",
+     "layout": null,
+     "written": false
+    }
+   ],
+   "managed": [],
+   "returns": null,
+   "buffer_size_symbol": null,
+   "buffer_size_params": [],
+   "fortran": {
+    "entry": "dtrmm_",
+    "source": "BLAS/SRC/dtrmm.f",
+    "is_function": false,
+    "ret": null,
+    "args": [
+     {
+      "fortran": "SIDE",
+      "kind": "char",
+      "abi": "side"
+     },
+     {
+      "fortran": "UPLO",
+      "kind": "char",
+      "abi": "uplo"
+     },
+     {
+      "fortran": "TRANSA",
+      "kind": "char",
+      "abi": "trans"
+     },
+     {
+      "fortran": "DIAG",
+      "kind": "char",
+      "abi": "diag"
+     },
+     {
+      "fortran": "M",
+      "kind": "int",
+      "abi": "m"
+     },
+     {
+      "fortran": "N",
+      "kind": "int",
+      "abi": "n"
+     },
+     {
+      "fortran": "ALPHA",
+      "kind": "scalar",
+      "abi": "alpha"
+     },
+     {
+      "fortran": "A",
+      "kind": "array",
+      "abi": "A"
+     },
+     {
+      "fortran": "LDA",
+      "kind": "int",
+      "abi": "lda"
+     },
+     {
+      "fortran": "B",
+      "kind": "array",
+      "abi": "B"
+     },
+     {
+      "fortran": "LDB",
+      "kind": "int",
+      "abi": "ldb"
+     }
+    ],
+    "dropped": [
+     "C",
+     "ldc"
+    ],
+    "enum_chars": {
+     "cublasSideMode_t": {
+      "0": "L",
+      "1": "R"
+     },
+     "cublasFillMode_t": {
+      "0": "L",
+      "1": "U"
+     },
+     "cublasOperation_t": {
+      "0": "N",
+      "1": "T"
+     },
+     "cublasDiagType_t": {
+      "0": "N",
+      "1": "U"
+     }
+    }
+   },
+   "specs": [
+    "netlib_dtrmm_llnn",
+    "netlib_dtrmm_llnu",
+    "netlib_dtrmm_lltn",
+    "netlib_dtrmm_lltu",
+    "netlib_dtrmm_lunn",
+    "netlib_dtrmm_lunn_alpha0",
+    "netlib_dtrmm_lunu",
+    "netlib_dtrmm_lutn",
+    "netlib_dtrmm_lutu",
+    "netlib_dtrmm_rlnn",
+    "netlib_dtrmm_rlnu",
+    "netlib_dtrmm_rltn",
+    "netlib_dtrmm_rltu",
+    "netlib_dtrmm_runn",
+    "netlib_dtrmm_runu",
+    "netlib_dtrmm_rutn",
+    "netlib_dtrmm_rutu"
+   ]
+  },
+  "cublasDtrsv": {
+   "call": "cublasDtrsv",
+   "library": "cuBLAS",
+   "header_symbol": "cublasDtrsv_v2",
+   "params": [
+    {
+     "name": "uplo",
+     "tkind": "enum",
+     "enum_type": "cublasFillMode_t",
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "trans",
+     "tkind": "enum",
+     "enum_type": "cublasOperation_t",
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "diag",
+     "tkind": "enum",
+     "enum_type": "cublasDiagType_t",
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "n",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "A",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": true,
+     "rank": 2,
+     "layout_of": null,
+     "layout": "lda",
+     "written": false
+    },
+    {
+     "name": "lda",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "A",
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "x",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": false,
+     "rank": 1,
+     "layout_of": null,
+     "layout": "incx",
+     "written": true
+    },
+    {
+     "name": "incx",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "x",
+     "layout": null,
+     "written": false
+    }
+   ],
+   "managed": [],
+   "returns": null,
+   "buffer_size_symbol": null,
+   "buffer_size_params": [],
+   "fortran": {
+    "entry": "dtrsv_",
+    "source": "BLAS/SRC/dtrsv.f",
+    "is_function": false,
+    "ret": null,
+    "args": [
+     {
+      "fortran": "UPLO",
+      "kind": "char",
+      "abi": "uplo"
+     },
+     {
+      "fortran": "TRANS",
+      "kind": "char",
+      "abi": "trans"
+     },
+     {
+      "fortran": "DIAG",
+      "kind": "char",
+      "abi": "diag"
+     },
+     {
+      "fortran": "N",
+      "kind": "int",
+      "abi": "n"
+     },
+     {
+      "fortran": "A",
+      "kind": "array",
+      "abi": "A"
+     },
+     {
+      "fortran": "LDA",
+      "kind": "int",
+      "abi": "lda"
+     },
+     {
+      "fortran": "X",
+      "kind": "array",
+      "abi": "x"
+     },
+     {
+      "fortran": "INCX",
+      "kind": "int",
+      "abi": "incx"
+     }
+    ],
+    "dropped": [],
+    "enum_chars": {
+     "cublasFillMode_t": {
+      "0": "L",
+      "1": "U"
+     },
+     "cublasOperation_t": {
+      "0": "N",
+      "1": "T"
+     },
+     "cublasDiagType_t": {
+      "0": "N",
+      "1": "U"
+     }
+    }
+   },
+   "specs": [
+    "netlib_dtrsv_lnn",
+    "netlib_dtrsv_lnu",
+    "netlib_dtrsv_ltn",
+    "netlib_dtrsv_ltu",
+    "netlib_dtrsv_unn",
+    "netlib_dtrsv_unu",
+    "netlib_dtrsv_utn",
+    "netlib_dtrsv_utu"
+   ]
+  },
+  "cusolverDnDpotrf": {
+   "call": "cusolverDnDpotrf",
+   "library": "cuSOLVER",
+   "header_symbol": "cusolverDnDpotrf",
+   "params": [
+    {
+     "name": "uplo",
+     "tkind": "enum",
+     "enum_type": "cublasFillMode_t",
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "n",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": null,
+     "layout": null,
+     "written": false
+    },
+    {
+     "name": "A",
+     "tkind": "array",
+     "enum_type": null,
+     "elem": "double",
+     "const": false,
+     "rank": 2,
+     "layout_of": null,
+     "layout": "lda",
+     "written": true
+    },
+    {
+     "name": "lda",
+     "tkind": "int",
+     "enum_type": null,
+     "elem": null,
+     "const": false,
+     "rank": null,
+     "layout_of": "A",
+     "layout": null,
+     "written": false
+    }
+   ],
+   "managed": [
+    {
+     "name": "Workspace",
+     "role": "workspace",
+     "ctype": "double*"
+    },
+    {
+     "name": "Lwork",
+     "role": "lwork",
+     "ctype": "int"
+    },
+    {
+     "name": "devInfo",
+     "role": "info",
+     "ctype": "int*"
+    }
+   ],
+   "returns": null,
+   "buffer_size_symbol": "cusolverDnDpotrf_bufferSize",
+   "buffer_size_params": [
+    {
+     "ctype": "cublasFillMode_t",
+     "name": "uplo"
+    },
+    {
+     "ctype": "int",
+     "name": "n"
+    },
+    {
+     "ctype": "double*",
+     "name": "A"
+    },
+    {
+     "ctype": "int",
+     "name": "lda"
+    },
+    {
+     "ctype": "int*",
+     "name": "Lwork"
+    }
+   ],
+   "fortran": {
+    "entry": "dpotrf_",
+    "source": "SRC/dpotrf.f",
+    "is_function": false,
+    "ret": null,
+    "args": [
+     {
+      "fortran": "UPLO",
+      "kind": "char",
+      "abi": "uplo"
+     },
+     {
+      "fortran": "N",
+      "kind": "int",
+      "abi": "n"
+     },
+     {
+      "fortran": "A",
+      "kind": "array",
+      "abi": "A"
+     },
+     {
+      "fortran": "LDA",
+      "kind": "int",
+      "abi": "lda"
+     },
+     {
+      "fortran": "INFO",
+      "kind": "info",
+      "abi": null
+     }
+    ],
+    "dropped": [],
+    "enum_chars": {
+     "cublasFillMode_t": {
+      "0": "L",
+      "1": "U"
+     }
+    }
+   },
+   "specs": [
+    "netlib_dpotf2_l",
+    "netlib_dpotf2_u"
+   ]
+  }
+ },
+ "specs": {
+  "netlib_daxpy": {
+   "call": "cublasDaxpy",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "da",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "dx",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "dy",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "incx": [
+     "const_num",
+     1
+    ],
+    "incy": [
+     "const_num",
+     1
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "alpha": [
+     "arg",
+     1
+    ],
+    "x": [
+     "arg",
+     2
+    ],
+    "y": [
+     "arg",
+     3
+    ]
+   }
+  },
+  "netlib_daxpy_inc": {
+   "call": "cublasDaxpy",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "da",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "dx",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "incx",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "dy",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    },
+    {
+     "name": "incy",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    }
+   ],
+   "binding": {
+    "n": [
+     "arg",
+     0
+    ],
+    "incx": [
+     "arg",
+     3
+    ],
+    "incy": [
+     "arg",
+     5
+    ],
+    "alpha": [
+     "arg",
+     1
+    ],
+    "x": [
+     "arg",
+     2
+    ],
+    "y": [
+     "arg",
+     4
+    ]
+   }
+  },
+  "netlib_ddot": {
+   "call": "cublasDdot",
+   "ret": "double",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "dx",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "dy",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    }
+   ],
+   "binding": {
+    "incx": [
+     "const_num",
+     1
+    ],
+    "incy": [
+     "const_num",
+     1
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "x": [
+     "arg",
+     1
+    ],
+    "y": [
+     "arg",
+     2
+    ],
+    "result": [
+     "managed"
+    ]
+   }
+  },
+  "netlib_ddot_inc": {
+   "call": "cublasDdot",
+   "ret": "double",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "dx",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "incx",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "dy",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "incy",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    }
+   ],
+   "binding": {
+    "n": [
+     "arg",
+     0
+    ],
+    "incx": [
+     "arg",
+     2
+    ],
+    "incy": [
+     "arg",
+     4
+    ],
+    "x": [
+     "arg",
+     1
+    ],
+    "y": [
+     "arg",
+     3
+    ],
+    "result": [
+     "managed"
+    ]
+   }
+  },
+  "netlib_dgemm_nn": {
+   "call": "cublasDgemm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "transa": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "transb": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "k": [
+     "arg",
+     2
+    ],
+    "alpha": [
+     "arg",
+     3
+    ],
+    "lda": [
+     "arg",
+     4
+    ],
+    "A": [
+     "arg",
+     5
+    ],
+    "ldb": [
+     "arg",
+     6
+    ],
+    "B": [
+     "arg",
+     7
+    ],
+    "beta": [
+     "arg",
+     8
+    ],
+    "ldc": [
+     "arg",
+     9
+    ],
+    "C": [
+     "arg",
+     10
+    ]
+   }
+  },
+  "netlib_dgemm_nn_beta0": {
+   "call": "cublasDgemm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "transa": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "transb": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "k": [
+     "arg",
+     2
+    ],
+    "alpha": [
+     "arg",
+     3
+    ],
+    "lda": [
+     "arg",
+     4
+    ],
+    "A": [
+     "arg",
+     5
+    ],
+    "ldb": [
+     "arg",
+     6
+    ],
+    "B": [
+     "arg",
+     7
+    ],
+    "ldc": [
+     "arg",
+     8
+    ],
+    "C": [
+     "arg",
+     9
+    ]
+   }
+  },
+  "netlib_dgemm_nn_beta1": {
+   "call": "cublasDgemm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "transa": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "transb": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "beta": [
+     "const_num",
+     1.0
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "k": [
+     "arg",
+     2
+    ],
+    "alpha": [
+     "arg",
+     3
+    ],
+    "lda": [
+     "arg",
+     4
+    ],
+    "A": [
+     "arg",
+     5
+    ],
+    "ldb": [
+     "arg",
+     6
+    ],
+    "B": [
+     "arg",
+     7
+    ],
+    "ldc": [
+     "arg",
+     8
+    ],
+    "C": [
+     "arg",
+     9
+    ]
+   }
+  },
+  "netlib_dgemm_nt": {
+   "call": "cublasDgemm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "transa": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "transb": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "k": [
+     "arg",
+     2
+    ],
+    "alpha": [
+     "arg",
+     3
+    ],
+    "lda": [
+     "arg",
+     4
+    ],
+    "A": [
+     "arg",
+     5
+    ],
+    "ldb": [
+     "arg",
+     6
+    ],
+    "B": [
+     "arg",
+     7
+    ],
+    "beta": [
+     "arg",
+     8
+    ],
+    "ldc": [
+     "arg",
+     9
+    ],
+    "C": [
+     "arg",
+     10
+    ]
+   }
+  },
+  "netlib_dgemm_nt_beta0": {
+   "call": "cublasDgemm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "transa": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "transb": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "k": [
+     "arg",
+     2
+    ],
+    "alpha": [
+     "arg",
+     3
+    ],
+    "lda": [
+     "arg",
+     4
+    ],
+    "A": [
+     "arg",
+     5
+    ],
+    "ldb": [
+     "arg",
+     6
+    ],
+    "B": [
+     "arg",
+     7
+    ],
+    "ldc": [
+     "arg",
+     8
+    ],
+    "C": [
+     "arg",
+     9
+    ]
+   }
+  },
+  "netlib_dgemm_nt_beta1": {
+   "call": "cublasDgemm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "transa": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "transb": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "beta": [
+     "const_num",
+     1.0
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "k": [
+     "arg",
+     2
+    ],
+    "alpha": [
+     "arg",
+     3
+    ],
+    "lda": [
+     "arg",
+     4
+    ],
+    "A": [
+     "arg",
+     5
+    ],
+    "ldb": [
+     "arg",
+     6
+    ],
+    "B": [
+     "arg",
+     7
+    ],
+    "ldc": [
+     "arg",
+     8
+    ],
+    "C": [
+     "arg",
+     9
+    ]
+   }
+  },
+  "netlib_dgemm_tn": {
+   "call": "cublasDgemm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "transa": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "transb": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "k": [
+     "arg",
+     2
+    ],
+    "alpha": [
+     "arg",
+     3
+    ],
+    "lda": [
+     "arg",
+     4
+    ],
+    "A": [
+     "arg",
+     5
+    ],
+    "ldb": [
+     "arg",
+     6
+    ],
+    "B": [
+     "arg",
+     7
+    ],
+    "beta": [
+     "arg",
+     8
+    ],
+    "ldc": [
+     "arg",
+     9
+    ],
+    "C": [
+     "arg",
+     10
+    ]
+   }
+  },
+  "netlib_dgemm_tn_beta0": {
+   "call": "cublasDgemm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "out"
+    }
+   ],
+   "binding": {
+    "transa": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "transb": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "k": [
+     "arg",
+     2
+    ],
+    "alpha": [
+     "arg",
+     3
+    ],
+    "lda": [
+     "arg",
+     4
+    ],
+    "A": [
+     "arg",
+     5
+    ],
+    "ldb": [
+     "arg",
+     6
+    ],
+    "B": [
+     "arg",
+     7
+    ],
+    "ldc": [
+     "arg",
+     8
+    ],
+    "C": [
+     "arg",
+     9
+    ]
+   }
+  },
+  "netlib_dgemm_tt": {
+   "call": "cublasDgemm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "transa": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "transb": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "k": [
+     "arg",
+     2
+    ],
+    "alpha": [
+     "arg",
+     3
+    ],
+    "lda": [
+     "arg",
+     4
+    ],
+    "A": [
+     "arg",
+     5
+    ],
+    "ldb": [
+     "arg",
+     6
+    ],
+    "B": [
+     "arg",
+     7
+    ],
+    "beta": [
+     "arg",
+     8
+    ],
+    "ldc": [
+     "arg",
+     9
+    ],
+    "C": [
+     "arg",
+     10
+    ]
+   }
+  },
+  "netlib_dgemm_tt_beta0": {
+   "call": "cublasDgemm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "out"
+    }
+   ],
+   "binding": {
+    "transa": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "transb": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "k": [
+     "arg",
+     2
+    ],
+    "alpha": [
+     "arg",
+     3
+    ],
+    "lda": [
+     "arg",
+     4
+    ],
+    "A": [
+     "arg",
+     5
+    ],
+    "ldb": [
+     "arg",
+     6
+    ],
+    "B": [
+     "arg",
+     7
+    ],
+    "ldc": [
+     "arg",
+     8
+    ],
+    "C": [
+     "arg",
+     9
+    ]
+   }
+  },
+  "netlib_dgemv_n": {
+   "call": "cublasDgemv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "x",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "y",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "incx": [
+     "const_num",
+     1
+    ],
+    "incy": [
+     "const_num",
+     1
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "x": [
+     "arg",
+     5
+    ],
+    "beta": [
+     "arg",
+     6
+    ],
+    "y": [
+     "arg",
+     7
+    ]
+   }
+  },
+  "netlib_dgemv_n_alpha0": {
+   "call": "cublasDgemv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "x",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "y",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "alpha": [
+     "const_num",
+     0.0
+    ],
+    "incx": [
+     "const_num",
+     1
+    ],
+    "incy": [
+     "const_num",
+     1
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "lda": [
+     "arg",
+     2
+    ],
+    "A": [
+     "arg",
+     3
+    ],
+    "x": [
+     "arg",
+     4
+    ],
+    "beta": [
+     "arg",
+     5
+    ],
+    "y": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dgemv_n_alpha0_beta0": {
+   "call": "cublasDgemv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "x",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "y",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "out"
+    }
+   ],
+   "binding": {
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "alpha": [
+     "const_num",
+     0.0
+    ],
+    "incx": [
+     "const_num",
+     1
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "incy": [
+     "const_num",
+     1
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "lda": [
+     "arg",
+     2
+    ],
+    "A": [
+     "arg",
+     3
+    ],
+    "x": [
+     "arg",
+     4
+    ],
+    "y": [
+     "arg",
+     5
+    ]
+   }
+  },
+  "netlib_dgemv_n_beta0": {
+   "call": "cublasDgemv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "x",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "y",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "incx": [
+     "const_num",
+     1
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "incy": [
+     "const_num",
+     1
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "x": [
+     "arg",
+     5
+    ],
+    "y": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dgemv_n_beta1": {
+   "call": "cublasDgemv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "x",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "y",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "incx": [
+     "const_num",
+     1
+    ],
+    "beta": [
+     "const_num",
+     1.0
+    ],
+    "incy": [
+     "const_num",
+     1
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "x": [
+     "arg",
+     5
+    ],
+    "y": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dgemv_n_inc": {
+   "call": "cublasDgemv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "x",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "incx",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "y",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    },
+    {
+     "name": "incy",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    }
+   ],
+   "binding": {
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "x": [
+     "arg",
+     5
+    ],
+    "incx": [
+     "arg",
+     6
+    ],
+    "beta": [
+     "arg",
+     7
+    ],
+    "y": [
+     "arg",
+     8
+    ],
+    "incy": [
+     "arg",
+     9
+    ]
+   }
+  },
+  "netlib_dgemv_t": {
+   "call": "cublasDgemv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "x",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "y",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "incx": [
+     "const_num",
+     1
+    ],
+    "incy": [
+     "const_num",
+     1
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "x": [
+     "arg",
+     5
+    ],
+    "beta": [
+     "arg",
+     6
+    ],
+    "y": [
+     "arg",
+     7
+    ]
+   }
+  },
+  "netlib_dgemv_t_alpha0": {
+   "call": "cublasDgemv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "x",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "y",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "alpha": [
+     "const_num",
+     0.0
+    ],
+    "incx": [
+     "const_num",
+     1
+    ],
+    "incy": [
+     "const_num",
+     1
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "lda": [
+     "arg",
+     2
+    ],
+    "A": [
+     "arg",
+     3
+    ],
+    "x": [
+     "arg",
+     4
+    ],
+    "beta": [
+     "arg",
+     5
+    ],
+    "y": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dgemv_t_alpha0_beta0": {
+   "call": "cublasDgemv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "x",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "y",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "out"
+    }
+   ],
+   "binding": {
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "alpha": [
+     "const_num",
+     0.0
+    ],
+    "incx": [
+     "const_num",
+     1
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "incy": [
+     "const_num",
+     1
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "lda": [
+     "arg",
+     2
+    ],
+    "A": [
+     "arg",
+     3
+    ],
+    "x": [
+     "arg",
+     4
+    ],
+    "y": [
+     "arg",
+     5
+    ]
+   }
+  },
+  "netlib_dgemv_t_beta0": {
+   "call": "cublasDgemv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "x",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "y",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "incx": [
+     "const_num",
+     1
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "incy": [
+     "const_num",
+     1
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "x": [
+     "arg",
+     5
+    ],
+    "y": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dgemv_t_beta1": {
+   "call": "cublasDgemv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "x",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "y",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "incx": [
+     "const_num",
+     1
+    ],
+    "beta": [
+     "const_num",
+     1.0
+    ],
+    "incy": [
+     "const_num",
+     1
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "x": [
+     "arg",
+     5
+    ],
+    "y": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dgemv_t_inc": {
+   "call": "cublasDgemv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "x",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "incx",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "y",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    },
+    {
+     "name": "incy",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    }
+   ],
+   "binding": {
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "x": [
+     "arg",
+     5
+    ],
+    "incx": [
+     "arg",
+     6
+    ],
+    "beta": [
+     "arg",
+     7
+    ],
+    "y": [
+     "arg",
+     8
+    ],
+    "incy": [
+     "arg",
+     9
+    ]
+   }
+  },
+  "netlib_dger": {
+   "call": "cublasDger",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "x",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "y",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "incx": [
+     "const_num",
+     1
+    ],
+    "incy": [
+     "const_num",
+     1
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "x": [
+     "arg",
+     3
+    ],
+    "y": [
+     "arg",
+     4
+    ],
+    "lda": [
+     "arg",
+     5
+    ],
+    "A": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dger_inc": {
+   "call": "cublasDger",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "x",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "incx",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "y",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "in"
+    },
+    {
+     "name": "incy",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "x": [
+     "arg",
+     3
+    ],
+    "incx": [
+     "arg",
+     4
+    ],
+    "y": [
+     "arg",
+     5
+    ],
+    "incy": [
+     "arg",
+     6
+    ],
+    "lda": [
+     "arg",
+     7
+    ],
+    "A": [
+     "arg",
+     8
+    ]
+   }
+  },
+  "netlib_dpotf2_l": {
+   "call": "cusolverDnDpotrf",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "lda": [
+     "arg",
+     1
+    ],
+    "A": [
+     "arg",
+     2
+    ],
+    "Workspace": [
+     "managed"
+    ],
+    "Lwork": [
+     "managed"
+    ],
+    "devInfo": [
+     "managed"
+    ]
+   }
+  },
+  "netlib_dpotf2_u": {
+   "call": "cusolverDnDpotrf",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "lda": [
+     "arg",
+     1
+    ],
+    "A": [
+     "arg",
+     2
+    ],
+    "Workspace": [
+     "managed"
+    ],
+    "Lwork": [
+     "managed"
+    ],
+    "devInfo": [
+     "managed"
+    ]
+   }
+  },
+  "netlib_dscal": {
+   "call": "cublasDscal",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "da",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "dx",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "incx": [
+     "const_num",
+     1
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "alpha": [
+     "arg",
+     1
+    ],
+    "x": [
+     "arg",
+     2
+    ]
+   }
+  },
+  "netlib_dscal_inc": {
+   "call": "cublasDscal",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "da",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "dx",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    },
+    {
+     "name": "incx",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    }
+   ],
+   "binding": {
+    "n": [
+     "arg",
+     0
+    ],
+    "incx": [
+     "arg",
+     3
+    ],
+    "alpha": [
+     "arg",
+     1
+    ],
+    "x": [
+     "arg",
+     2
+    ]
+   }
+  },
+  "netlib_dsymm_ll": {
+   "call": "cublasDsymm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     0,
+     "CUBLAS_SIDE_LEFT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ],
+    "beta": [
+     "arg",
+     7
+    ],
+    "ldc": [
+     "arg",
+     8
+    ],
+    "C": [
+     "arg",
+     9
+    ]
+   }
+  },
+  "netlib_dsymm_ll_beta0": {
+   "call": "cublasDsymm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     0,
+     "CUBLAS_SIDE_LEFT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ],
+    "ldc": [
+     "arg",
+     7
+    ],
+    "C": [
+     "arg",
+     8
+    ]
+   }
+  },
+  "netlib_dsymm_lu": {
+   "call": "cublasDsymm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     0,
+     "CUBLAS_SIDE_LEFT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ],
+    "beta": [
+     "arg",
+     7
+    ],
+    "ldc": [
+     "arg",
+     8
+    ],
+    "C": [
+     "arg",
+     9
+    ]
+   }
+  },
+  "netlib_dsymm_lu_alpha0": {
+   "call": "cublasDsymm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     0,
+     "CUBLAS_SIDE_LEFT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "alpha": [
+     "const_num",
+     0.0
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "lda": [
+     "arg",
+     2
+    ],
+    "A": [
+     "arg",
+     3
+    ],
+    "ldb": [
+     "arg",
+     4
+    ],
+    "B": [
+     "arg",
+     5
+    ],
+    "beta": [
+     "arg",
+     6
+    ],
+    "ldc": [
+     "arg",
+     7
+    ],
+    "C": [
+     "arg",
+     8
+    ]
+   }
+  },
+  "netlib_dsymm_lu_alpha0_beta0": {
+   "call": "cublasDsymm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "out"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     0,
+     "CUBLAS_SIDE_LEFT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "alpha": [
+     "const_num",
+     0.0
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "lda": [
+     "arg",
+     2
+    ],
+    "A": [
+     "arg",
+     3
+    ],
+    "ldb": [
+     "arg",
+     4
+    ],
+    "B": [
+     "arg",
+     5
+    ],
+    "ldc": [
+     "arg",
+     6
+    ],
+    "C": [
+     "arg",
+     7
+    ]
+   }
+  },
+  "netlib_dsymm_lu_beta0": {
+   "call": "cublasDsymm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     0,
+     "CUBLAS_SIDE_LEFT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ],
+    "ldc": [
+     "arg",
+     7
+    ],
+    "C": [
+     "arg",
+     8
+    ]
+   }
+  },
+  "netlib_dsymm_rl": {
+   "call": "cublasDsymm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     1,
+     "CUBLAS_SIDE_RIGHT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ],
+    "beta": [
+     "arg",
+     7
+    ],
+    "ldc": [
+     "arg",
+     8
+    ],
+    "C": [
+     "arg",
+     9
+    ]
+   }
+  },
+  "netlib_dsymm_rl_beta0": {
+   "call": "cublasDsymm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     1,
+     "CUBLAS_SIDE_RIGHT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ],
+    "ldc": [
+     "arg",
+     7
+    ],
+    "C": [
+     "arg",
+     8
+    ]
+   }
+  },
+  "netlib_dsymm_ru": {
+   "call": "cublasDsymm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     1,
+     "CUBLAS_SIDE_RIGHT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ],
+    "beta": [
+     "arg",
+     7
+    ],
+    "ldc": [
+     "arg",
+     8
+    ],
+    "C": [
+     "arg",
+     9
+    ]
+   }
+  },
+  "netlib_dsymm_ru_beta0": {
+   "call": "cublasDsymm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     1,
+     "CUBLAS_SIDE_RIGHT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ],
+    "ldc": [
+     "arg",
+     7
+    ],
+    "C": [
+     "arg",
+     8
+    ]
+   }
+  },
+  "netlib_dsyr2k_ln": {
+   "call": "cublasDsyr2k",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ],
+    "beta": [
+     "arg",
+     7
+    ],
+    "ldc": [
+     "arg",
+     8
+    ],
+    "C": [
+     "arg",
+     9
+    ]
+   }
+  },
+  "netlib_dsyr2k_ln_alpha0": {
+   "call": "cublasDsyr2k",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "alpha": [
+     "const_num",
+     0.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "lda": [
+     "arg",
+     2
+    ],
+    "A": [
+     "arg",
+     3
+    ],
+    "ldb": [
+     "arg",
+     4
+    ],
+    "B": [
+     "arg",
+     5
+    ],
+    "beta": [
+     "arg",
+     6
+    ],
+    "ldc": [
+     "arg",
+     7
+    ],
+    "C": [
+     "arg",
+     8
+    ]
+   }
+  },
+  "netlib_dsyr2k_ln_alpha0_beta0": {
+   "call": "cublasDsyr2k",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "out"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "alpha": [
+     "const_num",
+     0.0
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "lda": [
+     "arg",
+     2
+    ],
+    "A": [
+     "arg",
+     3
+    ],
+    "ldb": [
+     "arg",
+     4
+    ],
+    "B": [
+     "arg",
+     5
+    ],
+    "ldc": [
+     "arg",
+     6
+    ],
+    "C": [
+     "arg",
+     7
+    ]
+   }
+  },
+  "netlib_dsyr2k_ln_beta0": {
+   "call": "cublasDsyr2k",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ],
+    "ldc": [
+     "arg",
+     7
+    ],
+    "C": [
+     "arg",
+     8
+    ]
+   }
+  },
+  "netlib_dsyr2k_ln_beta1": {
+   "call": "cublasDsyr2k",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "beta": [
+     "const_num",
+     1.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ],
+    "ldc": [
+     "arg",
+     7
+    ],
+    "C": [
+     "arg",
+     8
+    ]
+   }
+  },
+  "netlib_dsyr2k_lt": {
+   "call": "cublasDsyr2k",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ],
+    "beta": [
+     "arg",
+     7
+    ],
+    "ldc": [
+     "arg",
+     8
+    ],
+    "C": [
+     "arg",
+     9
+    ]
+   }
+  },
+  "netlib_dsyr2k_lt_beta0": {
+   "call": "cublasDsyr2k",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "out"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ],
+    "ldc": [
+     "arg",
+     7
+    ],
+    "C": [
+     "arg",
+     8
+    ]
+   }
+  },
+  "netlib_dsyr2k_un": {
+   "call": "cublasDsyr2k",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ],
+    "beta": [
+     "arg",
+     7
+    ],
+    "ldc": [
+     "arg",
+     8
+    ],
+    "C": [
+     "arg",
+     9
+    ]
+   }
+  },
+  "netlib_dsyr2k_un_alpha0": {
+   "call": "cublasDsyr2k",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "alpha": [
+     "const_num",
+     0.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "lda": [
+     "arg",
+     2
+    ],
+    "A": [
+     "arg",
+     3
+    ],
+    "ldb": [
+     "arg",
+     4
+    ],
+    "B": [
+     "arg",
+     5
+    ],
+    "beta": [
+     "arg",
+     6
+    ],
+    "ldc": [
+     "arg",
+     7
+    ],
+    "C": [
+     "arg",
+     8
+    ]
+   }
+  },
+  "netlib_dsyr2k_un_alpha0_beta0": {
+   "call": "cublasDsyr2k",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "out"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "alpha": [
+     "const_num",
+     0.0
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "lda": [
+     "arg",
+     2
+    ],
+    "A": [
+     "arg",
+     3
+    ],
+    "ldb": [
+     "arg",
+     4
+    ],
+    "B": [
+     "arg",
+     5
+    ],
+    "ldc": [
+     "arg",
+     6
+    ],
+    "C": [
+     "arg",
+     7
+    ]
+   }
+  },
+  "netlib_dsyr2k_un_beta0": {
+   "call": "cublasDsyr2k",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ],
+    "ldc": [
+     "arg",
+     7
+    ],
+    "C": [
+     "arg",
+     8
+    ]
+   }
+  },
+  "netlib_dsyr2k_un_beta1": {
+   "call": "cublasDsyr2k",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "beta": [
+     "const_num",
+     1.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ],
+    "ldc": [
+     "arg",
+     7
+    ],
+    "C": [
+     "arg",
+     8
+    ]
+   }
+  },
+  "netlib_dsyr2k_ut": {
+   "call": "cublasDsyr2k",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ],
+    "beta": [
+     "arg",
+     7
+    ],
+    "ldc": [
+     "arg",
+     8
+    ],
+    "C": [
+     "arg",
+     9
+    ]
+   }
+  },
+  "netlib_dsyr2k_ut_beta0": {
+   "call": "cublasDsyr2k",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "out"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ],
+    "ldc": [
+     "arg",
+     7
+    ],
+    "C": [
+     "arg",
+     8
+    ]
+   }
+  },
+  "netlib_dsyrk_ln": {
+   "call": "cublasDsyrk",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "beta": [
+     "arg",
+     5
+    ],
+    "ldc": [
+     "arg",
+     6
+    ],
+    "C": [
+     "arg",
+     7
+    ]
+   }
+  },
+  "netlib_dsyrk_ln_alpha0": {
+   "call": "cublasDsyrk",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "alpha": [
+     "const_num",
+     0.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "lda": [
+     "arg",
+     2
+    ],
+    "A": [
+     "arg",
+     3
+    ],
+    "beta": [
+     "arg",
+     4
+    ],
+    "ldc": [
+     "arg",
+     5
+    ],
+    "C": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dsyrk_ln_alpha0_beta0": {
+   "call": "cublasDsyrk",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "out"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "alpha": [
+     "const_num",
+     0.0
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "lda": [
+     "arg",
+     2
+    ],
+    "A": [
+     "arg",
+     3
+    ],
+    "ldc": [
+     "arg",
+     4
+    ],
+    "C": [
+     "arg",
+     5
+    ]
+   }
+  },
+  "netlib_dsyrk_ln_beta0": {
+   "call": "cublasDsyrk",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldc": [
+     "arg",
+     5
+    ],
+    "C": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dsyrk_ln_beta1": {
+   "call": "cublasDsyrk",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "beta": [
+     "const_num",
+     1.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldc": [
+     "arg",
+     5
+    ],
+    "C": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dsyrk_lt": {
+   "call": "cublasDsyrk",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "beta": [
+     "arg",
+     5
+    ],
+    "ldc": [
+     "arg",
+     6
+    ],
+    "C": [
+     "arg",
+     7
+    ]
+   }
+  },
+  "netlib_dsyrk_lt_beta0": {
+   "call": "cublasDsyrk",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "out"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldc": [
+     "arg",
+     5
+    ],
+    "C": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dsyrk_un": {
+   "call": "cublasDsyrk",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "beta": [
+     "arg",
+     5
+    ],
+    "ldc": [
+     "arg",
+     6
+    ],
+    "C": [
+     "arg",
+     7
+    ]
+   }
+  },
+  "netlib_dsyrk_un_alpha0": {
+   "call": "cublasDsyrk",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "alpha": [
+     "const_num",
+     0.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "lda": [
+     "arg",
+     2
+    ],
+    "A": [
+     "arg",
+     3
+    ],
+    "beta": [
+     "arg",
+     4
+    ],
+    "ldc": [
+     "arg",
+     5
+    ],
+    "C": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dsyrk_un_alpha0_beta0": {
+   "call": "cublasDsyrk",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "out"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "alpha": [
+     "const_num",
+     0.0
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "lda": [
+     "arg",
+     2
+    ],
+    "A": [
+     "arg",
+     3
+    ],
+    "ldc": [
+     "arg",
+     4
+    ],
+    "C": [
+     "arg",
+     5
+    ]
+   }
+  },
+  "netlib_dsyrk_un_beta0": {
+   "call": "cublasDsyrk",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldc": [
+     "arg",
+     5
+    ],
+    "C": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dsyrk_un_beta1": {
+   "call": "cublasDsyrk",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "beta": [
+     "const_num",
+     1.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldc": [
+     "arg",
+     5
+    ],
+    "C": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dsyrk_ut": {
+   "call": "cublasDsyrk",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "beta",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "beta": [
+     "arg",
+     5
+    ],
+    "ldc": [
+     "arg",
+     6
+    ],
+    "C": [
+     "arg",
+     7
+    ]
+   }
+  },
+  "netlib_dsyrk_ut_beta0": {
+   "call": "cublasDsyrk",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "k",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldc",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "C",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldc",
+     "intent": "out"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "beta": [
+     "const_num",
+     0.0
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "k": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldc": [
+     "arg",
+     5
+    ],
+    "C": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dtrmm_llnn": {
+   "call": "cublasDtrmm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     0,
+     "CUBLAS_SIDE_LEFT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     0,
+     "CUBLAS_DIAG_NON_UNIT",
+     "cublasDiagType_t"
+    ],
+    "C": [
+     "alias",
+     6
+    ],
+    "ldc": [
+     "alias",
+     5
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dtrmm_llnu": {
+   "call": "cublasDtrmm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     0,
+     "CUBLAS_SIDE_LEFT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     1,
+     "CUBLAS_DIAG_UNIT",
+     "cublasDiagType_t"
+    ],
+    "C": [
+     "alias",
+     6
+    ],
+    "ldc": [
+     "alias",
+     5
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dtrmm_lltn": {
+   "call": "cublasDtrmm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     0,
+     "CUBLAS_SIDE_LEFT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     0,
+     "CUBLAS_DIAG_NON_UNIT",
+     "cublasDiagType_t"
+    ],
+    "C": [
+     "alias",
+     6
+    ],
+    "ldc": [
+     "alias",
+     5
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dtrmm_lltu": {
+   "call": "cublasDtrmm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     0,
+     "CUBLAS_SIDE_LEFT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     1,
+     "CUBLAS_DIAG_UNIT",
+     "cublasDiagType_t"
+    ],
+    "C": [
+     "alias",
+     6
+    ],
+    "ldc": [
+     "alias",
+     5
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dtrmm_lunn": {
+   "call": "cublasDtrmm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     0,
+     "CUBLAS_SIDE_LEFT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     0,
+     "CUBLAS_DIAG_NON_UNIT",
+     "cublasDiagType_t"
+    ],
+    "C": [
+     "alias",
+     6
+    ],
+    "ldc": [
+     "alias",
+     5
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dtrmm_lunn_alpha0": {
+   "call": "cublasDtrmm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "out"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     0,
+     "CUBLAS_SIDE_LEFT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     0,
+     "CUBLAS_DIAG_NON_UNIT",
+     "cublasDiagType_t"
+    ],
+    "alpha": [
+     "const_num",
+     0.0
+    ],
+    "C": [
+     "alias",
+     5
+    ],
+    "ldc": [
+     "alias",
+     4
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "lda": [
+     "arg",
+     2
+    ],
+    "A": [
+     "arg",
+     3
+    ],
+    "ldb": [
+     "arg",
+     4
+    ],
+    "B": [
+     "arg",
+     5
+    ]
+   }
+  },
+  "netlib_dtrmm_lunu": {
+   "call": "cublasDtrmm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     0,
+     "CUBLAS_SIDE_LEFT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     1,
+     "CUBLAS_DIAG_UNIT",
+     "cublasDiagType_t"
+    ],
+    "C": [
+     "alias",
+     6
+    ],
+    "ldc": [
+     "alias",
+     5
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dtrmm_lutn": {
+   "call": "cublasDtrmm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     0,
+     "CUBLAS_SIDE_LEFT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     0,
+     "CUBLAS_DIAG_NON_UNIT",
+     "cublasDiagType_t"
+    ],
+    "C": [
+     "alias",
+     6
+    ],
+    "ldc": [
+     "alias",
+     5
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dtrmm_lutu": {
+   "call": "cublasDtrmm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     0,
+     "CUBLAS_SIDE_LEFT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     1,
+     "CUBLAS_DIAG_UNIT",
+     "cublasDiagType_t"
+    ],
+    "C": [
+     "alias",
+     6
+    ],
+    "ldc": [
+     "alias",
+     5
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dtrmm_rlnn": {
+   "call": "cublasDtrmm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     1,
+     "CUBLAS_SIDE_RIGHT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     0,
+     "CUBLAS_DIAG_NON_UNIT",
+     "cublasDiagType_t"
+    ],
+    "C": [
+     "alias",
+     6
+    ],
+    "ldc": [
+     "alias",
+     5
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dtrmm_rlnu": {
+   "call": "cublasDtrmm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     1,
+     "CUBLAS_SIDE_RIGHT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     1,
+     "CUBLAS_DIAG_UNIT",
+     "cublasDiagType_t"
+    ],
+    "C": [
+     "alias",
+     6
+    ],
+    "ldc": [
+     "alias",
+     5
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dtrmm_rltn": {
+   "call": "cublasDtrmm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     1,
+     "CUBLAS_SIDE_RIGHT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     0,
+     "CUBLAS_DIAG_NON_UNIT",
+     "cublasDiagType_t"
+    ],
+    "C": [
+     "alias",
+     6
+    ],
+    "ldc": [
+     "alias",
+     5
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dtrmm_rltu": {
+   "call": "cublasDtrmm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     1,
+     "CUBLAS_SIDE_RIGHT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     1,
+     "CUBLAS_DIAG_UNIT",
+     "cublasDiagType_t"
+    ],
+    "C": [
+     "alias",
+     6
+    ],
+    "ldc": [
+     "alias",
+     5
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dtrmm_runn": {
+   "call": "cublasDtrmm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     1,
+     "CUBLAS_SIDE_RIGHT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     0,
+     "CUBLAS_DIAG_NON_UNIT",
+     "cublasDiagType_t"
+    ],
+    "C": [
+     "alias",
+     6
+    ],
+    "ldc": [
+     "alias",
+     5
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dtrmm_runu": {
+   "call": "cublasDtrmm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     1,
+     "CUBLAS_SIDE_RIGHT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     1,
+     "CUBLAS_DIAG_UNIT",
+     "cublasDiagType_t"
+    ],
+    "C": [
+     "alias",
+     6
+    ],
+    "ldc": [
+     "alias",
+     5
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dtrmm_rutn": {
+   "call": "cublasDtrmm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     1,
+     "CUBLAS_SIDE_RIGHT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     0,
+     "CUBLAS_DIAG_NON_UNIT",
+     "cublasDiagType_t"
+    ],
+    "C": [
+     "alias",
+     6
+    ],
+    "ldc": [
+     "alias",
+     5
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dtrmm_rutu": {
+   "call": "cublasDtrmm",
+   "ret": "void",
+   "args": [
+    {
+     "name": "m",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "alpha",
+     "kind": "scalar",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "ldb",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "B",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "ldb",
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "side": [
+     "const_enum",
+     1,
+     "CUBLAS_SIDE_RIGHT",
+     "cublasSideMode_t"
+    ],
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     1,
+     "CUBLAS_DIAG_UNIT",
+     "cublasDiagType_t"
+    ],
+    "C": [
+     "alias",
+     6
+    ],
+    "ldc": [
+     "alias",
+     5
+    ],
+    "m": [
+     "arg",
+     0
+    ],
+    "n": [
+     "arg",
+     1
+    ],
+    "alpha": [
+     "arg",
+     2
+    ],
+    "lda": [
+     "arg",
+     3
+    ],
+    "A": [
+     "arg",
+     4
+    ],
+    "ldb": [
+     "arg",
+     5
+    ],
+    "B": [
+     "arg",
+     6
+    ]
+   }
+  },
+  "netlib_dtrsv_lnn": {
+   "call": "cublasDtrsv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "X",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     0,
+     "CUBLAS_DIAG_NON_UNIT",
+     "cublasDiagType_t"
+    ],
+    "incx": [
+     "const_num",
+     1
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "lda": [
+     "arg",
+     1
+    ],
+    "A": [
+     "arg",
+     2
+    ],
+    "x": [
+     "arg",
+     3
+    ]
+   }
+  },
+  "netlib_dtrsv_lnu": {
+   "call": "cublasDtrsv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "X",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     1,
+     "CUBLAS_DIAG_UNIT",
+     "cublasDiagType_t"
+    ],
+    "incx": [
+     "const_num",
+     1
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "lda": [
+     "arg",
+     1
+    ],
+    "A": [
+     "arg",
+     2
+    ],
+    "x": [
+     "arg",
+     3
+    ]
+   }
+  },
+  "netlib_dtrsv_ltn": {
+   "call": "cublasDtrsv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "X",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     0,
+     "CUBLAS_DIAG_NON_UNIT",
+     "cublasDiagType_t"
+    ],
+    "incx": [
+     "const_num",
+     1
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "lda": [
+     "arg",
+     1
+    ],
+    "A": [
+     "arg",
+     2
+    ],
+    "x": [
+     "arg",
+     3
+    ]
+   }
+  },
+  "netlib_dtrsv_ltu": {
+   "call": "cublasDtrsv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "X",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     0,
+     "CUBLAS_FILL_MODE_LOWER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     1,
+     "CUBLAS_DIAG_UNIT",
+     "cublasDiagType_t"
+    ],
+    "incx": [
+     "const_num",
+     1
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "lda": [
+     "arg",
+     1
+    ],
+    "A": [
+     "arg",
+     2
+    ],
+    "x": [
+     "arg",
+     3
+    ]
+   }
+  },
+  "netlib_dtrsv_unn": {
+   "call": "cublasDtrsv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "X",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     0,
+     "CUBLAS_DIAG_NON_UNIT",
+     "cublasDiagType_t"
+    ],
+    "incx": [
+     "const_num",
+     1
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "lda": [
+     "arg",
+     1
+    ],
+    "A": [
+     "arg",
+     2
+    ],
+    "x": [
+     "arg",
+     3
+    ]
+   }
+  },
+  "netlib_dtrsv_unu": {
+   "call": "cublasDtrsv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "X",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     0,
+     "CUBLAS_OP_N",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     1,
+     "CUBLAS_DIAG_UNIT",
+     "cublasDiagType_t"
+    ],
+    "incx": [
+     "const_num",
+     1
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "lda": [
+     "arg",
+     1
+    ],
+    "A": [
+     "arg",
+     2
+    ],
+    "x": [
+     "arg",
+     3
+    ]
+   }
+  },
+  "netlib_dtrsv_utn": {
+   "call": "cublasDtrsv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "X",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     0,
+     "CUBLAS_DIAG_NON_UNIT",
+     "cublasDiagType_t"
+    ],
+    "incx": [
+     "const_num",
+     1
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "lda": [
+     "arg",
+     1
+    ],
+    "A": [
+     "arg",
+     2
+    ],
+    "x": [
+     "arg",
+     3
+    ]
+   }
+  },
+  "netlib_dtrsv_utu": {
+   "call": "cublasDtrsv",
+   "ret": "void",
+   "args": [
+    {
+     "name": "n",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "lda",
+     "kind": "int",
+     "rank": 0,
+     "vla_ld": null,
+     "intent": null
+    },
+    {
+     "name": "A",
+     "kind": "array",
+     "rank": 2,
+     "vla_ld": "lda",
+     "intent": "in"
+    },
+    {
+     "name": "X",
+     "kind": "array",
+     "rank": 1,
+     "vla_ld": null,
+     "intent": "inout"
+    }
+   ],
+   "binding": {
+    "uplo": [
+     "const_enum",
+     1,
+     "CUBLAS_FILL_MODE_UPPER",
+     "cublasFillMode_t"
+    ],
+    "trans": [
+     "const_enum",
+     1,
+     "CUBLAS_OP_T",
+     "cublasOperation_t"
+    ],
+    "diag": [
+     "const_enum",
+     1,
+     "CUBLAS_DIAG_UNIT",
+     "cublasDiagType_t"
+    ],
+    "incx": [
+     "const_num",
+     1
+    ],
+    "n": [
+     "arg",
+     0
+    ],
+    "lda": [
+     "arg",
+     1
+    ],
+    "A": [
+     "arg",
+     2
+    ],
+    "x": [
+     "arg",
+     3
+    ]
+   }
+  }
+ },
+ "errors": {
+  "netlib_dgemm_nn_alpha0": "missing cgeist stage /home/arjaiswal/Polygeist/generic_solver/lib_v2/raised/netlib_dgemm_nn_alpha0.mlir",
+  "netlib_dgemm_nn_alpha0_beta0": "missing cgeist stage /home/arjaiswal/Polygeist/generic_solver/lib_v2/raised/netlib_dgemm_nn_alpha0_beta0.mlir"
+ }
+}

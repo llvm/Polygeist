@@ -1,0 +1,227 @@
+kernel,native_device_us,source,method,shape,hardware,date
+aten_abs,389.216,torch.abs shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_acos,383.040,torch.acos shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_acosh,751.424,torch.acosh shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608 positive-domain,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_asin,381.760,torch.asin shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_asinh,382.560,torch.asinh shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_atan,381.728,torch.atan shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_atanh,382.656,torch.atanh shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608 unit-domain,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_ceil,384.448,torch.ceil shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_cos,382.912,torch.cos shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_cosh,385.024,torch.cosh shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_erf,204.448,torch.erf shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_erfc,203.520,torch.erfc shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_erfinv,205.312,torch.erfinv (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_exp,377.568,torch.exp shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_exp2,203.296,torch.exp2 shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_expm1,208.192,torch.expm1 (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_floor,380.832,torch.floor shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_frac,203.232,torch.frac shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_log,384.224,torch.log shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608 positive-domain,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_log10,206.880,torch.log10 (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_log1p,206.496,torch.log1p (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_log2,207.392,torch.log2 (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_neg,385.472,torch.neg shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_reciprocal,382.176,torch.reciprocal shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608 positive-domain,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_round,207.136,torch.round (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_rsqrt,205.440,torch.rsqrt shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_sigmoid,207.392,torch.sigmoid (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_sign,207.360,torch.sign (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_sin,378.112,torch.sin shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_sinh,378.400,torch.sinh shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_sqrt,377.152,torch.sqrt shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608 positive-domain,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_square,207.904,torch.square shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_tan,376.640,torch.tan shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_tanh,206.016,torch.tanh (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_trunc,206.976,torch.trunc (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_lgamma,205.312,torch.lgamma (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_digamma,419.008,torch.digamma (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_i0,212.704,torch.i0 (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_sinc,376.448,torch.sinc shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_gelu,380.128,torch.gelu shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_relu,208.448,torch.relu (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_silu,207.680,torch.silu (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_mish,381.344,torch.mish shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_softplus,378.784,torch.softplus shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608 beta=1.25 threshold=0.5,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_elu,210.560,torch.elu shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_selu,208.736,torch.selu (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_hardswish,210.432,torch.hardswish (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_hardsigmoid,208.480,torch.hardsigmoid (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_leaky_relu,212.960,torch.leaky_relu shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_softsign,662.624,torch.softsign (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_tanhshrink,475.296,torch.tanhshrink (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_logit,207.328,torch.logit (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_signbit,137.792,torch.signbit (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_isnan,139.488,torch.isnan (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_isinf,325.344,torch.isinf (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_isfinite,506.944,torch.isfinite (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_deg2rad,213.408,torch.deg2rad (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_rad2deg,215.040,torch.rad2deg (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_positive,20.544,torch.positive (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_add,556.352,torch.add shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B32 C64 H64 W64,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_sub,294.976,torch.sub (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_mul,291.712,torch.mul shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_div,294.016,torch.div shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_atan2,294.464,torch.atan2 (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_hypot,292.288,torch.hypot shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_pow,293.440,torch.pow shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_fmod,295.104,torch.fmod (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_remainder,295.104,torch.remainder (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_maximum,294.688,torch.maximum (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_minimum,294.496,torch.minimum (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_copysign,294.208,torch.copysign (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_nextafter,294.880,torch.nextafter (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_logaddexp,292.704,torch.logaddexp shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_logaddexp2,292.384,torch.logaddexp2 shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_xlogy,295.072,torch.xlogy (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_gt,225.280,torch.gt (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_lt,226.304,torch.lt (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_le,225.120,torch.le (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_ge,224.960,torch.ge (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_eq,224.672,torch.eq (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_ne,225.152,torch.ne (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_floor_divide,297.472,torch.floor_divide (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_true_divide,294.496,torch.true_divide (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_logical_and,229.152,torch.logical_and (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_logical_or,229.056,torch.logical_or (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_logical_xor,229.472,torch.logical_xor (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_heaviside,294.720,torch.heaviside (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_gcd,719.552,torch.gcd (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_lcm,718.048,torch.lcm (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_sum,140.160,torch.sum (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_mean,140.032,torch.mean (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_prod,140.992,torch.prod (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_max_all,142.368,torch.max_all (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_min_all,141.248,torch.min_all (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_argmax,145.856,torch.argmax (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_argmin,144.288,torch.argmin (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_norm,148.064,torch.norm (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_std,176.512,torch.std (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_var,176.512,torch.var (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_nansum,140.576,torch.nansum (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_logsumexp,660.576,torch.logsumexp (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_count_nonzero,599.680,torch.count_nonzero (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_all,140.416,torch.all (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_any,140.480,torch.any (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_median,3132.096,torch.median (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_cumsum,450.016,torch.cumsum shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_cumprod,245.216,torch.cumprod (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_cummax,18033.567,torch.cummax (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_cummin,18031.168,torch.cummin (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_sort,3113.344,torch.sort (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_argsort,3120.608,torch.argsort (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_unique,1510.816,torch.unique (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_topk,1096.000,torch.topk (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_kthvalue,31324.575,torch.kthvalue (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_mode,4352.128,torch.mode (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_dot,426.304,torch.dot shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_tril,185.760,torch.tril (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_triu,185.376,torch.triu (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_diag,76.512,torch.diag (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_flip,225.440,torch.flip (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_roll,322.496,torch.roll (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_cat,400.704,torch.cat (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_gather,299.616,torch.gather (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_index_select,345.504,torch.index_select (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_take,299.424,torch.take (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_bincount,896.864,torch.bincount (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_scatter_add,959.840,torch.scatter_add (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_index_add,1071.040,torch.index_add (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_searchsorted,741.504,torch.searchsorted (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_softmax,381.728,torch.softmax shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_log_softmax,203.520,torch.log_softmax (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_layer_norm,729.440,torch.layer_norm shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_rms_norm,1028.928,torch.rms_norm shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_group_norm,247.104,torch.group_norm (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_instance_norm,335.008,torch.instance_norm (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_batch_norm,482.976,torch.batch_norm shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B32 C64 H64 W64,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_max_pool2d,382.400,torch.max_pool2d shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B32 C64 H64 W64 K2 S2,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_avg_pool2d,64.032,torch.avg_pool2d shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=2 C=4 I=16x16 O=8x8 K=S=2,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_adaptive_avg_pool2d,389.376,torch.adaptive_avg_pool2d shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=4 C=32 H=256 W=256 OH=128 OW=128,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_adaptive_max_pool2d,560.608,torch.adaptive_max_pool2d (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_max_pool3d,76.832,torch.max_pool3d (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_avg_pool3d,68.992,torch.avg_pool3d shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=2 C=3 I=8x8x8 O=4x4x4 K=S=2,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_adaptive_avg_pool3d,76.096,torch.adaptive_avg_pool3d shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=2 C=3 I=8x8x8 O=4x4x4,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_upsample_nearest2d,393.184,torch.upsample_nearest2d (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_upsample_bilinear2d,1439.648,torch.upsample_bilinear2d (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_upsample_bicubic2d,2321.312,torch.upsample_bicubic2d (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_conv2d,491.904,torch.conv2d shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B8 IC32 OC64 H64 W64 KH3 KW3,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_conv1d,234.080,torch.conv1d (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_conv3d,1103.712,torch.conv3d shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B1 IC8 OC16 D48 H48 W48 K3,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_conv_transpose2d,469.920,torch.conv_transpose2d shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=2 IC=16 OC=32 H=128 W=128 K=3,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_mm,140.608,torch.mm shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: M512 N512 K512,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_addmm,157.568,torch.addmm shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: M512 N512 K512,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_bmm,138.144,torch.bmm (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_mv,434.208,torch.mv shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: M4096 K4096,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_mse_loss,420.416,torch.mse_loss shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_l1_loss,593.568,torch.l1_loss (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_smooth_l1_loss,421.568,torch.smooth_l1_loss (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_kl_div,1017.760,torch.kl_div (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_binary_cross_entropy,779.296,torch.binary_cross_entropy shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_soft_margin_loss,1307.072,torch.soft_margin_loss (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_reflection_pad2d,264.480,torch.reflection_pad2d (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_replication_pad2d,222.272,torch.replication_pad2d (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_constant_pad_nd,234.048,torch.constant_pad_nd (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_grid_sampler_2d,562.944,torch.grid_sampler_2d (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_angle,652.064,torch.angle (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_real,43.744,torch.real (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_imag,47.168,torch.imag (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_conj,392.000,torch.conj (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_abs_complex,656.064,torch.abs_complex (real ATen dispatch),torch_2.6.0_cu126_cudaEvent,raised-fixture-matched,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_batch_norm_transform_cpu,480.064,torch.batch_norm_transform (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=32 C=64 H=64 W=64,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_sparse_norm_cpu,435.360,torch.sparse_norm (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=16777216,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_adaptive_avg_pool2d_cpu,75.392,torch.adaptive_avg_pool2d (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=1 C=2 I=6x7 O=3x3,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_adaptive_avg_pool2d_backward_cpu,76.544,torch.adaptive_avg_pool2d (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=1 C=2 I=6x7 O=3x3,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_adaptive_avg_pool3d_cpu,75.424,torch.adaptive_avg_pool3d (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=1 C=2 I=6x7x8 O=3x3x3,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_adaptive_avg_pool3d_backward_cpu,76.000,torch.adaptive_avg_pool3d (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=1 C=2 I=6x7x8 O=3x3x3,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_adaptive_max_pool2d_cpu,75.072,torch.adaptive_max_pool2d (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=1 C=2 I=6x7 O=3x3,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_adaptive_max_pool2d_backward_cpu,77.984,torch.adaptive_max_pool2d (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=1 C=2 I=6x7 O=3x3,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_adaptive_max_pool3d_cpu,79.360,torch.adaptive_max_pool3d (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=1 C=2 I=6x7x8 O=3x3x3,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_adaptive_max_pool3d_backward_cpu,79.168,torch.adaptive_max_pool3d (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=1 C=2 I=6x7x8 O=3x3x3,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_adaptive_max_pool3d_legacy_cpu,77.952,torch.adaptive_max_pool3d (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: C=2 I=8x9x10 O=3x4x5,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_adaptive_max_pool3d_legacy_backward_cpu,79.680,torch.adaptive_max_pool3d (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: C=2 I=8x9x10 O=3x4x5,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_avg_pool2d_cpu,64.960,torch.avg_pool2d (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=1 C=2 I=6x7 O=3x3 K=S=2,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_avg_pool2d_backward_cpu,64.288,torch.avg_pool2d (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=1 C=2 I=6x7 O=3x3 K=S=2,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_avg_pool3d_cpu,67.968,torch.avg_pool3d (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=1 C=2 I=6x7x8 O=3x3x4 K=S=2,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_avg_pool3d_backward_cpu,66.848,torch.avg_pool3d (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=1 C=2 I=6x7x8 O=3x3x4 K=S=2,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_batch_norm_backward_cpu,119.968,torch.batch_norm (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4 C=8 spatial=32,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_batch_norm_backward_template_cpu,474.208,torch.batch_norm (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8 C=16 spatial=256,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_batch_norm_cpu_entry,148.992,torch.batch_norm (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_bf16_dot_cpu,825.248,torch.bf16_dot (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: K=16777216 scalarized-f32,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_blas_dot_naive_cpu,828.192,torch.blas_dot (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=K=16777216,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_cat_serial_cpu,1516.160,torch.cat (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: R=4096 M=4096 K=2048,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_complex_scalarized,1269.696,torch.complex (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_conj_complex_scalarized,743.232,torch.conj_complex (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_cross,177.792,torch.cross (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=1398101,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_fast_cat_dim0_cpu,1515.168,torch.fast_cat_dim0 (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=4096 N=4096,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_fp16_dot_cpu,829.248,torch.fp16_dot (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: K=16777216 scalarized-f32,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_gelu_cpu_tanh,380.768,torch.gelu (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_log_normal_cpu,207.072,torch.log_normal (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_mse_backward,420.320,torch.mse (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_nested_bmm_cpu,212.448,torch.nested_bmm (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=16 M=256 N=256 K=256,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_sigmoid_backward,204.736,torch.sigmoid (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_silu_cpu,378.176,torch.silu (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_slow_conv3d_forward_cpu,1103.392,torch.slow_conv3d (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: C8 O16 D48 H48 W48 K3,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_sparse_bmm_cpu,211.840,torch.sparse_bmm (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: B=16 M=256 N=256 K=256,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_tanh_backward,204.416,torch.tanh (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_gelu_backward_cpu_exact,204.032,torch.gelu (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_blas_sum_cpu,242.560,torch.blas_sum (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_gelu_backward_cpu_tanh,203.744,torch.gelu (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_cumprod_cpu,9876.448,torch.cumprod (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: R=131072 K=64 (8388608 outputs),Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_elu_backward,209.472,torch.elu (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_hardswish_backward,206.944,torch.hardswish (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_smooth_l1_backward,424.192,torch.smooth_l1 (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_softplus_backward,206.464,torch.softplus (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=4194304,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_count_nonzero_cpu,1144.576,torch.count_nonzero (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_count_nonzero_impl_cpu,1185.696,torch.count_nonzero (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: R=131072 C=64 (8388608 inputs),Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_argmax_cpu,757.024,torch.argmax (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: R=131072 K=64 (8388608 inputs),Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_argmin_cpu,757.664,torch.argmin (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: R=131072 K=64 (8388608 inputs),Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_log_sigmoid_cpu,377.088,torch.log_sigmoid (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: N=8388608,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_nested_sum_dim_cpu,245.664,torch.nested_sum_dim (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: rows=65536 cols=128 irregular lengths,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_nested_all_cpu,497.408,torch.nested_all (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: rows=65536 cols=128 irregular lengths,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_sum_cpu_backend,244.608,torch.sum (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: rows=65536 cols=128,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_xor_sum_cpu,247.456,torch.xor_sum (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: rows=65536 cols=128,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_slow_conv3d_backward_input_cpu,366.496,torch.slow_conv3d (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: IC=8 OC=12 D=32 H=32 W=32 K=3,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_slow_conv3d_backward_weight_cpu,366.464,torch.slow_conv3d (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: IC=8 OC=12 D=32 H=32 W=32 K=3,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_sort_cpu,9053.792,torch.sort (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: rows=32768 cols=256,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28
+aten_topk_cpu,5471.008,torch.topk (real ATen dispatch) shape-matched,torch_2.6.0_cu126_cudaEvent_largeproblem,large-problem: rows=32768 cols=256 top=16,Jetson_AGX_Orin_sm87_CUDA12.6,2026-08-28

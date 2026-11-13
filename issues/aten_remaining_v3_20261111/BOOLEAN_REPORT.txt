@@ -1,0 +1,67 @@
+ATen comparison/logical family — 2026-11-11
+
+Completed targeted coverage is now 59 fully GPU-validated cases. Mean's separate
+CUB sum plus host division/store remains a partial GPU application and is not
+included in 59. This is targeted recovery, not the paper's 271/598 coverage or
+115-case native ATen performance reproduction.
+
+Ten new cases: eq, ne, lt, le, gt, ge, logical_and, logical_or, logical_xor,
+logical_not_f32. All use unchanged existing application fixtures. References
+retain the pinned ATen CPU scalar lambdas specialized to FP32 inputs and FP32
+boolean 0/1 outputs. These are reusable dynamic-length references, not copied
+application bodies and not imported cuDNN implementation source. Application /
+reference matching is proved by strict shared matching; mechanically generated
+cuDNN opcode semantics are separately trusted and tested. The lt/le fixtures
+reuse gt/ge references with swapped inputs through the shared matcher.
+
+Source validation: 2,618 C++ scalar versus adapted-C checks, including all pairs
+of special input values; all 30 Affine/Linalg/tensor checks EXACT.
+
+Generic changes:
+- Exact i1-to-FP32 conversion, including signed i1 semantics (-1/0), and the
+  common boolean-extension then FP32 conversion sequence. Only proven Boolean
+  integer values are accepted. Unsupported integer conversions fail closed.
+- Boolean XOR and equality lower through existing Boolean/select opcodes.
+- Conversion constants cannot accidentally reuse dynamic scalar parameters
+  whose initial placeholder happens to have the same numeric value.
+- Temporary kernel definitions avoid collisions with application symbols and
+  other generated definitions, retaining the proved spec-to-vendor mapping.
+  logical_not_f32 exposed this collision; two verifier-backed tests reproduce
+  the failure before the fix and pass afterward.
+No new matcher rule, compiler rebuild or floating-point rewrite was needed.
+
+Execution: all 40 exact full-array checks pass (163,840 output values), across
+normal and NaN/Inf/signed-zero inputs, host and resident device buffers. Outputs
+are poisoned before each call; inputs and guards remain unchanged. Real typed
+cuDNN execution is traced, with no fallback accepted. Numeric outputs are
+bitwise compared to the retained C reference; all predicates produce exact 0/1.
+
+Timings are minimum of five alternating synchronized resident samples after
+five warmups, trace off, with exclusive Orin access and recorded board/load
+state. Raised minima range 0.053793–0.062817 ms. All raw samples and the paired
+direct cuDNN graph times are in boolean-family-gpu-results.json and
+validated-targeted-timings.tsv. These are NOT actual ATen CUDA baselines.
+The earlier native43 report and its performance/version caveats still apply.
+
+Shared validation:
+- 182/182 Python tests pass (50.252 seconds).
+- All 22 prior application match cases pass.
+- Llama retains 22 calls and byte-identical matched IR; no new Llama timing.
+- 179 catalog records / 88 typed calls. Incremental import reused 114 validated
+  records and freshly processed 65 in 18.402 seconds. Runtime --check passes.
+- Existing CUDA wrapper bodies are byte-identical (74 retained, 10 added);
+  generated CPU/PVA files are unchanged.
+- 282 source/tool/test hashes stayed unchanged through final checks.
+
+Snapshot scope: nine new binaries use boolean-source-before.json and sources
+saved under boolean-before-symbol-fix/. logical_not_f32 uses the subsequent
+symbol-only ABI fix in boolean-symbol-source-before.json. Their binary/proof
+hashes and final source hashes are in boolean-source-and-results.json. No old
+proof was relabeled as valid for a changed source snapshot.
+
+Current remaining targeted work: row reductions and batched GEMM need generic
+initializer/view normalization before complete reference equivalence can be
+proved. An upstream producer-fusion proposal is staged only, not counted.
+Other retained fixture/source and backend-contract gaps remain documented in
+POINTWISE_REDUCTION_REPORT.txt and SCALAR_RETURN_REPORT.txt.
+No commit or push.

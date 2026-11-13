@@ -1,0 +1,89 @@
+Scope
+-----
+Exactly the 43 entries frozen from validated-targeted-results.json on 2026-11-11.
+The original programs, C harnesses, reference objects, and raised/compiler/runtime
+objects are copied under frozen/ and recorded in frozen-artifact-index.json. The
+43 programs' hashes agree with the original validated result manifest. Later
+compiler changes or additional ATen operations are outside this study.
+
+These are existing targeted fixtures (mostly 4096 elements, some 256 elements,
+and RMSNorm 128 elements). They are not the full 115-case Figure 5 evaluation,
+and these numbers must not be substituted for Figure 5's shapes or coverage.
+
+Native baseline
+---------------
+native_bridge.cpp invokes the actual installed NVIDIA libtorch ATen CUDA APIs.
+It contains no GPU kernel and no replacement implementation of an operation.
+Headers and linked libraries are from the existing NVIDIA PyTorch 24.12 sysroot:
+PyTorch 2.6.0a0+df5bbc09d1.nv24.12, CUDA 12.6. The public container digest used
+to prepare that sysroot is recorded in scripts/correctness/prepare_aten_native_sysroot.py.
+The installed native library revision differs from the pinned PyTorch source
+revision used for source-derived references; native-api-map.json records both.
+
+All physical arrays are contiguous FP32 and use the existing sizes, values,
+parameters, guard elements, and edge arrays without new shapes or variants.
+ATen tensor wrappers view the contiguous arrays in one dimension. In-place add's
+original logical shape is NCHW 2x8x16x16; the 4096-element physical layout and
+alias behavior are preserved by that view. ATen dispatch remains responsible for
+its TensorIterator construction and native CUDA implementation.
+
+All APIs use preallocated output tensors, except public rms_norm, which has no
+out variant. RMSNorm's API returns an allocated tensor; its correctness output
+is exported to the harness only outside timing. The raised RMSNorm output is
+preallocated. Their raw latencies are retained but no allocation-matched speedup
+ratio is claimed. Any unavailable API/invalid parameter or output disagreement
+is retained in comparison-results.json rather than hidden or substituted.
+
+Correctness
+-----------
+The comparison harness is generated from each original validated harness.
+The direct cuDNN/cuTENSOR comparator is replaced by genuine native ATen dispatch;
+the original raised kernel/runtime objects are relinked unchanged. Both the
+CPU-reference and native-ATen output comparisons cover every output element.
+Original guard/input checks, host-input/resident modes, scalar parameter cases,
+and in-place exact-alias cases are retained.
+
+The original numerical comparison policy is retained: finite outputs use
+absolute error <= 1e-5 + 1e-4*abs(reference); NaN must match NaN, infinities must
+match exactly, and zero signs must agree. Native output comparisons use this
+same numerical policy rather than requiring bit equality with a different
+vendor implementation. Unmodified inputs/guard bytes retain exact comparisons.
+No disagreement is resolved by changing the tolerance or zero/NaN policy.
+
+Timing
+------
+The two paths run in the same compiled C harness and the same exclusive Orin
+session. Input tensors are GPU-resident; tensor wrapper creation, input transfer,
+correctness copies, and initial native dispatch setup are outside timing.
+Both paths receive five warmups and five synchronized measurements. For each
+sample, cudaDeviceSynchronize precedes the CLOCK_MONOTONIC start, the operation
+runs, then cudaDeviceSynchronize completes before CLOCK_MONOTONIC stop. Sample
+order alternates raised/native. These are synchronized host latencies, not
+CUDA-event device intervals or Python invocation latencies.
+
+In-place input buffers are reset to the same original values outside every
+warmup and timed invocation, for both paths. Raw samples, minimum, and median
+are retained. Ratios, where valid, are native minimum / raised minimum (above
+one means the raised path is faster). Exceptions and edge failures remain
+explicit qualifications. Environment/load/thermal/power/fan snapshots bracket
+the run; this study does not change the board's settings.
+
+Reproduction
+------------
+From the Polygeist root, source envsetup.sh, then:
+  bash issues/aten43_native_cuda_20261111/build_native.sh
+  python3 issues/aten43_native_cuda_20261111/run_comparison.py
+
+The recorded softshrink run aborts on the existing negative-lambda parameter.
+Its unchanged executable was also run with stdbuf -oL to retain the preceding
+positive-lambda check output; linebuffered-normal.log and linebuffered-edge.log
+preserve those diagnostics. summarize.py consumes those records and the recorded
+local/remote library fingerprints to create REPORT.txt and summary.csv.
+audit_disagreements.py is an optional CPU-only source-semantics audit (run with
+/usr/bin/python3, which has NumPy); it is never used as a native GPU baseline.
+
+The runner requires the existing configured two-hop Orin access helper and an
+exclusive GPU reservation. Dependencies, frozen objects, and local sysroots are
+currently local artifacts; this directory is not yet a standalone distributable
+submission package. No dependency downloads, compiler rebuilds, shared runtime
+edits, commits, or pushes are performed by these scripts.

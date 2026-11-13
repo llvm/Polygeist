@@ -1,0 +1,19 @@
+diff --git a/runtime/polygeist_cublas_rt_cuda.c b/runtime/polygeist_cublas_rt_cuda.c
+--- a/runtime/polygeist_cublas_rt_cuda.c
++++ b/runtime/polygeist_cublas_rt_cuda.c
+@@
+-  for (int32_t row = 0; row < M; ++row)
+-    CUBLAS_CHECK(cublasDgemv(g_handle, CUBLAS_OP_N,
+-                             /*m=*/N, /*n=*/K,
+-                             &alpha, dB, ldb,
+-                             dA + (size_t)row * (size_t)lda, 1,
+-                             &beta,
+-                             dC + (size_t)row * (size_t)ldc, 1));
++  CUBLAS_CHECK(cublasDgemm(g_handle,
++                           CUBLAS_OP_N, CUBLAS_OP_N,
++                           /*m=*/N, /*n=*/M, /*k=*/K,
++                           &alpha,
++                           dB, ldb,
++                           dA, lda,
++                           &beta,
++                           dC, ldc));

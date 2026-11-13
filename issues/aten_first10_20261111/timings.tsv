@@ -1,0 +1,11 @@
+operation	N	raised_min_ms	direct_cudnn_min_ms	normal_correctness	edge_correctness
+abs	4096	0.05638504	0.053056955	True	True
+neg	4096	0.058145046	0.052257061	True	True
+exp	4096	0.058017015	0.052097082	True	True
+log	4096	0.055809021	0.048512936	True	True
+sqrt	4096	0.062176943	0.052320957	True	True
+reciprocal	4096	0.057632923	0.056833029	True	True
+sin	4096	0.058145046	0.052353144	True	True
+cos	4096	0.056128979	0.051777124	True	True
+tanh	256	0.054944038	0.036993027	True	True
+sigmoid	256	0.056897163	0.05257678	True	True

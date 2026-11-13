@@ -1,0 +1,679 @@
+{
+ "gemm": {
+  "kernel": "gemm",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 4.0,
+  "launches": [
+   {
+    "spec": "netlib_dgemm_nn",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemm_nn"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dgemm_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemm"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "e2e_ms_samples": [
+   52.412,
+   51.677,
+   50.545,
+   49.967999999999996,
+   50.902
+  ],
+  "e2e_ms_median": 50.902,
+  "per_call": {
+   "cublasDgemm": {
+    "count": "1",
+    "lib_ms_median": 50.812531
+   }
+  },
+  "lib_ms_median": 50.812531,
+  "transfer_ms_median": null,
+  "status": "TIMED"
+ },
+ "2mm": {
+  "kernel": "2mm",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 4.6,
+  "launches": [
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   },
+   {
+    "spec": "netlib_dgemm_nn",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemm_nn_beta0",
+   "netlib_dgemm_nn"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dgemm_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemm"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "e2e_ms_samples": [
+   71.76299999999999,
+   76.376,
+   74.416,
+   68.407,
+   75.284
+  ],
+  "e2e_ms_median": 74.416,
+  "per_call": {
+   "cublasDgemm": {
+    "count": "2",
+    "lib_ms_median": 68.644775
+   }
+  },
+  "lib_ms_median": 68.644775,
+  "transfer_ms_median": null,
+  "status": "TIMED"
+ },
+ "3mm": {
+  "kernel": "3mm",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 4.9,
+  "launches": [
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   },
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   },
+   {
+    "spec": "netlib_dgemm_nn_beta0",
+    "call": "polygeist_v2_cublasDgemm",
+    "cpu_entry": "dgemm_",
+    "gpu_entry": "cublasDgemm_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemm_nn_beta0",
+   "netlib_dgemm_nn_beta0",
+   "netlib_dgemm_nn_beta0"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dgemm_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemm"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "e2e_ms_samples": [
+   157.375,
+   140.54,
+   158.933,
+   142.67,
+   138.7
+  ],
+  "e2e_ms_median": 142.67,
+  "per_call": {
+   "cublasDgemm": {
+    "count": "3",
+    "lib_ms_median": 127.174149
+   }
+  },
+  "lib_ms_median": 127.174149,
+  "transfer_ms_median": null,
+  "status": "TIMED"
+ },
+ "atax": {
+  "kernel": "atax",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 4.3,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dgemv_n_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta0",
+   "netlib_dgemv_t_beta0"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dgemv_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemv"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "e2e_ms_samples": [
+   8.141,
+   8.095,
+   8.151,
+   8.562999999999999,
+   8.155000000000001
+  ],
+  "e2e_ms_median": 8.151,
+  "per_call": {
+   "cublasDgemv": {
+    "count": "2",
+    "lib_ms_median": 8.018181
+   }
+  },
+  "lib_ms_median": 8.018181,
+  "transfer_ms_median": null,
+  "status": "TIMED"
+ },
+ "bicg": {
+  "kernel": "bicg",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 4.2,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_n_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta0",
+   "netlib_dgemv_t_beta0"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dgemv_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemv"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "e2e_ms_samples": [
+   7.958,
+   7.765000000000001,
+   7.9670000000000005,
+   7.721,
+   7.91
+  ],
+  "e2e_ms_median": 7.91,
+  "per_call": {
+   "cublasDgemv": {
+    "count": "2",
+    "lib_ms_median": 7.761749
+   }
+  },
+  "lib_ms_median": 7.761749,
+  "transfer_ms_median": null,
+  "status": "TIMED"
+ },
+ "mvt": {
+  "kernel": "mvt",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 4.8,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_t_beta1",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dgemv_n_beta1",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta1",
+   "netlib_dgemv_t_beta1"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dgemv_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemv"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "e2e_ms_samples": [
+   8.187,
+   7.832000000000001,
+   7.675000000000001,
+   7.866,
+   8.252
+  ],
+  "e2e_ms_median": 7.866,
+  "per_call": {
+   "cublasDgemv": {
+    "count": "2",
+    "lib_ms_median": 7.749718
+   }
+  },
+  "lib_ms_median": 7.749718,
+  "transfer_ms_median": null,
+  "status": "TIMED"
+ },
+ "gesummv": {
+  "kernel": "gesummv",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 4.8,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dgemv_t_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_dscal_inc",
+    "call": "polygeist_v2_cublasDscal",
+    "cpu_entry": "dscal_",
+    "gpu_entry": "cublasDscal_v2"
+   },
+   {
+    "spec": "netlib_daxpy_inc",
+    "call": "polygeist_v2_cublasDaxpy",
+    "cpu_entry": "daxpy_",
+    "gpu_entry": "cublasDaxpy_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_t_beta0",
+   "netlib_dgemv_t_beta0",
+   "netlib_dscal_inc+netlib_daxpy_inc"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "daxpy_",
+    "dgemv_",
+    "dscal_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDaxpy",
+    "polygeist_v2_cublasDgemv",
+    "polygeist_v2_cublasDscal"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "e2e_ms_samples": [
+   3.47,
+   3.2929999999999997,
+   3.0660000000000003,
+   3.0500000000000003,
+   3.1510000000000002
+  ],
+  "e2e_ms_median": 3.1510000000000002,
+  "per_call": {
+   "cublasDgemv": {
+    "count": "2",
+    "lib_ms_median": 3.018456
+   },
+   "cublasDscal": {
+    "count": "1",
+    "lib_ms_median": 0.005363
+   },
+   "cublasDaxpy": {
+    "count": "1",
+    "lib_ms_median": 0.002808
+   }
+  },
+  "lib_ms_median": 3.027634,
+  "transfer_ms_median": null,
+  "status": "TIMED"
+ },
+ "gemver": {
+  "kernel": "gemver",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 6.5,
+  "launches": [
+   {
+    "spec": "netlib_dger",
+    "call": "polygeist_v2_cublasDger",
+    "cpu_entry": "dger_",
+    "gpu_entry": "cublasDger_v2"
+   },
+   {
+    "spec": "netlib_dger",
+    "call": "polygeist_v2_cublasDger",
+    "cpu_entry": "dger_",
+    "gpu_entry": "cublasDger_v2"
+   },
+   {
+    "spec": "netlib_dgemv_n_beta1",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   },
+   {
+    "spec": "netlib_daxpy_inc",
+    "call": "polygeist_v2_cublasDaxpy",
+    "cpu_entry": "daxpy_",
+    "gpu_entry": "cublasDaxpy_v2"
+   },
+   {
+    "spec": "netlib_dgemv_t_beta1",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta1",
+   "netlib_dgemv_t_beta1",
+   "netlib_daxpy_inc",
+   "netlib_dger+netlib_dger"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "daxpy_",
+    "dgemv_",
+    "dger_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDaxpy",
+    "polygeist_v2_cublasDgemv",
+    "polygeist_v2_cublasDger"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "e2e_ms_samples": [
+   16.116,
+   19.137,
+   18.051000000000002,
+   19.485,
+   17.794999999999998
+  ],
+  "e2e_ms_median": 18.051000000000002,
+  "per_call": {
+   "cublasDger": {
+    "count": "2",
+    "lib_ms_median": 10.819847
+   },
+   "cublasDgemv": {
+    "count": "2",
+    "lib_ms_median": 7.002411
+   },
+   "cublasDaxpy": {
+    "count": "1",
+    "lib_ms_median": 0.007881
+   }
+  },
+  "lib_ms_median": 17.829459999999997,
+  "transfer_ms_median": null,
+  "status": "TIMED"
+ },
+ "doitgen": {
+  "kernel": "doitgen",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 3.9,
+  "launches": [
+   {
+    "spec": "netlib_dgemv_n_beta0",
+    "call": "polygeist_v2_cublasDgemv",
+    "cpu_entry": "dgemv_",
+    "gpu_entry": "cublasDgemv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dgemv_n_beta0"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dgemv_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDgemv"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "e2e_ms_samples": [
+   223.932,
+   228.281,
+   230.136,
+   245.816,
+   228.289
+  ],
+  "e2e_ms_median": 228.289,
+  "per_call": {
+   "cublasDgemv": {
+    "count": "21000",
+    "lib_ms_median": 126.941277
+   }
+  },
+  "lib_ms_median": 126.941277,
+  "transfer_ms_median": null,
+  "status": "TIMED"
+ },
+ "trisolv": {
+  "kernel": "trisolv",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 3.8,
+  "launches": [
+   {
+    "spec": "netlib_dtrsv_utn",
+    "call": "polygeist_v2_cublasDtrsv",
+    "cpu_entry": "dtrsv_",
+    "gpu_entry": "cublasDtrsv_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dtrsv_utn"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dtrsv_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDtrsv"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "e2e_ms_samples": [
+   3.069,
+   3.09,
+   2.488,
+   2.606,
+   7.413
+  ],
+  "e2e_ms_median": 3.069,
+  "per_call": {
+   "cublasDtrsv": {
+    "count": "1",
+    "lib_ms_median": 2.925423
+   }
+  },
+  "lib_ms_median": 2.925423,
+  "transfer_ms_median": null,
+  "status": "TIMED"
+ },
+ "cholesky": {
+  "kernel": "cholesky",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 3.6,
+  "launches": [
+   {
+    "spec": "netlib_dpotf2_u",
+    "call": "polygeist_v2_cusolverDnDpotrf",
+    "cpu_entry": "dpotrf_",
+    "gpu_entry": "cusolverDnDpotrf"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dpotf2_u"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dpotrf_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cusolverDnDpotrf"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "e2e_ms_samples": [
+   67.104,
+   66.588,
+   64.47500000000001,
+   65.393,
+   62.727000000000004
+  ],
+  "e2e_ms_median": 65.393,
+  "per_call": {
+   "cusolverDnDpotrf": {
+    "count": "1",
+    "lib_ms_median": 65.29776
+   }
+  },
+  "lib_ms_median": 65.29776,
+  "transfer_ms_median": null,
+  "status": "TIMED"
+ },
+ "syrk": {
+  "kernel": "syrk",
+  "dataset": "LARGE",
+  "target": "host",
+  "build_seconds": 13.9,
+  "launches": [
+   {
+    "spec": "netlib_dsyrk_ut",
+    "call": "polygeist_v2_cublasDsyrk",
+    "cpu_entry": "dsyrk_",
+    "gpu_entry": "cublasDsyrk_v2"
+   }
+  ],
+  "matched_specs": [
+   "netlib_dsyrk_ut"
+  ],
+  "evidence": {
+   "undefined_library_symbols": [
+    "dsyrk_"
+   ],
+   "v2_wrappers_linked": [
+    "polygeist_v2_cublasDsyrk"
+   ],
+   "needed": [
+    "libopenblas.so.0",
+    "libm.so.6",
+    "libc.so.6"
+   ]
+  },
+  "e2e_ms_samples": [
+   33.357,
+   44.327999999999996,
+   31.306,
+   31.265,
+   36.265
+  ],
+  "e2e_ms_median": 33.357,
+  "per_call": {
+   "cublasDsyrk": {
+    "count": "1",
+    "lib_ms_median": 32.787521
+   }
+  },
+  "lib_ms_median": 32.787521,
+  "transfer_ms_median": null,
+  "status": "TIMED"
+ }
+}

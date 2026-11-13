@@ -1,0 +1,63 @@
+{
+ "launches": [
+  {
+   "spec": "netlib_dgemm_nn",
+   "root": "%13",
+   "func": "kernel_gemm",
+   "binding": {
+    "%m": "%arg1",
+    "%n": "%arg0",
+    "%k": "%arg2",
+    "%alpha": "%arg3",
+    "%lda": "stride0(%arg7)",
+    "%A": "%2",
+    "%ldb": "stride0(%arg6)",
+    "%B": "%1",
+    "%beta": "%arg4",
+    "%ldc": "stride0(%arg5)",
+    "%C": "%0"
+   },
+   "generics": {
+    "%12": {
+     "pi": [
+      0,
+      1
+     ],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0,
+      1,
+      2
+     ],
+     "app": "%12"
+    },
+    "%7": {
+     "pi": [],
+     "rho": [
+      0
+     ],
+     "sigma": [
+      0,
+      1
+     ],
+     "app": "%7"
+    }
+   },
+   "consumed_ops": 11
+  }
+ ],
+ "literal_policy_rejections": [],
+ "alternatives": [
+  "netlib_dgemm_nn_beta1@%13"
+ ],
+ "rejected": [
+  {
+   "spec": "netlib_dsymm_lu_alpha0",
+   "root": "%8",
+   "why": "unbound parameters ['%lda', '%A', '%ldb', '%B']"
+  }
+ ],
+ "residual_generics": []
+}

@@ -1,0 +1,12 @@
+{
+  "name": "integrate_grad_2d",
+  "rc": 0,
+  "passed": true,
+  "actual_vendor_invocations": 3076,
+  "calls": [
+    "cublasDgemm",
+    "cublasDgemv"
+  ],
+  "program_sha256": "123f23e3a32b338686d97330779323a94e901554e93e48f362bc70f955a19a8d",
+  "command": "ulimit -s unlimited; LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-integrate_grad_2d-20261111"
+}

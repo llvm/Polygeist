@@ -1,0 +1,13 @@
+kernel,native_polybenchgpu_e2e_min_ms,polygeist_raised_e2e_min_ms,native_over_raised,comparison_status,notes
+2mm,3.773000000,10.072640002,0.374579,secondary,"Raised and native ran on physical GPUs 2 and 3 respectively; unlocked clocks"
+3mm,4.576000000,12.735794008,0.359302,secondary,"Raised and native ran on physical GPUs 2 and 3 respectively; unlocked clocks"
+atax,2.085000000,1.356378000,1.537182,secondary,"Raised and native ran on physical GPUs 2 and 3 respectively; unlocked clocks"
+bicg,2.148000000,1.556808000,1.379746,secondary,"Raised and native ran on physical GPUs 2 and 3 respectively; unlocked clocks"
+covariance,105.174000000,1529.142307013,0.068780,secondary,"Raised and native ran on physical GPUs 2 and 3 respectively; unlocked clocks"
+doitgen,7.761000000,942.133244008,0.008238,secondary,"Raised and native ran on physical GPUs 2 and 3 respectively; unlocked clocks"
+gemm,3.036000000,4.484483004,0.677001,secondary,"Raised and native ran on physical GPUs 2 and 3 respectively; unlocked clocks"
+gemver,3.578000000,3.304111004,1.082893,secondary,"Raised and native ran on physical GPUs 2 and 3 respectively; unlocked clocks"
+gesummv,1.792000000,0.922452000,1.942649,secondary,"Raised and native ran on physical GPUs 2 and 3 respectively; unlocked clocks"
+mvt,1.900000000,1.309639990,1.450780,secondary,"Raised and native ran on physical GPUs 2 and 3 respectively; unlocked clocks"
+syr2k,6.543000000,18.916381001,0.345891,secondary,"Raised and native ran on physical GPUs 2 and 3 respectively; unlocked clocks"
+syrk,4.060000000,14.974075019,0.271135,secondary,"Raised and native ran on physical GPUs 2 and 3 respectively; unlocked clocks"

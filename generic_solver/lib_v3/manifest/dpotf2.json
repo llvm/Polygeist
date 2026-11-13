@@ -1,0 +1,98 @@
+{
+  "routine": "dpotf2",
+  "source": "OpenBLAS 0.3.31 lapack-netlib copy (~/netlib_ref/openblas-0.3.31/lapack-netlib/SRC/dpotf2.f); the C transliteration ref_c/dpotf2.c is shared with lib_v2 (Reference-LAPACK 6a1a8b8a), whose code differs from OpenBLAS's copy only in formatting",
+  "specs": [
+    {
+      "name": "netlib_dpotf2_u",
+      "defines": {
+        "UPLO": "'U'"
+      },
+      "source_lines": "SRC/dpotf2.f:L170-L189",
+      "target": {
+        "library": "cuSOLVER",
+        "call": "cusolverDnDpotrf",
+        "fixed_args": {
+          "uplo": "CUBLAS_FILL_MODE_UPPER"
+        },
+        "note": "cuSOLVER POTRF is blocked; same factorization, different rounding order than unblocked DPOTF2"
+      },
+      "args": [
+        "n",
+        "lda",
+        "A"
+      ],
+      "assumptions": [
+        "A is symmetric positive definite (INFO = 0 path)",
+        "only the upper triangle of A is referenced and overwritten"
+      ],
+      "deviations": [
+        "non-positive-definite exit removed: dpotf2.f L175-L178 IF (AJJ.LE.ZERO.OR.DISNAN(AJJ)) ... GO TO 30 (INFO=J)",
+        "IF (J.LT.N) guard around DGEMV/DSCAL removed (dpotf2.f L184): for J=N both calls have N-J=0 trips; exact",
+        "DDOT unit-stride 5-way unrolled loop (ddot.f L114-L128) replaced by its general-increment loop (ddot.f L134-L142); summation order identical, bitwise exact",
+        "DSCAL DA.EQ.ONE quick return removed (dscal.f L104); exact"
+      ],
+      "inlined": [
+        "BLAS/SRC/ddot.f",
+        "BLAS/SRC/dgemv.f TRANS='T' L302-L311",
+        "BLAS/SRC/dscal.f"
+      ]
+    },
+    {
+      "name": "netlib_dpotf2_l",
+      "defines": {
+        "UPLO": "'L'"
+      },
+      "source_lines": "SRC/dpotf2.f:L194-L215",
+      "target": {
+        "library": "cuSOLVER",
+        "call": "cusolverDnDpotrf",
+        "fixed_args": {
+          "uplo": "CUBLAS_FILL_MODE_LOWER"
+        },
+        "note": "cuSOLVER POTRF is blocked; same factorization, different rounding order than unblocked DPOTF2"
+      },
+      "args": [
+        "n",
+        "lda",
+        "A"
+      ],
+      "assumptions": [
+        "A is symmetric positive definite (INFO = 0 path)",
+        "only the lower triangle of A is referenced and overwritten"
+      ],
+      "deviations": [
+        "non-positive-definite exit removed: dpotf2.f L200-L203 IF (AJJ.LE.ZERO.OR.DISNAN(AJJ)) ... GO TO 30 (INFO=J)",
+        "IF (J.LT.N) guard around DGEMV/DSCAL removed (dpotf2.f L209): for J=N both calls have N-J=0 trips; exact",
+        "DSCAL unit-stride 5-way unrolled loop (dscal.f L112-L126) replaced by its general-increment loop (dscal.f L131-L134); element-wise, bitwise exact",
+        "DSCAL DA.EQ.ONE quick return removed (dscal.f L104); exact"
+      ],
+      "inlined": [
+        "BLAS/SRC/ddot.f",
+        "BLAS/SRC/dgemv.f TRANS='N' L278-L286",
+        "BLAS/SRC/dscal.f"
+      ]
+    }
+  ],
+  "layout_transpose": {
+    "about": "Declarative layout-transpose equivalences used by the region matcher's launch emitter. A binding that stores the listed rank-2 operands transposed (the spec reads op^T of the memory it is given) is equivalent to the spec whose defines have each listed flag flipped between its two values, with the listed argument pairs swapped (flips first, then swaps). Leading dimensions always follow their array. The transposed operand set must be covered exactly by disjoint rules.",
+    "flags": {
+      "UPLO": [
+        "'U'",
+        "'L'"
+      ]
+    },
+    "rules": [
+      {
+        "operands": [
+          "A"
+        ],
+        "flip": [
+          "UPLO"
+        ]
+      }
+    ]
+  },
+  "notes": [
+    "Netlib reference code distributed in the OpenBLAS source tree (lapack-netlib/); OpenBLAS itself executes blocked drivers for this routine."
+  ]
+}

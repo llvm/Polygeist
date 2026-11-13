@@ -1,0 +1,13 @@
+{
+  "kernel": "gemver",
+  "variant": "reference",
+  "rc": 0,
+  "elapsed_s": 1.280231237411499,
+  "sha256": "15b97fdf45613259def8f3324207b227c5cb8bda42f90c063535997d58c38863",
+  "cuda_graph": false,
+  "warmups": 5,
+  "measured": 5,
+  "dump_count": 1,
+  "max_temperature_c": 50.187,
+  "thermal_ok": true
+}

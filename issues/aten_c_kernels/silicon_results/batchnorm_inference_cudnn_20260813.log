@@ -1,0 +1,4 @@
+Jetson Orin sm87, MAXN, CUDA 12.6, warm mean over 10 calls after 3 warmups
+ATen standalone extraction scaled to N=32, C=64, H=64, W=64
+
+RESULT kernel=aten_batch_norm_transform_cpu warm_us=444.064014 errors=0 max_error=2.38419e-07 coverage=full_inference_batch_normalization_through_cuDNN

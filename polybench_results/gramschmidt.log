@@ -1,0 +1,64 @@
+/home/arjaiswal/Polygeist/polybench_results/gramschmidt_linalg.mlir:15:5: error: operand #1 does not dominate this use
+    affine.for %arg5 = 0 to %0 {
+    ^
+/home/arjaiswal/Polygeist/polybench_results/gramschmidt_linalg.mlir:15:5: note: see current operation: 
+%6:4 = "affine.for"(%4, %10, %3, %2, %1) ({
+^bb0(%arg5: index, %arg6: tensor<f64>, %arg7: tensor<?x30xf64>, %arg8: tensor<?x30xf64>, %arg9: tensor<?x30xf64>):
+  %10 = "tensor.empty"() : () -> tensor<f64>
+  %11 = "tensor.insert"(%0, %arg6) : (f64, tensor<f64>) -> tensor<f64>
+  %12 = "polygeist.submap"(%11, %5) <{map = affine_map<(d0) -> ()>}> : (tensor<f64>, index) -> tensor<?xf64>
+  %13 = "polygeist.submap"(%arg7, %arg5, %5) <{map = affine_map<(d0)[s0] -> (d0, s0)>}> : (tensor<?x30xf64>, index, index) -> tensor<?xf64>
+  %14 = "linalg.generic"(%13, %12) <{doc = "", indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = [#linalg.iterator_type<reduction>], library_call = "", operandSegmentSizes = array<i32: 1, 1>}> ({
+  ^bb0(%arg10: f64, %arg11: f64):
+    %37 = "arith.mulf"(%arg10, %arg10) <{fastmath = #arith.fastmath<none>}> : (f64, f64) -> f64
+    %38 = "arith.addf"(%arg11, %37) <{fastmath = #arith.fastmath<none>}> : (f64, f64) -> f64
+    "linalg.yield"(%38) : (f64) -> ()
+  }) : (tensor<?xf64>, tensor<?xf64>) -> tensor<?xf64>
+  %15 = "polygeist.submapInverse"(%11, %14, %5) <{map = affine_map<(d0) -> ()>}> : (tensor<f64>, tensor<?xf64>, index) -> tensor<f64>
+  %16 = "tensor.extract"(%15) : (tensor<f64>) -> f64
+  %17 = "math.sqrt"(%16) <{fastmath = #arith.fastmath<none>}> : (f64) -> f64
+  %18 = "tensor.insert"(%17, %arg8, %arg5, %arg5) : (f64, tensor<?x30xf64>, index, index) -> tensor<?x30xf64>
+  %19 = "polygeist.submap"(%arg7, %arg5, %5) <{map = affine_map<(d0)[s0] -> (d0, s0)>}> : (tensor<?x30xf64>, index, index) -> tensor<?xf64>
+  %20 = "polygeist.submap"(%18, %arg5, %5) <{map = affine_map<(d0)[s0] -> (s0, s0)>}> : (tensor<?x30xf64>, index, index) -> tensor<?xf64>
+  %21 = "polygeist.submap"(%arg9, %arg5, %5) <{map = affine_map<(d0)[s0] -> (d0, s0)>}> : (tensor<?x30xf64>, index, index) -> tensor<?xf64>
+  %22 = "linalg.generic"(%19, %20, %21) <{doc = "", indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>], iterator_types = [#linalg.iterator_type<parallel>], library_call = "", operandSegmentSizes = array<i32: 2, 1>}> ({
+  ^bb0(%arg10: f64, %arg11: f64, %arg12: f64):
+    %37 = "arith.divf"(%arg10, %arg11) <{fastmath = #arith.fastmath<none>}> : (f64, f64) -> f64
+    "linalg.yield"(%37) : (f64) -> ()
+  }) : (tensor<?xf64>, tensor<?xf64>, tensor<?xf64>) -> tensor<?xf64>
+  %23 = "polygeist.submapInverse"(%arg9, %22, %arg5, %5) <{map = affine_map<(d0)[s0] -> (d0, s0)>}> : (tensor<?x30xf64>, tensor<?xf64>, index, index) -> tensor<?x30xf64>
+  %24 = "polygeist.submap"(%18, %arg5, %4) <{map = affine_map<(d0)[s0] -> (s0, d0)>}> : (tensor<?x30xf64>, index, index) -> tensor<?xf64>
+  %25 = "linalg.generic"(%24) <{doc = "", indexing_maps = [affine_map<(d0) -> (d0)>], iterator_types = [#linalg.iterator_type<parallel>], library_call = "", operandSegmentSizes = array<i32: 0, 1>}> ({
+  ^bb0(%arg10: f64):
+    %37 = "linalg.index"() <{dim = 0 : i64}> : () -> index
+    %38 = "affine.apply"(%arg5) <{map = affine_map<(d0) -> (d0 + 1)>}> : (index) -> index
+    %39 = "arith.cmpi"(%37, %38) <{predicate = 5 : i64}> : (index, index) -> i1
+    %40 = "arith.select"(%39, %0, %arg10) : (i1, f64, f64) -> f64
+    "linalg.yield"(%40) : (f64) -> ()
+  }) : (tensor<?xf64>) -> tensor<?xf64>
+  %26 = "polygeist.submapInverse"(%18, %25, %arg5, %4) <{map = affine_map<(d0)[s0] -> (s0, d0)>}> : (tensor<?x30xf64>, tensor<?xf64>, index, index) -> tensor<?x30xf64>
+  %27 = "polygeist.submap"(%arg7, %5, %4) <{map = affine_map<(d0, d1) -> (d0, d1)>}> : (tensor<?x30xf64>, index, index) -> tensor<?x?xf64>
+  %28 = "polygeist.submap"(%26, %arg5, %5, %4) <{map = affine_map<(d0, d1)[s0] -> (s0, d1)>}> : (tensor<?x30xf64>, index, index, index) -> tensor<?x?xf64>
+  %29 = "polygeist.submap"(%23, %arg5, %5, %4) <{map = affine_map<(d0, d1)[s0] -> (d0, s0)>}> : (tensor<?x30xf64>, index, index, index) -> tensor<?x?xf64>
+  %30 = "linalg.generic"(%29, %27, %28) <{doc = "", indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>], iterator_types = [#linalg.iterator_type<parallel>, #linalg.iterator_type<reduction>], library_call = "", operandSegmentSizes = array<i32: 2, 1>}> ({
+  ^bb0(%arg10: f64, %arg11: f64, %arg12: f64):
+    %37 = "arith.mulf"(%arg10, %arg11) <{fastmath = #arith.fastmath<none>}> : (f64, f64) -> f64
+    %38 = "arith.addf"(%arg12, %37) <{fastmath = #arith.fastmath<none>}> : (f64, f64) -> f64
+    "linalg.yield"(%38) : (f64) -> ()
+  }) : (tensor<?x?xf64>, tensor<?x?xf64>, tensor<?x?xf64>) -> tensor<?x?xf64>
+  %31 = "polygeist.submapInverse"(%26, %30, %arg5, %5, %4) <{map = affine_map<(d0, d1)[s0] -> (s0, d1)>}> : (tensor<?x30xf64>, tensor<?x?xf64>, index, index, index) -> tensor<?x30xf64>
+  %32 = "polygeist.submap"(%arg7, %5, %4) <{map = affine_map<(d0, d1) -> (d0, d1)>}> : (tensor<?x30xf64>, index, index) -> tensor<?x?xf64>
+  %33 = "polygeist.submap"(%31, %arg5, %5, %4) <{map = affine_map<(d0, d1)[s0] -> (s0, d1)>}> : (tensor<?x30xf64>, index, index, index) -> tensor<?x?xf64>
+  %34 = "polygeist.submap"(%23, %arg5, %5, %4) <{map = affine_map<(d0, d1)[s0] -> (d0, s0)>}> : (tensor<?x30xf64>, index, index, index) -> tensor<?x?xf64>
+  %35 = "linalg.generic"(%34, %33, %32) <{doc = "", indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>], iterator_types = [#linalg.iterator_type<parallel>, #linalg.iterator_type<parallel>], library_call = "", operandSegmentSizes = array<i32: 2, 1>}> ({
+  ^bb0(%arg10: f64, %arg11: f64, %arg12: f64):
+    %37 = "arith.mulf"(%arg10, %arg11) <{fastmath = #arith.fastmath<none>}> : (f64, f64) -> f64
+    %38 = "arith.subf"(%arg12, %37) <{fastmath = #arith.fastmath<none>}> : (f64, f64) -> f64
+    "linalg.yield"(%38) : (f64) -> ()
+  }) : (tensor<?x?xf64>, tensor<?x?xf64>, tensor<?x?xf64>) -> tensor<?x?xf64>
+  %36 = "polygeist.submapInverse"(%arg7, %35, %5, %4) <{map = affine_map<(d0, d1) -> (d0, d1)>}> : (tensor<?x30xf64>, tensor<?x?xf64>, index, index) -> tensor<?x30xf64>
+  "affine.yield"(%15, %36, %31, %23) : (tensor<f64>, tensor<?x30xf64>, tensor<?x30xf64>, tensor<?x30xf64>) -> ()
+}) {lower_bound = affine_map<() -> (0)>, step = 1 : index, upper_bound = affine_map<()[s0] -> (s0)>} : (index, tensor<f64>, tensor<?x30xf64>, tensor<?x30xf64>, tensor<?x30xf64>) -> (tensor<f64>, tensor<?x30xf64>, tensor<?x30xf64>, tensor<?x30xf64>)
+/home/arjaiswal/Polygeist/polybench_results/gramschmidt_linalg.mlir:16:17: note: operand defined here (op in a child region)
+      %alloca = memref.alloca() : memref<f64>
+                ^

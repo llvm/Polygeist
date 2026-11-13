@@ -1,0 +1,40 @@
+{
+ "launches": [
+  {
+   "region_match": "netlib_dtrsv_utn",
+   "binding": {
+    "n": "%arg0",
+    "lda": "stride0(%arg1)",
+    "A": "%arg1",
+    "X": "%arg2 (in: %arg3, copied into %arg2 before the launch)"
+   },
+   "evidence": "netlib_dtrsv_utn: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'stride0(%arg1)', 'A': '%arg1', 'X': '%arg2 (in: %arg3, copied into %arg2 before the launch)'}; e-graph max 63 nodes, egglog 20.4 ms; dependence checks 15 (reads: input 3, final 1, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal: netlib_dtrsv_lnn[transposed]; copy-in %arg3 -> %arg2; assumes %arg3 and %arg2 do not alias (pipeline-wide noalias assumption)"
+  }
+ ],
+ "literal_policy_rejections": [],
+ "alternatives": [],
+ "rejected": [],
+ "residual_generics": [
+  {
+   "app_generic": "%10",
+   "func": "kernel_trisolv",
+   "iters": [
+    "reduction"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_daxpy_inc",
+     "netlib_dgemv_n_alpha0",
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0",
+     "netlib_dgemv_t_alpha0_beta0",
+     "netlib_dscal_inc"
+    ]
+   }
+  }
+ ]
+}

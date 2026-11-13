@@ -1,0 +1,46 @@
+== match report for /home/arjaiswal/Polygeist/issues/mfem_c_kernels/match_results/curlcurl_apply_3d_stage_sliced/debufferized.mlir ==
+  match          body#[0, 1]  cutensornetContraction2_f64
+  computed_submap_base_reject body#2  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#4  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#6  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#8  cublasGemmFor1x1Conv
+  match          body#[10, 11]  cutensornetContraction2_f64
+  match          body#[12, 13]  cutensornetContraction2_f64
+  computed_submap_base_reject body#14  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#16  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#18  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#20  cublasGemmFor1x1Conv
+  match          body#[22, 23]  cutensornetContraction2_f64
+  match          body#[24, 25]  cutensornetContraction2_f64
+  computed_submap_base_reject body#26  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#28  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#30  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#32  cublasGemmFor1x1Conv
+  no_match       body#34  ?
+  no_match       body#35  ?
+  computed_submap_base_reject body#36  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#38  cublasGemmFor1x1Conv
+  no_match       body#40  ?
+  no_match       body#41  ?
+  computed_submap_base_reject body#42  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#44  cublasGemmFor1x1Conv
+  no_match       body#46  ?
+  no_match       body#47  ?
+  computed_submap_base_reject body#48  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#50  cublasGemmFor1x1Conv
+  no_match       body#52  ?
+  no_match       body#53  ?
+  computed_submap_base_reject body#54  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#56  cublasGemmFor1x1Conv
+  no_match       body#58  ?
+  no_match       body#59  ?
+  computed_submap_base_reject body#60  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#62  cublasGemmFor1x1Conv
+  no_match       body#64  ?
+  no_match       body#65  ?
+  computed_submap_base_reject body#66  cublasGemmFor1x1Conv
+  computed_submap_base_reject body#68  cublasGemmFor1x1Conv
+  no_match       body#70  ?
+  no_match       body#71  ?
+  no_match       body#72  ?
+  total: 5 matched / 44 bodies

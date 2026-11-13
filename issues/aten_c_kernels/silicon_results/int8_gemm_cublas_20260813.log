@@ -1,0 +1,4 @@
+Jetson Orin sm87, MAXN, CUDA 12.6, warm mean over 10 calls after 3 warmups
+ATen standalone extraction scaled to M=512, N=512, K=1024
+
+RESULT kernel=aten_int_mm_out_cpu warm_us=110.326416 errors=0 max_error=0 coverage=full_i8_by_i8_to_i32_matrix_multiplication_through_cuBLAS_GemmEx

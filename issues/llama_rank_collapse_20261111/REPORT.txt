@@ -1,0 +1,152 @@
+LoopLibrarian: generic parallel-dimension collapse and measured selection
+Date: 2026-11-11
+
+RESULT
+The same source-derived matching pipeline now recognizes all four previously
+unmatched Q/K contractions as FP32 SGEMM calls. No benchmark name, fixed benchmark
+dimension, scalar algorithm recognizer, or FP32-to-FP64 conversion is used.
+
+On the existing one-token, one-layer synthetic 7B-shaped Llama fixture:
+  implementation                     minimum ms     median ms
+  new library, collapse disabled      15.369888      15.418944
+  new library, collapse enabled       11.247136      11.296384
+  previous implementation             15.433216      15.440192
+  historical implementation           12.708896      12.717984
+  expert implementation                9.621000       9.638000
+
+Each row uses five warmups and five synchronized end-to-end samples, GPU-resident
+arrays and CUDA graphs, CPU affinity 0, in the same Orin session. Minimum is
+reported for comparison with the previous campaign; the selector uses median.
+The median runtime reduction against the fresh uncollapsed baseline is 26.74%.
+The new minimum is 11.50% below historical, but remains 16.90% above expert.
+All 32,000 logged logits match the expert exactly, including the candidate and
+baseline. This is the established synthetic fixture, not a pretrained full-model
+inference claim. Raw timings and comparisons are gpu-runs.json/correctness.json.
+
+IMPLEMENTATION
+lib/polygeist/Passes/NormalizeLinalgMatchingViews.cpp adds an opt-in normalization:
+1. Expose projected/broadcast tensor submaps through Linalg indexing maps without
+   extending the iteration bounds or losing the output inverse mapping.
+2. Use upstream linalg::populateCollapseDimensions for adjacent parallel loops.
+   Every operand must use both dimensions consecutively, or use neither.
+   Reduction dimensions are not collapsed. Upstream reconstructs linalg.index.
+3. Commute reshapes through bounded identity views only when inner extents cover
+   the complete base dimensions. Use upstream memref collapse legality to create
+   zero-copy descriptor views only for guaranteed collapsible layouts.
+
+Thus A[h,d,k]*x[k] can flatten h,d, while A[h,d,k]*x[h,k] cannot. Padded physical
+rows do not get an invalid flat memref view. Unknown dynamic output factors are
+conservatively left uncollapsed by this vendored MLIR version.
+
+scripts/correctness/spec_match.py first preserves existing Linalg and generic
+region matches, then applies the same normalization to residual application IR
+and imported reference IR, and runs the shared Linalg EqSat matcher. Existing
+proven launches are temporarily represented by opaque typed calls while MLIR
+normalizes; signatures and launches are restored afterward. No semantic body is
+invented for those calls. Source parameter names and ABI metadata are preserved
+across the MLIR printer. The proof records compiler and normalized-input hashes.
+
+The FP32 SGEMM reference is an ordinary OpenBLAS specialization with M=1,
+lda=ldc=1, alpha=1 and beta=0. N,K and the matrix leading dimension remain bound
+from application IR. It is raised through the normal import pipeline. The typed
+ABI emits cublasSgemm on GPU or cblas_sgemm on CPU. This uses the established
+source-reference correspondence between OpenBLAS and cuBLAS, not cuBLAS source.
+See generic_solver/lib_v3/manifest/openblas_sgemm.json and the upstream source
+hashes there. Import validation passed affine/Linalg/debufferized stages exactly.
+
+scripts/correctness/lib_v2/mlir_lite.py now reads a reshape's result type after
+"into" instead of interpreting source and result types as one descriptor.
+match_v2.py preserves a collapsed memref's descriptor rather than tracing back
+to its higher-rank base. Three parser tests failed before and pass after the fix.
+
+The region matcher's C array-declaration reader now handles scalar typedefs and
+type macros, and resolves the reference path from the manifest. This preserves
+the leading-dimension relationships when one reference supports multiple
+precisions. The previous reader recognized only literal float/double and guessed
+the source filename from the routine name; that caused a correlation/covariance
+regression when the GEMM reference was generalized. Declaration tests also guard
+against mistaking comments, macro array expressions and returns for parameters.
+
+The session build has 16 baseline calls and 22 candidate calls: four added SGEMM
+calls and two added copy calls. It has ten SGEMM calls in total. Six existed in
+the baseline with the new catalog. Therefore the paired improvement measures the
+full normalization, including the two copies, not an isolated Q/K-only ablation.
+These call counts are not the paper's 19-operation coverage denominator.
+
+COST / BENEFIT
+scripts/correctness/select_measured_candidate.py retains both alternatives and
+chooses the normalized one only after correctness and a measured median benefit
+larger than the configurable 2% default margin. Profiles must share an input,
+hardware, numerical and timing context; IR, proof and executable hashes are
+checked. Incorrect, slower, insufficiently beneficial or unmeasured alternatives
+do not replace the baseline. The measured ratio here is 0.732630172.
+
+This is an offline measured selection, not a predictive compiler cost model or
+a performance guarantee for unmeasured shapes/devices. Normalization remains
+opt-in with POLYGEIST_NORMALIZE_PARALLEL_DIMS=1. Selection records and the chosen
+IR/proof are saved in selection/; original artifacts remain intact.
+
+VALIDATION
+- All 104 shared Python tests pass; python-tests-final.log. This includes the
+  reshape parser, measured selection and reference declaration reader checks.
+- Five compiler FileCheck cases pass: shared vector, group-dependent vector,
+  unrelated FP64 pointwise body, padded layout, and dynamic output factors.
+- Three fresh native execution checks pass with asymmetric input and output
+  guards: shared-vector contraction, rejected group-dependent contraction, and
+  an index-dependent body whose collapsed loop reconstructs the original indices.
+  The small shared-vector case chooses SGEMV, demonstrating that the common
+  matcher, not the normalization pass, determines the library operation.
+- All 288 changed tracked pre-existing generated MLIR artifacts differ from HEAD
+  only in module attributes; no function computations changed. Audit saved in
+  generated-ir-audit.json. Fresh imports include all 139 current specifications.
+- All 22 previously successful application coverage checks pass: 18 PolyBench,
+  three ATen and one MFEM PCG case. Correlation and covariance are restored.
+  See previous-matches.json and previous-matches-final.log. These are matching
+  coverage rechecks, not new runtime measurements for those other suites.
+
+PROVENANCE AND CONDITIONS
+source-snapshot/ saves the sources used for this run, with hashes in
+source-snapshot-hashes.json. The uncollapsed baseline was built before the narrow
+reshape parser correction; its exact parser is baseline-mlir_lite.py, verified
+against its proof hash. Both builds use the same compiler and imported catalog.
+The final reference declaration reader is in post-validation-fixes/. Replaying
+both complete matches after that correction gives byte-identical IR to both
+timed executables' compilation inputs: 16 baseline calls, 22 candidate calls.
+See reverify-baseline.log, reverify-llama.log, reverified-baseline-proof.json and
+reverified-proof.json. Thus no timing was inferred from a changed compilation
+input. For the final source version, overlay post-validation-fixes/ on the saved
+source snapshot; the original timed-run proofs are retained unchanged.
+Each resident executable's proof and intermediate IR are in its session-work/.
+gpu-runs.json records executable hashes, raw samples and execution commands.
+board-before.json/board-after.json and host-uptime.txt record machine conditions.
+The board was idle, CPU clocks fixed at 2201600 kHz, automatic fan control at
+pwm1=51, and GPU temperature roughly 43 C. No hardware settings were changed.
+
+REPRODUCTION
+From the repository root, source envsetup.sh and set:
+  PYTHON=/usr/bin/python3
+  POLYGEIST_NUMERIC_MODEL=relaxed
+  POLYGEIST_CUTENSOR_ROOT=/home/arjaiswal/cutensornet-aarch64-root/cutensor
+The current runtime generator also needs the correctness and lib_v2 directories
+on PYTHONPATH pending the separately tracked standalone import-order correction.
+
+Build with POLYGEIST_NORMALIZE_PARALLEL_DIMS=0 and =1 respectively:
+  bash scripts/correctness/build_llama_reproduction.sh OUTPUT_DIRECTORY
+Then run this directory's run_gpu_comparison.py after adjusting local/remote
+paths for the machine. The script uses the existing protected remote helper;
+credentials are not included in this artifact. The captured commands can also
+be run directly on the board without that helper.
+
+Bind newly measured results to their IR/proof/executable hashes, then select:
+  python3 issues/llama_rank_collapse_20261111/record_measured_selection.py
+
+The underlying generic selection command is:
+  python3 scripts/correctness/select_measured_candidate.py \
+    issues/llama_rank_collapse_20261111/baseline-profile.json \
+    issues/llama_rank_collapse_20261111/candidate-profile.json \
+    --output issues/llama_rank_collapse_20261111/selection
+
+The candidate improves on the historical runtime on this fixture. The remaining
+expert-runtime gap is about 1.63 ms by minimum time. No claim is made here about
+unmeasured inputs, all Llama operation coverage, or other suites' speedups.
+Changes have not been committed or pushed.

@@ -1,0 +1,18 @@
+{
+  "cases": 43,
+  "full_native_correctness_pass": 41,
+  "complete_raw_timing_cases": 43,
+  "comparable_timing_cases": 40,
+  "raised_faster_cases": 0,
+  "native_over_raised_min_range": [
+    0.017148454577290532,
+    0.4645614959347233
+  ],
+  "native_over_raised_min_geomean": 0.20045768983624968,
+  "full_output_checks": 204,
+  "compared_output_elements": 757760,
+  "mismatching_native_output_elements": 2604,
+  "raised_vs_extracted_cpu_reference_failures": 0,
+  "same_library_fingerprints_verified": true,
+  "scope": "43 original targeted fixtures; not paper Figure 5 sizes or complete 115-case comparison"
+}

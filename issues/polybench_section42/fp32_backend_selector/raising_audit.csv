@@ -1,0 +1,6 @@
+program,dataset,datatype,semantic_contraction_sites,matched_contraction_launches,build_status,correctness_status,notes
+gemm,LARGE,fp32,1,1,pass,pass,"One cublasSgemm match; TF32 passes 1100000/1100000 printed values at rtol=5e-4 atol=1.1e-2"
+2mm,LARGE,fp32,2,2,pass,fail,"Both SGEMMs build and run after the f32 scalar fix; TF32 fails 89/960000 printed values at the current tight tolerance (max relative error 7.5385e-4)"
+3mm,LARGE,fp32,3,3,pass,pass,"Three structural SGEMM matches build and run with --no-inline; TF32 passes 880000/880000 printed values"
+syrk,LARGE,fp32,1,1,pass,pass,"One structural cublasSsyrk match builds and passes 1440000/1440000 values; TF32 math mode showed no repeatable speedup, so final policy retains strict vendor-library execution"
+syr2k,LARGE,fp32,1,1,pass,pass,"One fused structural cublasSsyr2k match represents two product terms, builds, and passes 1440000/1440000 values; TF32 showed no speedup, so final policy retains strict vendor-library execution"

@@ -1,0 +1,13 @@
+kernel,correctness_passed,validated,baseline,raised_device_ms,baseline_device_ms,paper_raised_ms,device_speedup,paper_device_speedup,raised_submission_wall_ms,raised_memory_device_ms,raised_end_to_end_ms,specifications
+2mm,True,True,native,48.993504,71.863105774,48.919712,1.4667884496279344,1.466266752,0.12301,29.615104,78.804462,"openblas_dgemm_nn_b0,openblas_dgemm_nn"
+3mm,True,True,native,82.750465,82.34992218,82.513443,0.9951596305833446,0.998010855,58.457873,51.41696,135.002106,"openblas_dgemm_nn_b0,openblas_dgemm_nn_b0,openblas_dgemm_nn_b0"
+atax,True,True,native,0.558688,2.388128042,0.592672,4.274528971447391,4.025484614,0.140674,29.58592,30.702865,"openblas_dgemv_t_beta0,openblas_dgemv_n_beta0"
+bicg,True,True,native,0.558752,2.232095957,0.576736,3.9947883085877094,3.834378489,0.147042,32.188897,33.354847,"openblas_dgemv_n_beta0,openblas_dgemv_t_beta0"
+correlation,True,True,paper-baseline,63.561985,319.527954102,306.372864,5.027029192087063,1.048398949,63.555848,21.021248,85.21219,openblas_dgemm_nt_b0
+covariance,True,True,paper-baseline,63.651134,331.54385376,128.239166,5.2087658604794065,2.583179865,63.642313,20.889568,85.130171,openblas_dgemm_nt_b0
+gemm,True,True,native,40.278847,74.929214478,40.220322,1.8602621489636981,1.860209045,0.130722,25.411168,65.846637,openblas_dgemm_nn
+gemver,True,True,native,1.298368,2.65612793,15.073344,2.04574352571844,0.175317693,0.206947,35.005889,36.899131,"openblas_dger,openblas_dger,openblas_dgemv_n_beta1,openblas_daxpy,openblas_dgemv_t_beta1"
+gesummv,True,True,native,0.307104,0.877152026,0.440224,2.856205148744399,1.98211819,0.134339,28.733792,29.60227,"openblas_dgemv_t_beta0,openblas_dgemv_t_beta0,openblas_dscal,openblas_daxpy"
+mvt,True,True,native,0.93552,2.147423983,0.950624,2.295433537497862,2.241525494,0.151426,35.020224,36.144557,"openblas_dgemv_t_beta1,openblas_dgemv_n_beta1"
+syr2k,True,True,native,41.912514,207.935836792,41.853855,4.961187410328094,4.96332606,0.138531,29.024608,71.109223,netlib_dsyr2k_ut
+syrk,True,True,native,22.758112,83.502044678,22.700001,3.669111246047124,3.674411696,0.118594,19.521184,42.431449,netlib_dsyrk_ut

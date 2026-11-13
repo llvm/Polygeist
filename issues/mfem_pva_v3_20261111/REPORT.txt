@@ -1,0 +1,166 @@
+MFEM/PVA source-derived artifact restoration — 2026-11-11
+
+MFEM RESULT
+All 18 supported retained fixtures now pass fresh full-output execution through
+source-derived v3 imports and actual cuBLAS. At NE=1024 the harness checks
+1,305,600 output values, with zero failed values and maximum absolute error
+2.7755575615628914e-17. The existing numerical tolerance is unchanged.
+
+Recognition/ABI/build/execution are separately recorded:
+  supported fixtures                         18 / 18
+  fixtures with imported library matches     18 / 18
+  static recognized library calls            135
+  static typed ABI-lowered library calls      135
+  fresh executable builds                    18 / 18
+  full-output vendor execution passes         18 / 18
+  historical Table 6 static calls             128
+
+The 135 and 128 counts use different library-call granularity. They cover the
+same 18 retained fixtures. Extra calls occur in mass2D (+1), mass3D (+1),
+integrate_value2D (+1), integrate_value3D (+1), and divdiv3D (+3). This is not a
+claim of seven additional original source sites. Elasticity2D/3D remain
+unsupported, with zero recovered calls; they are outside the supported set.
+
+The six imported families used here are genuine OpenBLAS FP64 GEMM NN/NT/TN/TT
+with accumulation and existing GEMV N/T references. Arithmetic is performed
+by cuBLAS Dgemm/Dgemv. The original disclosed extraction/normalization fixtures
+were reused; no benchmark computation or algorithm-specific recognizer was
+added. Fresh proofs, emitted ABI, binaries, source hashes, commands, complete
+logs, and build/run statuses are retained per fixture under mfem-production/.
+The aggregate mfem-production-summary.json verifies build/run/executable hash
+agreement before counting a result.
+
+PCG APPLICATION
+Both vector updates are recognized from real OpenBLAS references. DAXPY lowers
+to cuBLAS Daxpy; DAXPBY uses the documented FP64 n-by-1 GEAM B/C in-place form.
+The integrated ex9p mass/convection/PCG fixture passes all six output buffers
+(161 values), maximum absolute error 3.4694469519536142e-18. Vendor traces
+confirm both updates, with eleven static library calls for the application.
+The harness rejects NaN/Inf explicitly; finite/NaN/Inf controls pass.
+Evidence: pcg-application/, pcg-harness-checks/.
+
+WHAT WAS FIXED
+1. Added four accumulating GEMM specializations and a DAXPBY binding using
+   pinned real OpenBLAS source. Source versus raised-stage checks and actual
+   native OpenBLAS/cuBLAS checks are recorded in staged-gemm/ and PCG evidence.
+2. Added an optional shared view-normalization transform using upstream MLIR
+   Linalg tiling and rank reduction, with the same recipe for applications and
+   imported libraries. Generic fixes preserve output aliasing, dynamic bounds,
+   region-local dominance, and kernel.defn ownership. Defaults remain disabled;
+   MFEM uses max-parallel-dims=2 and max-operand-rank=2.
+3. Allowed strict proof verification of the bounded canonical option strings.
+4. Added mechanical BLAS matrix packing for nonunit inner strides. Exact bytes
+   are copied to a representable layout; the selected vendor symbol/arithmetic
+   is unchanged; mutable outputs copy back without changing holes. Original
+   distinct-operand overlaps are rejected before allocation. Typed/descriptor
+   adapters retain their own contracts and are excluded. Device copies have
+   explicit ordering around nonblocking producer/vendor streams. Contiguous
+   lowering is unchanged. This uncommon path does not promise graph capture
+   or performance. No MFEM timing table is required or claimed.
+5. Three direct-C 3D references exceed Orin's default 8MB stack (diffusion uses
+   15,909,632 bytes). The runner now raises the stack limit; the unchanged
+   programs then pass. Initial failures remain preserved.
+6. Integrated the PCG application copy-back path, disambiguated retained direct-C
+   helper symbols in its reference harness, and rejected nonfinite outputs.
+
+FINAL MFEM ABI FIX VALIDATION
+Before packing, integrate_value3D and integrate_grad3D stopped at unit-inner-
+stride assertions. Both rebuilt programs now pass all full outputs. Each ABI
+has one pack/release site. Previous failing binaries/proofs/logs are retained
+under before-matrix-layout/; final results are in mfem-production/.
+The other 16 fixtures use their previously frozen passing executables; they
+were not rebuilt redundantly for this mechanical layout-only correction.
+
+Three focused packing tests cover real OpenBLAS GEMV/GEMM, transposed mutable
+output, untouched holes, capacity/overflow/alias rejection, valid emitted MLIR,
+and the contiguous path. CPU and CUDA runtime templates compile. A resident
+GPU test queues actual cuBLAS updates on a delayed nonblocking stream and
+passes packing/copyback/input/holes checks; removing explicit ordering makes
+the same test observe stale producer data (rc3). Evidence: staged-matrix-packing/.
+
+The coordinated final snapshot has 169 catalog records. Shared regression
+results from the ATen owner: 174 Python tests pass, 22 prior cases match, and
+Llama retains 22 calls with byte-identical matched IR. Compiler-specific tests
+passed 14/14 before this ABI-only change. Shared source/tool hashes are copied
+in final-shared-source-state.json; evidence hashes in final-evidence-hashes.json.
+Later independent ATen compiler work must be distinguished from this snapshot.
+
+PVA RESULT — PARTIAL
+Fresh complete source-to-vendor pipeline: morphology dilation, all four types
+u8/s8/u16/s16. Each run compares all 49,152 output values including untouched
+borders; all are exact. Actual pvaMorphologySubmit calls are traced.
+  operators through the complete pipeline       1 / 6
+  retained datatype routes through pipeline     4 / 18
+  morphology Affine/Linalg/tensor checks         12 / 12 exact
+The reference is pinned public OpenCV source, raised with the production recipe
+and matched by shared integer EqSat, then bound by the generic typed C-wrapper
+ABI. No PVA structural recognizer or SDK implementation body is imported.
+Evidence: pva-production-attested/, staged-pva/, staged-integer-matching/,
+staged-integer-validation/. No PVA timings are required or claimed.
+
+PVA REMAINING: 5 OPERATORS, 14 DATATYPE ROUTES
+- Image histogram (4): pinned public OpenCV references have eight exact
+  Affine/memref-Linalg checks. Shared region matching rejects data-dependent
+  control/indices and mutable histogram effects. A sound generic memory-effect
+  proof is needed; treating these indices as independent affine variables would
+  be incorrect. No production import/match/vendor coverage claim is made.
+  Evidence: staged-histogram/STATUS.txt and validation/.
+- Gaussian filter (4): genuine public unsigned8/unsigned16 references pass
+  four exact raising checks and 100,744 full fixture values per type. After
+  private typed-shift support, shared dependence analysis still rejects rolling
+  row scratch reads that observe intermediate writes. Signed references and
+  exact PVA numerical binding also remain unestablished. This needs generic
+  loop-carried memory reasoning, not a Gaussian recognizer.
+  Evidence: staged-gaussian/STATUS.txt, scalar-support-probe.log.
+- Box filter (4): the current PVA wrapper is not exactly equivalent to the
+  retained source fixture. Direct vendor comparison on unchanged random inputs
+  differs for all four types (max error 2 for u8/u16/s16, 3 for s8). For constant
+  signed minima, the fixture's C division yields -127/-32767 whereas PVA yields
+  -128/-32768. Inputs/borders remain unchanged. A public source with the actual
+  target numerical contract is needed; that alone would still not establish
+  exact equivalence to the retained fixture. Existing tolerance-based native
+  checks do not authorize an exact EqSat replacement. No contract was relaxed.
+  Evidence: pva-box-contract/REPORT.txt, result.json and source hashes.
+- Bilateral filter (1): the audited genuine public CUDA-samples source uses
+  RGBA normalized values, different weighting factorization and truncation;
+  it is not an exact ready reference for the retained grayscale/half-up fixture.
+  No substitute formula was authored/imported. Exact source/binding remains.
+  Evidence: staged-cuda-bilateral/source.json and original public files.
+- Histogram equalization (1): pinned OpenCV preserves a constant nonzero image;
+  the retained fixture and actual PVA return zero. The constant127 hardware
+  counterexample checks 49,152 values exactly. Therefore that OpenCV source is
+  not an exact public equivalent. A suitable source/provenance route remains.
+  Evidence: pva-equalization-contract/REPORT.txt and result.json.
+
+PVA headers/libraries remain external read-only dependencies. The SDK source
+revision and library/header hashes are in pva-sdk-dependencies.json. No gated
+SDK source/header or translated implementation body was copied into Polygeist.
+Artifact reviewers need separately obtained compatible SDK headers/libraries
+and the Orin PVA runtime. Old native-only 18-route tests are not counted as fresh
+compiler-to-vendor reproduction.
+
+REPRODUCTION COMMANDS (from repository root, after source envsetup.sh)
+Development imports:
+  POLYGEIST_SPEC_SUITE=lib_v3 /usr/bin/python3 scripts/correctness/lib_v2/build_lib_v2.py --incremental -j8
+  /usr/bin/python3 scripts/correctness/lib_v2/gen_v2_runtime.py
+Use uncached imports for compilation-cost measurements.
+
+MFEM:
+  /usr/bin/python3 issues/mfem_pva_v3_20261111/build_mfem_production.py
+  /usr/bin/python3 issues/mfem_pva_v3_20261111/run_mfem_production.py
+  /usr/bin/python3 issues/mfem_pva_v3_20261111/summarize_mfem_production.py
+The first two accept fixture names to restrict an affected rerun. GPU hardware
+use must be serialized with other campaigns. Build/run commands are recorded
+per result. Remote helper configuration is private and not embedded in logs.
+
+PCG application:
+  /usr/bin/python3 issues/mfem_pva_v3_20261111/build_pcg_application.py
+  /usr/bin/python3 issues/mfem_pva_v3_20261111/run_pcg_application.py
+
+PVA morphology:
+  /usr/bin/python3 issues/mfem_pva_v3_20261111/build_pva_morphology.py pva-production-attested
+  PVA_RESULT_DIRECTORY=pva-production-attested /usr/bin/python3 issues/mfem_pva_v3_20261111/run_pva_morphology.py
+The builder records the required external SDK roots; adapt those paths for the
+artifact environment without copying the SDK into the repository.
+
+No commits or pushes were made by this agent.

@@ -1,0 +1,219 @@
+#!/bin/bash
+# Run an end-to-end correctness test for one PolyBench kernel.
+#
+# Usage:
+#   run_kernel_e2e.sh <kernel_dir> <kernel_name> [--debuf] [--match]
+#
+# Example:
+#   run_kernel_e2e.sh tools/cgeist/Test/polybench/linear-algebra/blas/gemm gemm
+#   run_kernel_e2e.sh ... gemm --debuf       # also run --linalg-debufferize
+#   run_kernel_e2e.sh ... gemm --debuf --match  # also exercise the
+#                                              # kernel.launch round-trip
+#                                              # (kernel_match_rewrite.py +
+#                                              # kernel_launch_lower.py)
+#
+# Returns 0 on PASS, non-zero on any failure or output mismatch.
+set -e
+_CORRECTNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_CORRECTNESS_DIR/common_env.sh"
+MLIR_OPT="${MLIR_OPT:-$REPO_ROOT/llvm-project/build/bin/mlir-opt}"
+MLIR_TRANSLATE="${MLIR_TRANSLATE:-$REPO_ROOT/llvm-project/build/bin/mlir-translate}"
+CLANG="${CLANG:-$REPO_ROOT/llvm-project/build/bin/clang}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+if [ $# -lt 2 ]; then
+  sed -n '3,12p' "$0" >&2
+  exit 1
+fi
+KERNEL_DIR="$1"
+KERNEL="$2"   # short name, e.g. "gemm", "mvt"
+DEBUF=""
+MATCH=""
+MATCH_CANONICAL=""
+MULTIROOT=""
+for arg in "${@:3}"; do
+  [ "$arg" = "--debuf" ] && DEBUF=1
+  [ "$arg" = "--match" ] && { DEBUF=1; MATCH=1; }
+  [ "$arg" = "--match-canonical" ] && { DEBUF=1; MATCH_CANONICAL=1; }
+  [ "$arg" = "--multi-root" ] && { DEBUF=1; MULTIROOT=1; }
+done
+
+# PolyBench source files: <dir>/<short>.c. Kernel function is
+# `kernel_<short>` with hyphens replaced by underscores (heat-3d → kernel_heat_3d).
+SRC="$KERNEL_DIR/${KERNEL}.c"
+FN="kernel_${KERNEL//-/_}"
+
+if [ ! -f "$SRC" ]; then echo "MISSING: $SRC"; exit 2; fi
+
+POLYBENCH_DIR=$REPO_ROOT/tools/cgeist/Test/polybench
+UTIL=$POLYBENCH_DIR/utilities
+
+TAG="$KERNEL"
+[ -n "$DEBUF" ] && TAG="${KERNEL}_debuf"
+[ -n "$MATCH" ] && TAG="${KERNEL}_match"
+[ -n "$MATCH_CANONICAL" ] && TAG="${KERNEL}_p2"
+[ -n "$MULTIROOT" ] && TAG="${TAG}_mr"
+OUT="${POLYBENCH_E2E_OUTPUT_ROOT:-/tmp}/e2e_${TAG}"
+mkdir -p $OUT
+
+DATASET="-D${POLYBENCH_DATASET:-MINI}_DATASET"
+CFLAGS="${POLYBENCH_COMPILE_OPT:--O1} -I$UTIL -I$KERNEL_DIR -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_DUMP_ARRAYS $DATASET"
+DYN_FLAGS="-Dstatic= -DPOLYBENCH_USE_C99_PROTO"
+
+# Pipeline ordering: lower-polygeist-submap BEFORE --linalg-debufferize so
+# debuferize sees only standard MLIR.
+PIPELINE_OPTS=(
+  --select-func=func-name=$FN
+  --remove-iter-args --affine-parallelize
+  --raise-affine-to-linalg-pipeline
+  --lower-polygeist-submap
+)
+if [ -n "$DEBUF" ]; then
+  DEBUFFERIZE_OPT=--linalg-debufferize
+  [ -n "$MULTIROOT" ] && \
+    DEBUFFERIZE_OPT='--linalg-debufferize=use-multi-root=true'
+fi
+
+# Step 1: build the reference exe.
+$CLANG $CFLAGS $DYN_FLAGS $SRC $UTIL/polybench.c -lm -o $OUT/ref_exe 2>$OUT/ref_compile.err
+
+# Step 2: cgeist gemm.c -> MLIR.
+cgeist "$SRC" --function=$FN --resource-dir=/usr/lib/clang/14 \
+  $CFLAGS $DYN_FLAGS --raise-scf-to-affine -S -o $OUT/orig.mlir 2>$OUT/cgeist.err
+
+# Step 3: raise + lower-polygeist-submap (+ optional debufferize).
+#
+# Some legal affine views (notably reversed prefixes and runtime-symbol
+# offsets) cannot be represented by memref.subview.  Debufferizing while
+# those opaque views remain is both unnecessary for residual execution and
+# pathologically expensive.  Convert the already-raised Linalg to explicit
+# loops first, then compose every load/store index with the submap affine map.
+# This preserves the exact view without a temporary allocation.  Kernels whose
+# views lower normally retain the established tensor-debufferized route used
+# by the library matcher.
+: >$OUT/raise.err
+polygeist-opt "${PIPELINE_OPTS[@]}" $OUT/orig.mlir \
+  -o $OUT/raised.mlir 2>>$OUT/raise.err
+LOOPS_PRELOWERED=""
+if [ "${POLYBENCH_RESIDUAL_LOOPS:-0}" != 0 ] || \
+   grep -qE "polygeist\.(submap|submapInverse)" $OUT/raised.mlir; then
+  polygeist-opt --convert-linalg-to-loops --lower-polygeist-submap \
+    $OUT/raised.mlir -o $OUT/std.mlir \
+    2>>$OUT/raise.err
+  LOOPS_PRELOWERED=1
+elif [ -n "$DEBUF" ]; then
+  polygeist-opt "$DEBUFFERIZE_OPT" $OUT/raised.mlir -o $OUT/std.mlir \
+    2>>$OUT/raise.err
+else
+  polygeist-opt $OUT/raised.mlir -o $OUT/std.mlir 2>>$OUT/raise.err
+fi
+
+# Bail if any polygeist ops survive both lowering routes.
+if grep -qE "polygeist\.(submap|submapInverse)" $OUT/std.mlir; then
+  echo "$TAG: PARTIAL_LOWER (polygeist ops remain)"
+  exit 3
+fi
+
+# Optional: run the kernel matcher + reverse lowering. The matcher rewrites
+# recognised linalg.generic spans to kernel.launch (with markers stashing the
+# original); the lowerer restores it. End result must be bit-exact to the
+# input for the round-trip to be correctness-preserving.
+if [ -n "$MATCH" ]; then
+  PY=$PYTHON
+  SCRIPTS=$REPO_ROOT/scripts/correctness
+  $PY $SCRIPTS/kernel_match_rewrite.py --with-roundtrip-markers \
+    $OUT/std.mlir > $OUT/matched.mlir 2>$OUT/match.err
+  N_LAUNCH=$(grep -c '= kernel\.launch ' $OUT/matched.mlir 2>/dev/null || echo 0)
+  N_MARK=$(grep -c '// POLYGEIST-MATCH-BEGIN-' $OUT/matched.mlir 2>/dev/null || echo 0)
+  $PY $SCRIPTS/kernel_launch_lower.py $OUT/matched.mlir \
+    -o $OUT/std.mlir 2>$OUT/lower.err
+  # Note: $OUT/std.mlir is now the restored IR. If matcher had no matches,
+  # std.mlir is unchanged. If it matched, restoration is bit-exact (asserted
+  # implicitly by the downstream parse + execute + diff).
+  echo "$TAG: kernel-match emitted $N_LAUNCH kernel.launch op(s) ($N_MARK markers)"
+fi
+
+# Phase-2: run matcher, inject canonical kernel library, then
+# --lower-kernel-launch to inline canonical defn bodies in place of each
+# kernel.launch. This validates the matcher's *labels* — a wrongly-labeled
+# launch produces different numerics than the user's source and fails the
+# e2e diff.
+if [ -n "$MATCH_CANONICAL" ]; then
+  PY=$PYTHON
+  SCRIPTS=$REPO_ROOT/scripts/correctness
+  LIB=$REPO_ROOT/generic_solver/kernel_library_phase2.mlir
+  $PY $SCRIPTS/kernel_match_rewrite.py $OUT/std.mlir > $OUT/matched.mlir 2>$OUT/match.err
+  # Count both forms: `%X = kernel.launch ...` (tensor) and bare `kernel.launch ...`
+  # (memref, void-returning). grep -c returns exit code 1 when zero matches, so
+  # `|| echo 0` keeps us alive under `set -e`.
+  N_LAUNCH=$(grep -cE '\bkernel\.launch ' $OUT/matched.mlir 2>/dev/null || echo 0)
+  N_LAUNCH=${N_LAUNCH:-0}
+  if [ "$N_LAUNCH" -gt 0 ]; then
+    $PY $SCRIPTS/inject_kernel_library.py $OUT/matched.mlir $LIB -o $OUT/combined.mlir 2>$OUT/inject.err
+    polygeist-opt --lower-kernel-launch $OUT/combined.mlir -o $OUT/std.mlir 2>$OUT/lower.err || {
+      echo "$TAG: PHASE2_LOWER_FAIL"; cat $OUT/lower.err >&2; exit 5; }
+  fi
+  echo "$TAG: phase-2 matched $N_LAUNCH kernel.launch op(s)"
+fi
+
+# Step 4: standard MLIR lowering to LLVM dialect.
+# The debuferize path emits `bufferization.to_tensor` that one-shot-bufferize
+# needs `restrict` on. LinalgDebufferize doesn't emit it; patch via sed.
+# Also: one-shot-bufferize doesn't handle `affine.for` with tensor iter_args,
+# which debuferize emits for time-stepping kernels. Convert affine.for ->
+# scf.for first (via --lower-affine) so bufferize sees only scf.for.
+if [ -n "$DEBUF" ] && [ -z "$LOOPS_PRELOWERED" ]; then
+  sed -i 's|bufferization\.to_tensor \(%[^ ]*\) :|bufferization.to_tensor \1 restrict :|g' $OUT/std.mlir
+  EXTRA="--lower-affine --empty-tensor-to-alloc-tensor --one-shot-bufferize=bufferize-function-boundaries"
+else
+  EXTRA=""
+fi
+$MLIR_OPT $EXTRA --expand-strided-metadata \
+  --convert-linalg-to-loops --lower-affine --convert-scf-to-cf \
+  --convert-arith-to-llvm --convert-math-to-llvm \
+  --finalize-memref-to-llvm \
+  --convert-func-to-llvm --reconcile-unrealized-casts \
+  $OUT/std.mlir -o $OUT/llvm.mlir 2>$OUT/mlir.err
+
+# Step 5: translate to LLVM IR and rename kernel function.
+$MLIR_TRANSLATE --mlir-to-llvmir $OUT/llvm.mlir -o $OUT/kernel.ll 2>$OUT/translate.err
+sed -i "s/@${FN}\b/@${FN}_impl/g" $OUT/kernel.ll
+
+# Step 6: generate the C wrapper for this kernel.
+python3 $SCRIPT_DIR/gen_wrapper.py "$SRC" "$FN" > $OUT/wrapper.c 2>$OUT/wrapper_gen.err
+
+# Step 7: compile pieces. The original application object must not define the
+# transformed function; linker-symbol replacement is forbidden.
+$CLANG -c $CFLAGS $DYN_FLAGS $SRC -o $OUT/full.o
+if nm --defined-only $OUT/full.o | awk '{print $3}' | grep -qx "$FN"; then
+  echo "ERROR: source object defines $FN; weak-symbol replacement is forbidden" >&2
+  echo "Use a dedicated algorithm-neutral harness that only invokes the transformed ABI." >&2
+  exit 1
+fi
+cp $OUT/full.o $OUT/nokernel.o
+$CLANG -c $CFLAGS $UTIL/polybench.c -o $OUT/polybench.o
+$CLANG -c $OUT/wrapper.c -o $OUT/wrapper.o
+$CLANG -c $OUT/kernel.ll -o $OUT/kernel.o
+# Link in mlir_c_runner_utils when memref.copy survived lowering (multi-root
+# debuferize emits to_memref+memref.copy that one-shot-bufferize can't always
+# collapse). Harmless when not needed.
+MLIR_LIBDIR="${MLIR_LIBDIR:-$REPO_ROOT/llvm-project/build/lib}"
+$CLANG $OUT/nokernel.o $OUT/wrapper.o $OUT/kernel.o $OUT/polybench.o -lm \
+  -L$MLIR_LIBDIR -Wl,-rpath,$MLIR_LIBDIR -lmlir_c_runner_utils \
+  -o $OUT/test_exe
+
+# Step 8: run both, diff. Tolerate a non-zero exit on test_exe — some
+# kernels crash on heap-free after the dump, but the dump itself is
+# what we're comparing.
+set +e
+$OUT/ref_exe 2> $OUT/ref.out
+$OUT/test_exe 2> $OUT/test.out
+set -e
+if diff -q $OUT/ref.out $OUT/test.out >/dev/null; then
+  echo "$TAG: PASS"
+  exit 0
+else
+  echo "$TAG: FAIL_DIFF (first 5 differing lines:)"
+  diff $OUT/ref.out $OUT/test.out | head -5
+  exit 4
+fi

@@ -1,0 +1,18 @@
++ aarch64-linux-gnu-gcc -O3 -fno-inline -fno-inline-functions -fsemantic-interposition -fno-ipa-ra -fno-ipa-cp -fno-ipa-cp-clone -fno-ipa-sra -fgnu89-inline -Dstatic= -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_DUMP_ARRAYS -Itools/cgeist/Test/polybench/utilities -c tools/cgeist/Test/polybench/linear-algebra/blas/gemver/gemver.c -o /tmp/polybench-publication-orin/gemver/native-work/harness-full.o
++ aarch64-linux-gnu-objcopy --weaken-symbol=kernel_gemver /tmp/polybench-publication-orin/gemver/native-work/harness-full.o /tmp/polybench-publication-orin/gemver/native-work/harness.o
++ aarch64-linux-gnu-g++ -O3 /tmp/polybench-publication-orin/gemver/native-work/harness.o /tmp/polybench-publication-orin/gemver/native-work/polybench.o /tmp/polybench-publication-orin/gemver/native-work/adapter.o -L/usr/local/cuda-12.6/targets/sbsa-linux/lib -L/usr/local/cuda-12.6/targets/sbsa-linux/lib/stubs -lcudart -lm -o /tmp/polybench-publication-orin/gemver/native-correctness
++ aarch64-linux-gnu-gcc -O3 -fno-inline -fno-inline-functions -fsemantic-interposition -fno-ipa-ra -fno-ipa-cp -fno-ipa-cp-clone -fno-ipa-sra -fgnu89-inline -Dstatic= -Dmain=polygeist_polybench_iteration -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_TIME -Itools/cgeist/Test/polybench/utilities -c tools/cgeist/Test/polybench/linear-algebra/blas/gemver/gemver.c -o /tmp/polybench-publication-orin/gemver/native-work/harness-timing-full.o
++ aarch64-linux-gnu-objcopy --weaken-symbol=kernel_gemver /tmp/polybench-publication-orin/gemver/native-work/harness-timing-full.o /tmp/polybench-publication-orin/gemver/native-work/harness-timing.o
++ aarch64-linux-gnu-g++ -O3 /tmp/polybench-publication-orin/gemver/native-work/harness-timing.o /tmp/polybench-publication-orin/gemver/native-work/polybench-timing.o /tmp/polybench-publication-orin/gemver/native-work/repeat-driver.o /tmp/polybench-publication-orin/gemver/native-work/adapter.o -L/usr/local/cuda-12.6/targets/sbsa-linux/lib -L/usr/local/cuda-12.6/targets/sbsa-linux/lib/stubs -lcudart -lm -o /tmp/polybench-publication-orin/gemver/native-timing-5x5
++ aarch64-linux-gnu-objdump -dr /tmp/polybench-publication-orin/gemver/native-work/harness-timing-full.o
++ rg -B1 -A5 'R_AARCH64_CALL26.*kernel_gemver'
+ 628:	94000000 	bl	270 <kernel_gemver>
+			628: R_AARCH64_CALL26	kernel_gemver
+ 62c:	94000000 	bl	0 <polybench_timer_stop>
+			62c: R_AARCH64_CALL26	polybench_timer_stop
+ 630:	94000000 	bl	0 <polybench_timer_print>
+			630: R_AARCH64_CALL26	polybench_timer_print
+ 634:	7100ab9f 	cmp	w28, #0x2a
++ sha256sum /tmp/polybench-publication-orin/gemver/native-correctness /tmp/polybench-publication-orin/gemver/native-timing-5x5
+6914e6c025de9a985f86ef3ee9e7a50b068557a2db66e7a1c000303b3df4af23  /tmp/polybench-publication-orin/gemver/native-correctness
+07c07007100ef19a425cc612778c015fb155b04acfe46e9e13972a053d7c21fd  /tmp/polybench-publication-orin/gemver/native-timing-5x5

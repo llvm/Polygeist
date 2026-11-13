@@ -1,0 +1,98 @@
+{
+  "rc": 0,
+  "command": [
+    "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+    "--target=jetson",
+    "--function=mfem_app_ex9p_mass_convection_2d",
+    "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/mfem_application_reference_harness.c",
+    "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/ex9p_mass_convection_2d.c",
+    "-DMFEM_APP_EX9P",
+    "-DMFEM_BENCH_NE=2",
+    "-DBENCH_ITERS=1",
+    "-DMFEM_REPLAY_WARMUPS=0",
+    "-DMFEM_PUBLICATION_WARMUPS=0",
+    "-DMFEM_PUBLICATION_SAMPLES=1",
+    "-DMFEM_DEBUG_OUTPUT_SUMMARY=1",
+    "-o",
+    "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/pcg-application/program"
+  ],
+  "seconds": 86.99876354634762,
+  "source_sha256": "df0eb6010712ed220de50a5246cf53e1c949fb0420786623758b513a5bf409f4",
+  "harness_sha256": "b152c86c37c61622a0da32162df4ae2a33cc5ab602d0aeab514a9b6c95303d6d",
+  "specifications": [
+    "openblas_dgemm_tn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_tn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_tn_b1_alpha1",
+    "openblas_dgemm_tn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_dgemm_nn_b1_alpha1",
+    "openblas_daxpy",
+    "openblas_daxpby_geam_f64"
+  ],
+  "program_sha256": "80c02efbfd3d347733a91a5a10dbabf0614d1bc34278e2cd74e601f1c5800a30",
+  "harness_relink": {
+    "commands": [
+      [
+        "aarch64-linux-gnu-gcc",
+        "-DMFEM_APP_EX9P",
+        "-DMFEM_BENCH_NE=2",
+        "-DBENCH_ITERS=1",
+        "-DMFEM_REPLAY_WARMUPS=0",
+        "-DMFEM_PUBLICATION_WARMUPS=0",
+        "-DMFEM_PUBLICATION_SAMPLES=1",
+        "-DMFEM_DEBUG_OUTPUT_SUMMARY=1",
+        "-O3",
+        "-fno-inline",
+        "-fno-inline-functions",
+        "-fsemantic-interposition",
+        "-fno-ipa-cp",
+        "-fno-ipa-cp-clone",
+        "-fno-ipa-sra",
+        "-c",
+        "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/application_extractions/mfem_application_reference_harness.c",
+        "-o",
+        "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/pcg-application/work/harness.o"
+      ],
+      [
+        "aarch64-linux-gnu-gcc",
+        "-O2",
+        "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/pcg-application/work/kernel.o",
+        "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/pcg-application/work/wrapper.o",
+        "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/pcg-application/work/rt.o",
+        "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/pcg-application/work/mlir_runner_utils.o",
+        "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/pcg-application/work/spec_runtime.o",
+        "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/pcg-application/work/harness.o",
+        "-L/usr/local/cuda-12.6/targets/sbsa-linux/lib",
+        "-L/usr/local/cuda-12.6/targets/sbsa-linux/lib/stubs",
+        "-L/usr/lib/aarch64-linux-gnu",
+        "-lcudnn",
+        "-lcublasLt",
+        "-lcublas",
+        "-lcufft",
+        "-lcusparse",
+        "-lcusolver",
+        "-lcudart",
+        "-lm",
+        "-lpthread",
+        "-ldl",
+        "-Wl,--gc-sections",
+        "-o",
+        "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/pcg-application/program"
+      ]
+    ],
+    "unchanged_objects": {
+      "issues/mfem_pva_v3_20261111/pcg-application/work/kernel.o": "ced8eeab5bf2c201364548fb6d67967c3afdb97ed890a737548df946f7495e17",
+      "issues/mfem_pva_v3_20261111/pcg-application/work/wrapper.o": "fe14c4a2b1359d68dc91934e75abfb7f2adea0f5e716b51499ce3e321eadd46b",
+      "issues/mfem_pva_v3_20261111/pcg-application/work/rt.o": "ccdb192eee4b02738d0301e793b0c306d45604af43a5dc0693ab87c60a5af801",
+      "issues/mfem_pva_v3_20261111/pcg-application/work/mlir_runner_utils.o": "4864b599b02c4985cbf21c6e0e3151b294fc60575e0e3946473d672e0a2c98d9",
+      "issues/mfem_pva_v3_20261111/pcg-application/work/spec_runtime.o": "e36ebab626aecc5f05538fd290f26f5f75daaa3abdc4a50fd19234179f78418a"
+    },
+    "harness_dependencies": {
+      "issues/mfem_c_kernels/application_extractions/mfem_application_reference_harness.c": "b152c86c37c61622a0da32162df4ae2a33cc5ab602d0aeab514a9b6c95303d6d",
+      "issues/mfem_c_kernels/application_extractions/mfem_application_jetson_harness.c": "05eee7b7cc127ab8dc2ae807ef259b3f7687bb7cbb7127d07228ba844c7ff6eb"
+    }
+  }
+}

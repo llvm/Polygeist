@@ -1,0 +1,12 @@
+{
+  "upstream_source": "third_party/polybenchGpu/CUDA/SYR2K/syr2k.cu",
+  "upstream_sha256": "6e25029d1b77d257ed41ddee95f54ce22c4dd6ed026b53a6ee1e1d82c362f960",
+  "kernel_sha256": [
+    "1c7b9b650efefe0fdf4cc3a25543ca70e34fe4bf9af81180007acd9f9cd5fbcc"
+  ],
+  "computational_bodies_verbatim": true,
+  "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+  "generated_source_sha256": "23cd6d7e03d5aed4452e69f84c51f947b84d5a7bc560dd579711e76d9b9dbe6d",
+  "build_rc": 0,
+  "executable_sha256": "4394b015b145e3bc1bfb77a1df5755b6cec623ff1c16f99e499b85ae12706abf"
+}

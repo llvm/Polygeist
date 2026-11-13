@@ -1,0 +1,95 @@
+LoopLibrarian Figure 4 GPU reproduction — 2026-11-10
+
+Scope: the 12 FP64 LARGE PolyBench GPU cases in the pinned final paper.
+Fresh C kernels compiled by the current compiler; explicit ABI harnesses
+reuse the original initialization and output routines. This is isolated
+kernel reproduction, not an untouched whole-program compilation claim.
+
+Timings below are CUDA-event compute device milliseconds, matching the
+published CSV. Synchronized compute host wall times are recorded separately.
+Every reported minimum is from the final five measured iterations in one
+process after five warmups. Earlier attempts are retained and not pooled.
+
+kernel       paper raised   current raised   paper speedup   current speedup   outputs
+2mm             48.919712        48.981697       1.466267x        1.466171x   PASS
+3mm             82.513443        82.653694       0.998011x        0.995552x   PASS
+atax             0.592672         0.586272       4.025485x        4.069210x   PASS
+bicg             0.576736         0.586400       3.834378x        3.794652x   PASS
+correlation    306.372864       297.755615       1.048399x        1.070640x   PASS
+covariance     128.239166       127.858749       2.583180x        2.576659x   PASS
+gemm            40.220322        40.248447       1.860209x        1.862366x   PASS
+gemver          15.073344         1.653856       0.175318x        1.600507x   PASS
+gesummv          0.440224         0.344544       1.982118x        2.531624x   PASS
+mvt              0.950624         0.948064       2.241525x        2.276808x   PASS
+syr2k           41.853855        41.915039       4.963326x        4.962583x   PASS
+syrk            22.700001        22.758528       3.674412x        3.671439x   PASS
+
+Numerical checks:
+Complete canonical output dumps, printed with 17 significant digits.
+For every element: abs(actual-reference) <= 1e-8 + 1e-8*abs(reference).
+Missing arrays, wrong counts, NaNs, infinities, failed runs, missing samples,
+and stale executable hashes are rejected. The reference is original C
+cross-compiled for the same Orin. Array counts and errors are in audit.json.
+
+Interpretation:
+All 12 raised implementations and their paper comparison baselines pass.
+Within 5% of the paper raised time: 10 (2mm, 3mm, atax, bicg, correlation, covariance, gemm, mvt, syr2k, syrk).
+More than 5% faster: 2 (gemver, gesummv).
+More than 5% slower: 0 (none).
+The 5% bands are descriptive reporting bands, not a paper-defined acceptance rule.
+Median device speedup: 2.404216x;
+published CSV median: 2.111822x.
+3mm is essentially tied with its baseline; do not call it a speedup.
+GEMVER now uses transposed GEMV directly, eliminating the explicit matrix
+transpose present in the historical GPU IR. GESUMMV avoids redundant
+temporary copies through buffer-aware vector BLAS lowering. Faster current
+results are reported as improvements, not exact reproductions of old times.
+
+Baseline provenance:
+For correlation and covariance, the paper used locally authored CUDA
+adaptations. Those exact computational bodies are the paper comparison
+baselines above; only timing instrumentation was added. They must not be
+described as verbatim upstream PolyBenchGPU kernels.
+The separate upstream audit imports computational CUDA bodies verbatim from
+PolyBenchGPU commit 5584aaa7d0be810ff5eb0b61c49fb64ecc81ba4c.
+All cases use canonical FP64 data, dimensions, and initialization.
+Correlation configures FLOAT_N and EPS to match canonical C and retains
+the upstream final-diagonal host copy. Upstream covariance lacks the
+canonical division by (N-1), so its audit includes a timed cuBLAS Dscal.
+That covariance audit is upstream CUDA plus vendor normalization, not pure
+upstream PolyBenchGPU. It is not used to reproduce the published speedup.
+  correlation: upstream audit 1160.682739 ms; correctness True.
+  covariance: upstream audit 1156.832886 ms; correctness True.
+
+Changes in this task:
+- Retry valid library candidates after rejecting an unconnected composition.
+- Preserve destination metadata and avoid duplicate attributes in bufferization.
+- Support bufferized GEMV, zero-fill, and AXPBY; preserve offsets and strides.
+- Enable this path for supported vector BLAS chains containing AXPBY.
+- Remove only adjacent copy-to-temporary/copy-back pairs with no other uses.
+- Stage rejected host-to-device copies through pinned storage, preserving
+  stream ordering and lifetime; this fixes repeated BiCG/GEMVER failures.
+- Add source-based builds, full-output audits, provenance, and rerun scripts.
+
+Validation and remaining artifact qualifications:
+19 distinct compiler/matcher checks passed; see passed-tests.txt. Two CUDA
+smoke programs also passed on Orin. The pre-fix matcher fails the new retry
+regression, and the initial BiCG/GEMVER runtime failures are retained.
+An existing cublas-daxpby-smoke.c has no lit RUN line; it was compiled and
+run directly on Orin successfully instead.
+CPU clocks are fixed at 2.2016 GHz, GPU at 1.3005 GHz, power mode MAXN,
+CPU affinity 0, one CPU/BLAS/OpenMP thread, serialized board measurements.
+The fan remains automatic: the configured account cannot set it. Therefore
+these rows do not fully satisfy the repository fixed-fan publication protocol.
+Preflight, temperatures, raw samples, statistics, binaries, hashes, source
+revisions, and library hashes are retained. No commits or pushes were made.
+Pre-existing unrelated runtime changes were left byte-for-byte unchanged.
+
+Reproduction:
+From the repository root, export POLYGEIST_ROOT and source envsetup.sh.
+Run: python3 issues/fig4_gpu_20261110/reproduce.py --remote-helper PRIVATE_ADAPTER
+The adapter contains private access configuration and is not part of the artifact.
+It must provide run(command, timeout) and upload(local, destination).
+Then run: python3 issues/fig4_gpu_20261110/report.py
+Never run board measurements concurrently. Existing runs are archived first.
+Data: audit.json, results.csv, run-order.json, provenance.json, board-provenance.json.

@@ -1,0 +1,147 @@
+{
+  "routine": "csc_matvec",
+  "source": "scipy/sparse/sparsetools/csc.h:L28-L45 (scipy/scipy f0352fce59c631194fec178ca20c50cb345de114)",
+  "notes": [
+    "Y += A*X for a CSC matrix (Ap column pointers, Ai row indices, Ax values); each update scatter-adds into Y[Ai[ii]].",
+    "Values double; indices int (CUSPARSE_INDEX_32I) or, for the *_i64 specs, long long (CUSPARSE_INDEX_64I) -- the two index types SciPy instantiates (scipy/sparse/_generate_sparsetools.py I_TYPES).",
+    "Recognition only: no runtime wrapper or ABI lowering exists for this target; a match is reported, not spliced."
+  ],
+  "specs": [
+    {
+      "name": "scipy_csc_matvec",
+      "defines": {
+        "BETA_CASE": "1",
+        "INDEX_T": "int"
+      },
+      "source_lines": "csc.h:L36-L44",
+      "target": {
+        "library": "cuSPARSE",
+        "call": "cusparseSpMV",
+        "recognition_only": true,
+        "fixed_args": {
+          "opA": "CUSPARSE_OPERATION_NON_TRANSPOSE",
+          "format": "CUSPARSE_FORMAT_CSC",
+          "alpha": 1.0,
+          "beta": 1.0,
+          "index_type": "CUSPARSE_INDEX_32I"
+        }
+      },
+      "args": [
+        "n_row",
+        "n_col",
+        "Ap",
+        "Ai",
+        "Ax",
+        "Xx",
+        "Yx"
+      ],
+      "assumptions": [
+        "Ap is non-decreasing and 0 <= Ai[k] < n_row (a valid CSC matrix)"
+      ],
+      "deviations": []
+    },
+    {
+      "name": "scipy_csc_matvec_beta0",
+      "defines": {
+        "BETA_CASE": "0",
+        "INDEX_T": "int"
+      },
+      "source_lines": "csc.h:L36-L44",
+      "target": {
+        "library": "cuSPARSE",
+        "call": "cusparseSpMV",
+        "recognition_only": true,
+        "fixed_args": {
+          "opA": "CUSPARSE_OPERATION_NON_TRANSPOSE",
+          "format": "CUSPARSE_FORMAT_CSC",
+          "alpha": 1.0,
+          "beta": 0.0,
+          "index_type": "CUSPARSE_INDEX_32I"
+        }
+      },
+      "args": [
+        "n_row",
+        "n_col",
+        "Ap",
+        "Ai",
+        "Ax",
+        "Xx",
+        "Yx"
+      ],
+      "assumptions": [
+        "Ap is non-decreasing and 0 <= Ai[k] < n_row (a valid CSC matrix)"
+      ],
+      "deviations": [
+        "Yx zero-filled before the reference loop (the reference applied to a zero-filled Y)"
+      ]
+    },
+    {
+      "name": "scipy_csc_matvec_i64",
+      "defines": {
+        "BETA_CASE": "1",
+        "INDEX_T": "long long"
+      },
+      "source_lines": "csc.h:L36-L44",
+      "target": {
+        "library": "cuSPARSE",
+        "call": "cusparseSpMV",
+        "recognition_only": true,
+        "fixed_args": {
+          "opA": "CUSPARSE_OPERATION_NON_TRANSPOSE",
+          "format": "CUSPARSE_FORMAT_CSC",
+          "alpha": 1.0,
+          "beta": 1.0,
+          "index_type": "CUSPARSE_INDEX_64I"
+        }
+      },
+      "args": [
+        "n_row",
+        "n_col",
+        "Ap",
+        "Ai",
+        "Ax",
+        "Xx",
+        "Yx"
+      ],
+      "assumptions": [
+        "Ap is non-decreasing and 0 <= Ai[k] < n_row (a valid CSC matrix)"
+      ],
+      "deviations": []
+    },
+    {
+      "name": "scipy_csc_matvec_beta0_i64",
+      "defines": {
+        "BETA_CASE": "0",
+        "INDEX_T": "long long"
+      },
+      "source_lines": "csc.h:L36-L44",
+      "target": {
+        "library": "cuSPARSE",
+        "call": "cusparseSpMV",
+        "recognition_only": true,
+        "fixed_args": {
+          "opA": "CUSPARSE_OPERATION_NON_TRANSPOSE",
+          "format": "CUSPARSE_FORMAT_CSC",
+          "alpha": 1.0,
+          "beta": 0.0,
+          "index_type": "CUSPARSE_INDEX_64I"
+        }
+      },
+      "args": [
+        "n_row",
+        "n_col",
+        "Ap",
+        "Ai",
+        "Ax",
+        "Xx",
+        "Yx"
+      ],
+      "assumptions": [
+        "Ap is non-decreasing and 0 <= Ai[k] < n_row (a valid CSC matrix)"
+      ],
+      "deviations": [
+        "Yx zero-filled before the reference loop (the reference applied to a zero-filled Y)"
+      ]
+    }
+  ]
+}

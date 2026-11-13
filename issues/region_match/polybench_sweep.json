@@ -1,0 +1,236 @@
+{
+ "2mm": {
+  "status": "ok",
+  "ms": 30,
+  "matches": [],
+  "first_rejection": "window 11-29: no specification matched (0 bindings tried)"
+ },
+ "3mm": {
+  "status": "ok",
+  "ms": 37,
+  "matches": [],
+  "first_rejection": "window 14-42: no specification matched (0 bindings tried)"
+ },
+ "adi": {
+  "status": "ok",
+  "ms": 40,
+  "matches": [],
+  "first_rejection": "window 40-48: accumulation is not of the form acc (+|-) h: 1.0"
+ },
+ "atax": {
+  "status": "ok",
+  "ms": 11,
+  "matches": [],
+  "first_rejection": "window 7-26: no specification matched (0 bindings tried)"
+ },
+ "bicg": {
+  "status": "ok",
+  "ms": 9,
+  "matches": [],
+  "first_rejection": "window 8-27: no specification matched (0 bindings tried)"
+ },
+ "cholesky": {
+  "status": "ok",
+  "ms": 225,
+  "matches": [
+   {
+    "spec": "netlib_dpotf2_u",
+    "binding": {
+     "n": "%arg0",
+     "lda": "dim(%arg1, 1)",
+     "A": "%arg1 (in-place)"
+    },
+    "evidence": "netlib_dpotf2_u: 2 element equation(s), 2 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'dim(%arg1, 1)', 'A': '%arg1 (in-place)'}; e-graph max 72 nodes, egglog 42.4 ms; dependence checks 49 (reads: input 0, final 5, accumulator 4, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage NOT equivalent (element reads differ on piece [v0 >= 0, p%arg0 - v0 - 1 >= 0, v0 - v1 == 0]: app [\"('in:%arg2', (v1, r0))\", \"('in:%arg2', (v1, v1))\"] vs spec [\"('in:%arg2', (v1, v1))\", \"('out:%arg2', (v1, r0))\"])); also equal (worse binding cost): netlib_dpotf2_l[transposed A]; in-place: A in/out both bound to %arg1"
+   }
+  ],
+  "first_rejection": null
+ },
+ "correlation": {
+  "status": "ok",
+  "ms": 79,
+  "matches": [],
+  "first_rejection": "window 10-61: no specification matched (0 bindings tried)"
+ },
+ "covariance": {
+  "status": "ok",
+  "ms": 48,
+  "matches": [],
+  "first_rejection": "window 8-28: dependence check failed: accumulator read of %arg4[v1, v0] is separated from its write by another write"
+ },
+ "deriche": {
+  "status": "ok",
+  "ms": 6,
+  "matches": [],
+  "first_rejection": "window 29-46: dependence check failed: read of scratch3[v0] at [172, v0, v1, 0] observes an intermediate value (written both before and after)"
+ },
+ "doitgen": {
+  "status": "ok",
+  "ms": 10,
+  "matches": [],
+  "first_rejection": "window 7-11: dependence check failed: read of %arg5[v2] at [29, v0, 2, v1, 41, v2, 0] observes an intermediate value (written both before and after)"
+ },
+ "durbin": {
+  "status": "ok",
+  "ms": 8,
+  "matches": [],
+  "first_rejection": "window 8-27: dependence check failed: read of scratch4[v0] at [101, i1, 101, v0, 0] observes an intermediate value (written both before and after)"
+ },
+ "fdtd-2d": {
+  "status": "ok",
+  "ms": 21,
+  "matches": [],
+  "first_rejection": "window 14-20: dependence check failed: read of %arg5[v0, v1] at [57, i1, 49, v0, v1 - 1, 0] observes an intermediate value (written both before and after)"
+ },
+ "floyd-warshall": {
+  "status": "ok",
+  "ms": 21,
+  "matches": [],
+  "first_rejection": "window 5-8: dependence check failed: read of %arg1[v0, g1_0] at [20, g1_0, v0, v1, 0] observes an intermediate value (written both before and after)"
+ },
+ "gemm": {
+  "status": "ok",
+  "ms": 1467,
+  "matches": [
+   {
+    "spec": "netlib_dgemm_nn",
+    "binding": {
+     "m": "%arg1",
+     "n": "%arg0",
+     "k": "%arg2",
+     "alpha": "%arg3",
+     "lda": "dim(%arg7, 1)",
+     "A": "%arg7",
+     "ldb": "dim(%arg6, 1)",
+     "B": "%arg6",
+     "beta": "%arg4",
+     "ldc": "dim(%arg5, 1)",
+     "C": "%arg5 (in-place)"
+    },
+    "evidence": "netlib_dgemm_nn: 1 element equation(s), 1 domain piece(s) equal under binding {'m': '%arg1', 'n': '%arg0', 'k': '%arg2', 'alpha': '%arg3', 'lda': 'dim(%arg7, 1)', 'A': '%arg7', 'ldb': 'dim(%arg6, 1)', 'B': '%arg6', 'beta': '%arg4', 'ldc': 'dim(%arg5, 1)', 'C': '%arg5 (in-place)'}; e-graph max 70 nodes, egglog 22.4 ms; dependence checks 7 (reads: input 2, final 0, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal (worse binding cost): netlib_dgemm_nn[transposed A,B,C], netlib_dgemm_nt[transposed A,C], netlib_dgemm_nt[transposed B], netlib_dgemm_tn[transposed A], netlib_dgemm_tn[transposed B,C], netlib_dgemm_tt[transposed A,B], netlib_dgemm_tt[transposed C]; in-place: C in/out both bound to %arg5"
+   }
+  ],
+  "first_rejection": null
+ },
+ "gemver": {
+  "status": "ok",
+  "ms": 16,
+  "matches": [],
+  "first_rejection": "window 15-36: no specification matched (0 bindings tried)"
+ },
+ "gesummv": {
+  "status": "ok",
+  "ms": 11,
+  "matches": [],
+  "first_rejection": "window 8-30: no specification matched (0 bindings tried)"
+ },
+ "gramschmidt": {
+  "status": "ok",
+  "ms": 40,
+  "matches": [],
+  "first_rejection": "window 3-3: dependence check failed: read of %arg2[g4_1, v1] at [13, v0, 69, v1, g4_1, 0] observes an intermediate value (written both before and after)"
+ },
+ "heat-3d": {
+  "status": "ok",
+  "ms": 9,
+  "matches": [],
+  "first_rejection": "window 15-19: dependence check failed: read of %arg3[v0 + 1, v1, v2] at [61, i1, 85, v0 - 1, v1 - 1, v2 - 1, 0] observes an intermediate value (written both before and after)"
+ },
+ "jacobi-1d": {
+  "status": "ok",
+  "ms": 3,
+  "matches": [],
+  "first_rejection": "window 10-14: dependence check failed: read of %arg3[v0 - 1] at [41, i1, 41, v0 - 1, 0] observes an intermediate value (written both before and after)"
+ },
+ "jacobi-2d": {
+  "status": "ok",
+  "ms": 6,
+  "matches": [],
+  "first_rejection": "window 14-18: dependence check failed: read of %arg3[v0, v1] at [57, i1, 57, v0 - 1, v1 - 1, 0] observes an intermediate value (written both before and after)"
+ },
+ "lu": {
+  "status": "ok",
+  "ms": 72,
+  "matches": [],
+  "first_rejection": "window 4-6: no specification matched (0 bindings tried)"
+ },
+ "ludcmp": {
+  "status": "ok",
+  "ms": 29,
+  "matches": [],
+  "first_rejection": "window 8-21: dependence check failed: read of scratch1[] at [41, v0, 6, v1, 29, 0] observes an intermediate value (written both before and after)"
+ },
+ "mvt": {
+  "status": "ok",
+  "ms": 7,
+  "matches": [],
+  "first_rejection": "window 9-19: no specification matched (0 bindings tried)"
+ },
+ "nussinov": {
+  "status": "ok",
+  "ms": 2,
+  "matches": [],
+  "first_rejection": "kernel_nussinov: cannot tokenize affine expr 'd0 - 1 >= 0, d1 - 1'"
+ },
+ "seidel-2d": {
+  "status": "ok",
+  "ms": 23,
+  "matches": [],
+  "first_rejection": "window 18-21: dependence check failed: read of %arg2[v0 - 1, v1 - 1] at [72, g1_0, v0 - 1, v1 - 1, 0] observes an intermediate value (written both before and after)"
+ },
+ "symm": {
+  "status": "ok",
+  "ms": 16,
+  "matches": [],
+  "first_rejection": "window 8-14: dependence check failed: read of scratch1[] at [49, v0, 2, v1, 73, 0] observes an intermediate value (written both before and after)"
+ },
+ "syr2k": {
+  "status": "ok",
+  "ms": 987,
+  "matches": [],
+  "first_rejection": "window 9-21: netlib_dsyr2k_un matched but binding needs a layout transpose (not emitted)"
+ },
+ "syrk": {
+  "status": "ok",
+  "ms": 797,
+  "matches": [
+   {
+    "spec": "netlib_dsyrk_ut",
+    "binding": {
+     "n": "%arg0",
+     "k": "%arg1",
+     "alpha": "%arg2",
+     "lda": "dim(%arg5, 1)",
+     "A": "%arg5",
+     "beta": "%arg3",
+     "ldc": "dim(%arg4, 1)",
+     "C": "%arg4 (in-place)"
+    },
+    "evidence": "netlib_dsyrk_ut: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'k': '%arg1', 'alpha': '%arg2', 'lda': 'dim(%arg5, 1)', 'A': '%arg5', 'beta': '%arg3', 'ldc': 'dim(%arg4, 1)', 'C': '%arg4 (in-place)'}; e-graph max 69 nodes, egglog 22.3 ms; dependence checks 7 (reads: input 2, final 0, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal (worse binding cost): netlib_dsyrk_ln[transposed A,C], netlib_dsyrk_lt[transposed C], netlib_dsyrk_un[transposed A]; in-place: C in/out both bound to %arg4"
+   }
+  ],
+  "first_rejection": null
+ },
+ "trisolv": {
+  "status": "ok",
+  "ms": 179,
+  "matches": [
+   {
+    "spec": "netlib_dtrsv_utn",
+    "binding": {
+     "n": "%arg0",
+     "lda": "dim(%arg1, 1)",
+     "A": "%arg1",
+     "X": "%arg2 (in: %arg3, copied into %arg2 before the launch)"
+    },
+    "evidence": "netlib_dtrsv_utn: 1 element equation(s), 1 domain piece(s) equal under binding {'n': '%arg0', 'lda': 'dim(%arg1, 1)', 'A': '%arg1', 'X': '%arg2 (in: %arg3, copied into %arg2 before the launch)'}; e-graph max 63 nodes, egglog 21.9 ms; dependence checks 15 (reads: input 3, final 1, accumulator 2, scratch-inlined 0); spec semantics from cgeist-affine stage (debufferized stage equivalent to cgeist stage); also equal (worse binding cost): netlib_dtrsv_lnn[transposed A]; copy-in %arg3 -> %arg2; assumes %arg3 and %arg2 do not alias (pipeline-wide noalias assumption)"
+   }
+  ],
+  "first_rejection": null
+ },
+ "trmm": {
+  "status": "ok",
+  "ms": 624,
+  "matches": [],
+  "first_rejection": "window 4-6: netlib_dtrmm_lltu matched but binding needs a layout transpose (not emitted)"
+ }
+}

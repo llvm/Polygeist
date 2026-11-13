@@ -1,0 +1,266 @@
+{
+ "launches": [],
+ "literal_policy_rejections": [],
+ "alternatives": [],
+ "rejected": [],
+ "residual_generics": [
+  {
+   "app_generic": "%42",
+   "func": "kernel_adi",
+   "iters": [
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_daxpy_inc",
+     "netlib_dgemv_n_alpha0",
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0",
+     "netlib_dgemv_t_alpha0_beta0",
+     "netlib_dscal_inc"
+    ]
+   }
+  },
+  {
+   "app_generic": "%45",
+   "func": "kernel_adi",
+   "iters": [
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [
+    "netlib_dgemv_n_alpha0_beta0#step0",
+    "netlib_dgemv_n_beta0#step0",
+    "netlib_dgemv_t_alpha0_beta0#step0",
+    "netlib_dgemv_t_beta0#step0"
+   ],
+   "n_body_matches": 4,
+   "furthest_dag_stage": {
+    "stage": "body",
+    "specs": [
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0_beta0"
+    ]
+   }
+  },
+  {
+   "app_generic": "%50",
+   "func": "kernel_adi",
+   "iters": [
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_daxpy_inc",
+     "netlib_dgemv_n_alpha0",
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0",
+     "netlib_dgemv_t_alpha0_beta0",
+     "netlib_dscal_inc"
+    ]
+   }
+  },
+  {
+   "app_generic": "%61#0",
+   "func": "kernel_adi",
+   "iters": [
+    "parallel",
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_dgemv_n",
+     "netlib_dgemv_n_beta0",
+     "netlib_dgemv_n_beta1",
+     "netlib_dgemv_n_inc",
+     "netlib_dgemv_t",
+     "netlib_dgemv_t_beta0"
+    ]
+   }
+  },
+  {
+   "app_generic": "%67",
+   "func": "kernel_adi",
+   "iters": [
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_daxpy_inc",
+     "netlib_dgemv_n_alpha0",
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0",
+     "netlib_dgemv_t_alpha0_beta0",
+     "netlib_dscal_inc"
+    ]
+   }
+  },
+  {
+   "app_generic": "%75",
+   "func": "kernel_adi",
+   "iters": [
+    "parallel",
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_dgemv_n",
+     "netlib_dgemv_n_beta0",
+     "netlib_dgemv_n_beta1",
+     "netlib_dgemv_n_inc",
+     "netlib_dgemv_t",
+     "netlib_dgemv_t_beta0"
+    ]
+   }
+  },
+  {
+   "app_generic": "%83",
+   "func": "kernel_adi",
+   "iters": [
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_daxpy_inc",
+     "netlib_dgemv_n_alpha0",
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0",
+     "netlib_dgemv_t_alpha0_beta0",
+     "netlib_dscal_inc"
+    ]
+   }
+  },
+  {
+   "app_generic": "%88",
+   "func": "kernel_adi",
+   "iters": [
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [
+    "netlib_dgemv_n_alpha0_beta0#step0",
+    "netlib_dgemv_n_beta0#step0",
+    "netlib_dgemv_t_alpha0_beta0#step0",
+    "netlib_dgemv_t_beta0#step0"
+   ],
+   "n_body_matches": 4,
+   "furthest_dag_stage": {
+    "stage": "body",
+    "specs": [
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0_beta0"
+    ]
+   }
+  },
+  {
+   "app_generic": "%94",
+   "func": "kernel_adi",
+   "iters": [
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_daxpy_inc",
+     "netlib_dgemv_n_alpha0",
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0",
+     "netlib_dgemv_t_alpha0_beta0",
+     "netlib_dscal_inc"
+    ]
+   }
+  },
+  {
+   "app_generic": "%105#0",
+   "func": "kernel_adi",
+   "iters": [
+    "parallel",
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_dgemv_n",
+     "netlib_dgemv_n_beta0",
+     "netlib_dgemv_n_beta1",
+     "netlib_dgemv_n_inc",
+     "netlib_dgemv_t",
+     "netlib_dgemv_t_beta0"
+    ]
+   }
+  },
+  {
+   "app_generic": "%111",
+   "func": "kernel_adi",
+   "iters": [
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_daxpy_inc",
+     "netlib_dgemv_n_alpha0",
+     "netlib_dgemv_n_alpha0_beta0",
+     "netlib_dgemv_t_alpha0",
+     "netlib_dgemv_t_alpha0_beta0",
+     "netlib_dscal_inc"
+    ]
+   }
+  },
+  {
+   "app_generic": "%119",
+   "func": "kernel_adi",
+   "iters": [
+    "parallel",
+    "parallel"
+   ],
+   "form": "tensor",
+   "body_matches": [],
+   "n_body_matches": 0,
+   "furthest_dag_stage": {
+    "stage": "shape",
+    "specs": [
+     "netlib_dgemv_n",
+     "netlib_dgemv_n_beta0",
+     "netlib_dgemv_n_beta1",
+     "netlib_dgemv_n_inc",
+     "netlib_dgemv_t",
+     "netlib_dgemv_t_beta0"
+    ]
+   }
+  }
+ ]
+}

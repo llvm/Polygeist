@@ -1,0 +1,87 @@
+[
+  {
+    "name": "baseline",
+    "binary": "/home/arjaiswal/Polygeist/issues/llama_rank_collapse_20261111/baseline/llama_resident",
+    "sha256": "588f500848360d7317d42421d385d4caa8c32017946cb7502810c57c42ca0758",
+    "command": "chmod +x /tmp/llama-rank-baseline; OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 POLYGEIST_CUDA_GRAPH=1 LD_LIBRARY_PATH=/tmp/llama-current-v3-20261111:/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu timeout 90 taskset -c 0 /tmp/llama-rank-baseline",
+    "rc": 0,
+    "samples_ms": [
+      15.418944359,
+      15.369888306,
+      15.459391594,
+      15.598848343,
+      15.414879799
+    ],
+    "minimum_ms": 15.369888306,
+    "median_ms": 15.418944359,
+    "mean_ms": 15.4523904802
+  },
+  {
+    "name": "candidate",
+    "binary": "/home/arjaiswal/Polygeist/issues/llama_rank_collapse_20261111/candidate/llama_resident",
+    "sha256": "e3265bdb40d823d7e2757556cfc1534b578133bd6753b7eb7e42f173f97d1038",
+    "command": "chmod +x /tmp/llama-rank-candidate; OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 POLYGEIST_CUDA_GRAPH=1 LD_LIBRARY_PATH=/tmp/llama-current-v3-20261111:/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu timeout 90 taskset -c 0 /tmp/llama-rank-candidate",
+    "rc": 0,
+    "samples_ms": [
+      11.31353569,
+      11.308639526,
+      11.276639938,
+      11.296383858,
+      11.247136116
+    ],
+    "minimum_ms": 11.247136116,
+    "median_ms": 11.296383858,
+    "mean_ms": 11.288467025600001
+  },
+  {
+    "name": "previous",
+    "binary": "/home/arjaiswal/Polygeist/issues/llama_remaining_matches_20261111/full-inference/llama_resident",
+    "sha256": "0ce7a002e36457d92fcc56d006f046df8eb0ca6b42b0becb654498323a8edb6e",
+    "command": "chmod +x /tmp/llama-rank-previous; OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 POLYGEIST_CUDA_GRAPH=1 LD_LIBRARY_PATH=/tmp/llama-current-v3-20261111:/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu timeout 90 taskset -c 0 /tmp/llama-rank-previous",
+    "rc": 0,
+    "samples_ms": [
+      15.453632355,
+      15.433216095,
+      15.439295769,
+      15.440192223,
+      15.465984344
+    ],
+    "minimum_ms": 15.433216095,
+    "median_ms": 15.440192223,
+    "mean_ms": 15.4464641572
+  },
+  {
+    "name": "historical",
+    "binary": "/home/arjaiswal/Polygeist/issues/artifact_completion_20261110/llama_verified/llama_resident",
+    "sha256": "65a152e9197eae45f5936d7396e449d5ca374fcac9309338391f95d1dad2c43b",
+    "command": "chmod +x /tmp/llama-rank-historical; OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 POLYGEIST_CUDA_GRAPH=1 LD_LIBRARY_PATH=/tmp/llama-current-v3-20261111:/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu timeout 90 taskset -c 0 /tmp/llama-rank-historical",
+    "rc": 0,
+    "samples_ms": [
+      12.723487854,
+      12.7179842,
+      12.711647987,
+      12.708895683,
+      12.722911835
+    ],
+    "minimum_ms": 12.708895683,
+    "median_ms": 12.7179842,
+    "mean_ms": 12.716985511799999
+  },
+  {
+    "name": "expert",
+    "binary": "/home/arjaiswal/Polygeist/issues/llama_rank_collapse_20261111/candidate/llama_ggml",
+    "sha256": "883460a1faf767bfb5c6d708fda9eab4c7536056296669cdbd0ed32054d14e9d",
+    "command": "chmod +x /tmp/llama-rank-expert; OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 POLYGEIST_CUDA_GRAPH=1 LD_LIBRARY_PATH=/tmp/llama-current-v3-20261111:/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu timeout 90 taskset -c 0 /tmp/llama-rank-expert --warmup 5 --iters 5 --dump-all",
+    "rc": 0,
+    "samples_ms": [
+      9.638,
+      9.642,
+      9.632,
+      9.646,
+      9.621
+    ],
+    "minimum_ms": 9.621,
+    "median_ms": 9.638,
+    "mean_ms": 9.6358
+  }
+]

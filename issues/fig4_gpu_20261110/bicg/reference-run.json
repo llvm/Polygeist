@@ -1,0 +1,13 @@
+{
+  "kernel": "bicg",
+  "variant": "reference",
+  "rc": 0,
+  "elapsed_s": 1.132399559020996,
+  "sha256": "2d1c316768d89f4a8a9c20920fcd44957bf58a2d61e38bc87f3cd66e9837888f",
+  "cuda_graph": false,
+  "warmups": 5,
+  "measured": 5,
+  "dump_count": 1,
+  "max_temperature_c": 49.343,
+  "thermal_ok": true
+}

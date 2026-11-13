@@ -1,0 +1,14 @@
+{
+  "upstream_source": "third_party/polybenchGpu/CUDA/GEMVER/gemver.cu",
+  "upstream_sha256": "c53e178dd285504f9dd29479460f85f25fa8fcd2e40a8429bf9f5e16e14de704",
+  "kernel_sha256": [
+    "7ff8fb5c5c3553a82afc8ecb1befe0145e10ef676d1f6382eb3d82ed2d365ec4",
+    "cc2100b8c7b60e4acb4bbd7654f4510a389c4b8a33d3497da500ea4504d525b3",
+    "a33d27982d908818393ae4a1bc4a76fe9a1355805bccda3bc1972cd67a192315"
+  ],
+  "computational_bodies_verbatim": true,
+  "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+  "generated_source_sha256": "e5d66cb3f980cbf1ccd9c6b5038c3c6f265c653ee978817f159e8cba4354a81e",
+  "build_rc": 0,
+  "executable_sha256": "ef94fbc7ba9dc912d19ea84d5edf4a18ed6bf480aa941712af1d6af2112c5878"
+}

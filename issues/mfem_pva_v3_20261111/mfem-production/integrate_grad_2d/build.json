@@ -1,0 +1,25 @@
+{
+  "kernel": "integrate_grad_2d",
+  "rc": 0,
+  "command": [
+    "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+    "--target=jetson",
+    "--function=mfem_integrate_grad_2d_stage_sliced",
+    "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+    "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/gradient_stage_sliced.c",
+    "-DBENCH_INTEGRATE_GRAD_2D",
+    "-DMFEM_BENCH_NE=1024",
+    "-o",
+    "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/integrate_grad_2d/program"
+  ],
+  "seconds": 31.0426569506526,
+  "source_sha256": "f500968482b02e1513a5de7e2083b36628e8bd78dbb25d6e02528ad831d7e8eb",
+  "program_sha256": "123f23e3a32b338686d97330779323a94e901554e93e48f362bc70f955a19a8d",
+  "specifications": [
+    "openblas_dgemm_nt_b1_alpha1",
+    "openblas_dgemv_t_beta1",
+    "openblas_dgemm_nt_b1_alpha1",
+    "openblas_dgemm_nt_b1_alpha1"
+  ],
+  "calls": 4
+}

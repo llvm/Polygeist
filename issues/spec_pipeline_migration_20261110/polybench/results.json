@@ -1,0 +1,385 @@
+[
+  {
+    "case": "2mm",
+    "dataset": "MINI",
+    "target": "host",
+    "numeric_model": "relaxed",
+    "uptime": "21:52:03 up 447 days,  2:21,  2 users,  load average: 11.44, 11.07, 10.93",
+    "build_seconds": 9.589,
+    "specifications": [
+      "openblas_dgemm_nn"
+    ],
+    "reference_process_seconds": 0.0020967572927474976,
+    "raised_process_seconds": 0.004379667341709137,
+    "elements": 384,
+    "max_absolute_error": 1.4210854715202004e-14,
+    "max_normalized_error": 1.9573934307088978e-16,
+    "vendor_calls": [
+      "POLYGEIST_V2_STATS backend=cpu call=cublasDgemm entry=dgemm_ count=1 lib_ms=0.019539"
+    ],
+    "correctness": "PASS",
+    "replacement_executed": true,
+    "status": "PASS"
+  },
+  {
+    "case": "3mm",
+    "dataset": "MINI",
+    "target": "host",
+    "numeric_model": "relaxed",
+    "uptime": "21:52:13 up 447 days,  2:21,  2 users,  load average: 12.24, 11.25, 10.99",
+    "build_seconds": 9.59,
+    "specifications": [
+      "openblas_dgemm_nn_b0",
+      "openblas_dgemm_nn_b0",
+      "openblas_dgemm_nn_b0"
+    ],
+    "reference_process_seconds": 0.0019325092434883118,
+    "raised_process_seconds": 0.0042763277888298035,
+    "elements": 352,
+    "max_absolute_error": 2.220446049250313e-16,
+    "max_normalized_error": 3.1888012393438726e-16,
+    "vendor_calls": [
+      "POLYGEIST_V2_STATS backend=cpu call=cublasDgemm entry=dgemm_ count=3 lib_ms=0.032372"
+    ],
+    "correctness": "PASS",
+    "replacement_executed": true,
+    "status": "PASS"
+  },
+  {
+    "case": "atax",
+    "dataset": "MINI",
+    "target": "host",
+    "numeric_model": "relaxed",
+    "uptime": "21:52:23 up 447 days,  2:21,  2 users,  load average: 13.33, 11.51, 11.07",
+    "build_seconds": 9.038,
+    "specifications": [
+      "openblas_dgemv_t_beta0",
+      "openblas_dgemv_n_beta0"
+    ],
+    "reference_process_seconds": 0.0016083791851997375,
+    "raised_process_seconds": 0.0038111135363578796,
+    "elements": 42,
+    "max_absolute_error": 1.4210854715202004e-14,
+    "max_normalized_error": 4.77127124207171e-16,
+    "vendor_calls": [
+      "POLYGEIST_V2_STATS backend=cpu call=cublasDgemv entry=dgemv_ count=2 lib_ms=0.017426"
+    ],
+    "correctness": "PASS",
+    "replacement_executed": true,
+    "status": "PASS"
+  },
+  {
+    "case": "bicg",
+    "dataset": "MINI",
+    "target": "host",
+    "numeric_model": "relaxed",
+    "uptime": "21:52:32 up 447 days,  2:21,  2 users,  load average: 13.19, 11.54, 11.09",
+    "build_seconds": 8.986,
+    "specifications": [
+      "openblas_dgemv_n_beta0",
+      "openblas_dgemv_t_beta0"
+    ],
+    "reference_process_seconds": 0.0015522688627243042,
+    "raised_process_seconds": 0.00416141003370285,
+    "elements": 80,
+    "max_absolute_error": 3.552713678800501e-15,
+    "max_normalized_error": 3.102161632216654e-16,
+    "vendor_calls": [
+      "POLYGEIST_V2_STATS backend=cpu call=cublasDgemv entry=dgemv_ count=2 lib_ms=0.011803"
+    ],
+    "correctness": "PASS",
+    "replacement_executed": true,
+    "status": "PASS"
+  },
+  {
+    "case": "cholesky",
+    "dataset": "MINI",
+    "target": "host",
+    "numeric_model": "relaxed",
+    "uptime": "21:52:41 up 447 days,  2:21,  2 users,  load average: 12.86, 11.52, 11.09",
+    "build_seconds": 8.786,
+    "specifications": [
+      "netlib_dpotf2_u"
+    ],
+    "reference_process_seconds": 0.002530314028263092,
+    "raised_process_seconds": 0.005030155181884766,
+    "elements": 820,
+    "max_absolute_error": 2.1094237467877974e-15,
+    "max_normalized_error": 2.1094237467877943e-15,
+    "vendor_calls": [
+      "POLYGEIST_V2_STATS backend=cpu call=cusolverDnDpotrf entry=dpotrf_ count=1 lib_ms=0.105743"
+    ],
+    "correctness": "PASS",
+    "replacement_executed": true,
+    "status": "PASS"
+  },
+  {
+    "case": "correlation",
+    "dataset": "MINI",
+    "target": "host",
+    "numeric_model": "relaxed",
+    "uptime": "21:52:50 up 447 days,  2:22,  2 users,  load average: 12.64, 11.52, 11.09",
+    "build_seconds": 20.211,
+    "specifications": [
+      "openblas_dgemm_nt_b0"
+    ],
+    "reference_process_seconds": 0.0019418969750404358,
+    "raised_process_seconds": 0.004591658711433411,
+    "elements": 784,
+    "max_absolute_error": 2.220446049250313e-16,
+    "max_normalized_error": 2.220446049250312e-16,
+    "vendor_calls": [
+      "POLYGEIST_V2_STATS backend=cpu call=cublasDgemm entry=dgemm_ count=1 lib_ms=0.024162"
+    ],
+    "correctness": "PASS",
+    "replacement_executed": true,
+    "status": "PASS"
+  },
+  {
+    "case": "covariance",
+    "dataset": "MINI",
+    "target": "host",
+    "numeric_model": "relaxed",
+    "uptime": "21:53:11 up 447 days,  2:22,  2 users,  load average: 12.18, 11.48, 11.09",
+    "build_seconds": 37.457,
+    "specifications": [
+      "openblas_dgemm_nt_b0"
+    ],
+    "reference_process_seconds": 0.0025948435068130493,
+    "raised_process_seconds": 0.005896352231502533,
+    "elements": 784,
+    "max_absolute_error": 2.1316282072803006e-14,
+    "max_normalized_error": 2.605057542255511e-16,
+    "vendor_calls": [
+      "POLYGEIST_V2_STATS backend=cpu call=cublasDgemm entry=dgemm_ count=1 lib_ms=0.019661"
+    ],
+    "correctness": "PASS",
+    "replacement_executed": true,
+    "status": "PASS"
+  },
+  {
+    "case": "doitgen",
+    "dataset": "MINI",
+    "target": "host",
+    "numeric_model": "relaxed",
+    "uptime": "21:53:49 up 447 days,  2:23,  2 users,  load average: 11.65, 11.43, 11.09",
+    "build_seconds": 8.637,
+    "specifications": [
+      "openblas_dgemv_n_beta0"
+    ],
+    "reference_process_seconds": 0.002690128982067108,
+    "raised_process_seconds": 0.005697242915630341,
+    "elements": 960,
+    "max_absolute_error": 8.881784197001252e-16,
+    "max_normalized_error": 2.5276223801742696e-16,
+    "vendor_calls": [
+      "POLYGEIST_V2_STATS backend=cpu call=cublasDgemv entry=dgemv_ count=80 lib_ms=0.014832"
+    ],
+    "correctness": "PASS",
+    "replacement_executed": true,
+    "status": "PASS"
+  },
+  {
+    "case": "gemm",
+    "dataset": "MINI",
+    "target": "host",
+    "numeric_model": "relaxed",
+    "uptime": "21:53:58 up 447 days,  2:23,  2 users,  load average: 12.68, 11.65, 11.16",
+    "build_seconds": 8.739,
+    "specifications": [
+      "openblas_dgemm_nn"
+    ],
+    "reference_process_seconds": 0.0019215121865272522,
+    "raised_process_seconds": 0.004350379109382629,
+    "elements": 500,
+    "max_absolute_error": 7.105427357601002e-15,
+    "max_normalized_error": 5.428133963025975e-16,
+    "vendor_calls": [
+      "POLYGEIST_V2_STATS backend=cpu call=cublasDgemm entry=dgemm_ count=1 lib_ms=0.014778"
+    ],
+    "correctness": "PASS",
+    "replacement_executed": true,
+    "status": "PASS"
+  },
+  {
+    "case": "gemver",
+    "dataset": "MINI",
+    "target": "host",
+    "numeric_model": "relaxed",
+    "uptime": "21:54:07 up 447 days,  2:23,  2 users,  load average: 13.30, 11.82, 11.22",
+    "build_seconds": 9.139,
+    "specifications": [
+      "openblas_dgemv_n_beta1",
+      "openblas_daxpy",
+      "openblas_dgemv_t_beta1"
+    ],
+    "reference_process_seconds": 0.0015161707997322083,
+    "raised_process_seconds": 0.0037243813276290894,
+    "elements": 40,
+    "max_absolute_error": 9.094947017729282e-13,
+    "max_normalized_error": 1.8880311661210566e-16,
+    "vendor_calls": [
+      "POLYGEIST_V2_STATS backend=cpu call=cublasDgemv entry=dgemv_ count=2 lib_ms=0.003906",
+      "POLYGEIST_V2_STATS backend=cpu call=cublasDaxpy entry=daxpy_ count=1 lib_ms=0.001434"
+    ],
+    "correctness": "PASS",
+    "replacement_executed": true,
+    "status": "PASS"
+  },
+  {
+    "case": "gesummv",
+    "dataset": "MINI",
+    "target": "host",
+    "numeric_model": "relaxed",
+    "uptime": "21:54:16 up 447 days,  2:23,  2 users,  load average: 12.95, 11.79, 11.22",
+    "build_seconds": 9.335,
+    "specifications": [
+      "openblas_dgemv_t_beta0",
+      "openblas_dgemv_t_beta0"
+    ],
+    "reference_process_seconds": 0.0019046813249588013,
+    "raised_process_seconds": 0.003902934491634369,
+    "elements": 30,
+    "max_absolute_error": 3.552713678800501e-15,
+    "max_normalized_error": 1.4914834923595722e-16,
+    "vendor_calls": [
+      "POLYGEIST_V2_STATS backend=cpu call=cublasDgemv entry=dgemv_ count=2 lib_ms=0.010384"
+    ],
+    "correctness": "PASS",
+    "replacement_executed": true,
+    "status": "PASS"
+  },
+  {
+    "case": "mvt",
+    "dataset": "MINI",
+    "target": "host",
+    "numeric_model": "relaxed",
+    "uptime": "21:54:26 up 447 days,  2:23,  2 users,  load average: 12.65, 11.77, 11.22",
+    "build_seconds": 9.441,
+    "specifications": [
+      "openblas_dgemv_t_beta1",
+      "openblas_dgemv_n_beta1"
+    ],
+    "reference_process_seconds": 0.0017974227666854858,
+    "raised_process_seconds": 0.005277812480926514,
+    "elements": 80,
+    "max_absolute_error": 5.329070518200751e-15,
+    "max_normalized_error": 4.644070168366668e-16,
+    "vendor_calls": [
+      "POLYGEIST_V2_STATS backend=cpu call=cublasDgemv entry=dgemv_ count=2 lib_ms=0.011421"
+    ],
+    "correctness": "PASS",
+    "replacement_executed": true,
+    "status": "PASS"
+  },
+  {
+    "case": "symm",
+    "dataset": "MINI",
+    "target": "host",
+    "numeric_model": "relaxed",
+    "uptime": "21:54:36 up 447 days,  2:23,  2 users,  load average: 12.84, 11.84, 11.25",
+    "build_seconds": 12.048,
+    "specifications": [
+      "netlib_dsymm_ru"
+    ],
+    "reference_process_seconds": 0.002186417579650879,
+    "raised_process_seconds": 0.004840381443500519,
+    "elements": 600,
+    "max_absolute_error": 2.842170943040401e-14,
+    "max_normalized_error": 3.2273558655997283e-16,
+    "vendor_calls": [
+      "POLYGEIST_V2_STATS backend=cpu call=cublasDsymm entry=dsymm_ count=1 lib_ms=0.071114"
+    ],
+    "correctness": "PASS",
+    "replacement_executed": true,
+    "status": "PASS"
+  },
+  {
+    "case": "syr2k",
+    "dataset": "MINI",
+    "target": "host",
+    "numeric_model": "relaxed",
+    "uptime": "21:54:48 up 447 days,  2:24,  2 users,  load average: 12.56, 11.81, 11.25",
+    "build_seconds": 11.944,
+    "specifications": [
+      "netlib_dsyr2k_ut"
+    ],
+    "reference_process_seconds": 0.002395249903202057,
+    "raised_process_seconds": 0.00526447594165802,
+    "elements": 900,
+    "max_absolute_error": 7.105427357601002e-15,
+    "max_normalized_error": 3.836623843197085e-16,
+    "vendor_calls": [
+      "POLYGEIST_V2_STATS backend=cpu call=cublasDsyr2k entry=dsyr2k_ count=1 lib_ms=0.083847"
+    ],
+    "correctness": "PASS",
+    "replacement_executed": true,
+    "status": "PASS"
+  },
+  {
+    "case": "syrk",
+    "dataset": "MINI",
+    "target": "host",
+    "numeric_model": "relaxed",
+    "uptime": "21:55:00 up 447 days,  2:24,  2 users,  load average: 12.80, 11.90, 11.28",
+    "build_seconds": 11.043,
+    "specifications": [
+      "netlib_dsyrk_ut"
+    ],
+    "reference_process_seconds": 0.0021049901843070984,
+    "raised_process_seconds": 0.004748217761516571,
+    "elements": 900,
+    "max_absolute_error": 5.329070518200751e-15,
+    "max_normalized_error": 3.9193948405497078e-16,
+    "vendor_calls": [
+      "POLYGEIST_V2_STATS backend=cpu call=cublasDsyrk entry=dsyrk_ count=1 lib_ms=0.073875"
+    ],
+    "correctness": "PASS",
+    "replacement_executed": true,
+    "status": "PASS"
+  },
+  {
+    "case": "trisolv",
+    "dataset": "MINI",
+    "target": "host",
+    "numeric_model": "relaxed",
+    "uptime": "21:55:12 up 447 days,  2:24,  2 users,  load average: 12.60, 11.89, 11.29",
+    "build_seconds": 8.888,
+    "specifications": [
+      "netlib_dtrsv_utn"
+    ],
+    "reference_process_seconds": 0.0012547969818115234,
+    "raised_process_seconds": 0.0038975775241851807,
+    "elements": 40,
+    "max_absolute_error": 6.9111383282915995e-15,
+    "max_normalized_error": 1.4167833572997777e-14,
+    "vendor_calls": [
+      "POLYGEIST_V2_STATS backend=cpu call=cublasDtrsv entry=dtrsv_ count=1 lib_ms=0.043304"
+    ],
+    "correctness": "PASS",
+    "replacement_executed": true,
+    "status": "PASS"
+  },
+  {
+    "case": "trmm",
+    "dataset": "MINI",
+    "target": "host",
+    "numeric_model": "relaxed",
+    "uptime": "21:55:21 up 447 days,  2:24,  2 users,  load average: 12.36, 11.86, 11.28",
+    "build_seconds": 10.545,
+    "specifications": [
+      "netlib_dtrmm_rutu"
+    ],
+    "reference_process_seconds": 0.0019263923168182373,
+    "raised_process_seconds": 0.004672937095165253,
+    "elements": 600,
+    "max_absolute_error": 3.552713678800501e-15,
+    "max_normalized_error": 3.1061977519567226e-16,
+    "vendor_calls": [
+      "POLYGEIST_V2_STATS backend=cpu call=cublasDtrmm entry=dtrmm_ count=1 lib_ms=0.071808"
+    ],
+    "correctness": "PASS",
+    "replacement_executed": true,
+    "status": "PASS"
+  }
+]

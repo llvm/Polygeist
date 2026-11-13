@@ -1,0 +1,53 @@
+{
+ "launches": [
+  {
+   "spec": "openblas_dgemm_nn",
+   "call": "polygeist_v2_cublasDgemm",
+   "cpu_entry": "dgemm_",
+   "gpu_entry": "cublasDgemm_v2",
+   "operand_types": [
+    "i32",
+    "i32",
+    "i32",
+    "i32",
+    "memref<?x?xf64>",
+    "f64",
+    "i32",
+    "memref<?x?xf64>",
+    "f64",
+    "i32",
+    "memref<?x?xf64>"
+   ]
+  }
+ ],
+ "opt": [
+  {
+   "cmd": "--lower-polygeist-submap --canonicalize-polygeist",
+   "rc": 0,
+   "stderr": ""
+  },
+  {
+   "cmd": "--convert-linalg-to-loops --canonicalize --lower-polygeist-submap --canonicalize",
+   "rc": 0,
+   "stderr": ""
+  },
+  {
+   "note": "production view lowering left tensor submaps; falling back to legalize_tensor_submaps.py"
+  },
+  {
+   "cmd": "legalize_tensor_submaps.py",
+   "rc": 0,
+   "stderr": "legalize_tensor_submaps: rewrote 6 op(s)\n"
+  },
+  {
+   "cmd": "--lower-polygeist-submap --canonicalize-polygeist",
+   "rc": 0,
+   "stderr": ""
+  },
+  {
+   "cmd": "--lower-affine --empty-tensor-to-alloc-tensor --one-shot-bufferize=allow-unknown-ops bufferize-function-boundaries --canonicalize --cse",
+   "rc": 0,
+   "stderr": ""
+  }
+ ]
+}

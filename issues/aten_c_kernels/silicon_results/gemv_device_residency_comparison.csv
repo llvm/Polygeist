@@ -1,0 +1,2 @@
+kernel,problem,correctness,mapped_raised_us,device_raised_us,resident_cuda_us,mapped_over_resident,device_over_resident,mapped_over_device,statistic,hardware,notes
+aten_blas_gemv_generic_cpu,M=4096 K=8192,PASS,881.804805,821.800006,758.952026,1.161872,1.082809,1.073016,warm median of process runs 2-4,Jetson Orin sm87 CUDA 12.6,mapped raised 5 iterations; device raised and resident 20 iterations; A/x upload and y download outside timed region; direct-buffer lowering; max_abs=0.0008430481

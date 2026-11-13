@@ -1,0 +1,23 @@
+diff --git a/runtime/polygeist_cublas_rt_cuda.c b/runtime/polygeist_cublas_rt_cuda.c
+--- a/runtime/polygeist_cublas_rt_cuda.c
++++ b/runtime/polygeist_cublas_rt_cuda.c
+@@ -8971,8 +8971,16 @@ void polygeist_cudnn_rmsnorm_f32(int32_t n, const float *x,
+   if (pointer_is_device_resident(out, &out_device))
+     CUDA_CHECK(cudaMemcpyAsync(out_device, p->out, p->bytes,
+                                cudaMemcpyDeviceToDevice, g_stream));
+-  else
+-    CUDA_CHECK(cudaMemcpy(out, p->out, p->bytes,
+-                          cudaMemcpyDeviceToHost));
++  else {
++    // A compiler-visible host destination can lie inside a larger registered
++    // range whose interior address is rejected as a direct CUDA copy target
++    // on discrete GPUs. Copy through an ordinary host allocation, then place
++    // the bytes at the requested C address.
++    float *host_out = (float *)malloc(p->bytes);
++    if (!host_out) abort();
++    CUDA_CHECK(cudaMemcpy(host_out, p->out, p->bytes, cudaMemcpyDeviceToHost));
++    memcpy(out, host_out, p->bytes);
++    free(host_out);
++  }
+   timing_gpu_end("cudnnRmsNormForward", 1, n, 0, host_start_ms);
+ }

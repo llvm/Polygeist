@@ -1,0 +1,63 @@
+{
+  "routine": "dscal",
+  "source": "BLAS/SRC/dscal.f:L78-L140 (executable L104-L136)",
+  "specs": [
+    {
+      "name": "netlib_dscal",
+      "defines": {
+        "INC_CASE": "1"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDscal",
+        "fixed_args": {
+          "incx": 1
+        },
+        "arg_map": {
+          "alpha": "da",
+          "x": "dx"
+        }
+      },
+      "args": [
+        "n",
+        "da",
+        "dx"
+      ],
+      "assumptions": [
+        "incx == 1"
+      ],
+      "deviations": [
+        "quick return DA.EQ.ONE (L104) dropped; exact (1*x == x)"
+      ],
+      "fortran_lines": "L112-L126"
+    },
+    {
+      "name": "netlib_dscal_inc",
+      "defines": {
+        "INC_CASE": "2"
+      },
+      "target": {
+        "library": "cuBLAS",
+        "call": "cublasDscal",
+        "fixed_args": {},
+        "arg_map": {
+          "alpha": "da",
+          "x": "dx"
+        }
+      },
+      "args": [
+        "n",
+        "da",
+        "dx",
+        "incx"
+      ],
+      "assumptions": [
+        "incx > 0, incy > 0. Valid for unit increments too: for incx == incy == 1 the reference takes its unit-stride branch, which performs the same per-element arithmetic in the same order (by inspection of the Fortran)"
+      ],
+      "deviations": [
+        "quick return DA.EQ.ONE (L104) dropped; exact (1*x == x)"
+      ],
+      "fortran_lines": "L131-L134"
+    }
+  ]
+}

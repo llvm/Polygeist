@@ -1,0 +1,13 @@
+workload,region,variant,library_or_implementation,median_ms,min_ms,max_ms,iqr_ms,correctness,native_cpu_speedup,raised_speed_relative_to_native_gpu,availability_note
+Parboil SGEMM,512x512x512 SGEMM,native_cpu,source C compiled O3 mcpu=cortex-a78 single-core,492.369632,492.278848,492.452096,0.080736,PASS,1.000000,,
+Parboil SGEMM,512x512x512 SGEMM,native_gpu,official Parboil CUDA kernel,0.208352,0.207232,0.211168,0.001984,PASS,2363.162494,,
+Parboil SGEMM,512x512x512 SGEMM,raised_gpu,Polygeist recovered cuBLAS call,0.150080,0.145440,0.153856,0.000800,PASS,3280.714499,1.388273,
+Parboil Stencil,128x128x128 7-point stencil,native_cpu,source C compiled O3 mcpu=cortex-a78 single-core,36.090848,35.591328,36.193952,0.100160,PASS,1.000000,,
+Parboil Stencil,128x128x128 7-point stencil,native_gpu,official Parboil CUDA kernel,0.278784,0.277536,0.282272,0.002816,PASS,129.458104,,
+Parboil Stencil,128x128x128 7-point stencil,raised_gpu,Polygeist recovered cuDNN call,4.820064,4.819488,4.821920,0.000544,PASS,7.487628,0.057838,
+NPB CG,"conjugate-gradient core n=65536, nnz=196606",native_cpu,source-faithful C region compiled O3 mcpu=cortex-a78 single-core,11.827264,11.783104,11.839200,0.027488,PASS,1.000000,,native GPU exact baseline unavailable in checkout
+NPB CG,"conjugate-gradient core n=65536, nnz=196606",raised_gpu,Polygeist recovered two cuSPARSE SpMV calls plus cuBLAS dot,12.844128,12.529376,13.180512,0.282496,PASS,0.920830,,native GPU exact baseline unavailable in checkout
+NPB IS,rank core class S,native_cpu,source-faithful C region compiled O3 mcpu=cortex-a78 single-core,0.237952,0.237728,0.238784,0.000896,PASS,1.000000,,native GPU exact baseline unavailable in checkout
+NPB IS,rank core class S,raised_gpu,Polygeist recovered two CUB histogram calls,0.384352,0.348064,0.497312,0.130528,PASS,0.619099,,native GPU exact baseline unavailable in checkout
+NPB UA,DAXPBY n=1048576,native_cpu,source-faithful C region compiled O3 mcpu=cortex-a78 single-core,1.129824,1.129056,1.141440,0.010720,PASS,1.000000,,raised GPU blocked by tensor-result ABI writeback; native GPU unavailable
+Parboil CUTCP,atom extent n=1048576,native_cpu,source-faithful C region compiled O3 mcpu=cortex-a78 single-core,1.165184,1.163488,1.189536,0.002144,PASS,1.000000,,raised GPU blocked by struct-pointer ABI lowering; native GPU unavailable

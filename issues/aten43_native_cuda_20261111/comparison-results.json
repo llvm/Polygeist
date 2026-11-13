@@ -1,0 +1,6085 @@
+[
+  {
+    "name": "abs",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "0d72ffde2f938de559f507d58b46b3cecc05f5c4f18481ed5865cbde3fbfc7e4",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/abs/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/abs/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.125250101
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.028320074
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.018112898
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.053951979
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.064929008
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.02688098
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.018176079
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.045953035
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.062304974
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.028863907
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.045953035,
+    "raised_median_ms": 0.062304974,
+    "native_min_ms": 0.018112898,
+    "native_median_ms": 0.02688098,
+    "native_over_raised_min": 0.3941610820699873,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "neg",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "34c73468827794e8694dbe8e6f0b393d2b55878bfaba666e77cf2f37b9643709",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/neg/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/neg/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.118880987
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.031105042
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.018496037
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.067457199
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.070496798
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.026817083
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.043936014
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.050496817
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.061889172
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.024672031
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.050496817,
+    "raised_median_ms": 0.067457199,
+    "native_min_ms": 0.018496037,
+    "native_median_ms": 0.026817083,
+    "native_over_raised_min": 0.3662812450139184,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "exp",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "5be21cf4cc1802569b4d7336af3d09c1e36bf0c219a2a027f9fb177495b06ac0",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.14440918e-05,
+            "maxrel": 2.4625354e-07
+          },
+          {
+            "edge": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.14440918e-05,
+            "maxrel": 2.4625354e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/exp/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.48552805e+28,
+            "maxrel": 2.68115731e-07
+          },
+          {
+            "edge": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.48552805e+28,
+            "maxrel": 2.68115731e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/exp/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.113633871
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.022751808
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.038400888
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.066465139
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.049472094
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.02204895
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.037695885
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.05836916
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.064384937
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.031328201
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.049472094,
+    "raised_median_ms": 0.064384937,
+    "native_min_ms": 0.02204895,
+    "native_median_ms": 0.031328201,
+    "native_over_raised_min": 0.4456845913981325,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "log",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "ad3015ba06840d5ea92129a2e5644f3dbcd86a5e7b59a052465244b85c6dd53d",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 4.62306143e-05
+          },
+          {
+            "edge": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 4.62306143e-05
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/log/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/log/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.11904192
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.023904085
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.022017002
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.065568924
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.057471991
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.022336006
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.039583921
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.047393084
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.057984829
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.024800062
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.047393084,
+    "raised_median_ms": 0.057984829,
+    "native_min_ms": 0.022017002,
+    "native_median_ms": 0.023904085,
+    "native_over_raised_min": 0.4645614959347233,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "sqrt",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "82cd3bb9dbb64206fcce0079d88faeba7c3652a840b7f5a6f8a7b6e8548502d3",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/sqrt/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/sqrt/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.126752853
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.02726388
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.019007921
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.059968948
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.068352938
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.025887966
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.041216135
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.062561035
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.071456909
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.028576851
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.059968948,
+    "raised_median_ms": 0.068352938,
+    "native_min_ms": 0.019007921,
+    "native_median_ms": 0.02726388,
+    "native_over_raised_min": 0.316962722107448,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "reciprocal",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "3c45342d47afa75d43da1fe9a89984c95838afafa4e425d3b431f5e0d15e2b70",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 4.76837158e-07,
+            "maxrel": 1.19063764e-07
+          },
+          {
+            "edge": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 4.76837158e-07,
+            "maxrel": 1.19063764e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/reciprocal/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/reciprocal/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.117249966
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.025343895
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.026561022
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.07625699
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.066433191
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.027423859
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.017536163
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.049761057
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.056352854
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.022336006
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.049761057,
+    "raised_median_ms": 0.066433191,
+    "native_min_ms": 0.017536163,
+    "native_median_ms": 0.025343895,
+    "native_over_raised_min": 0.3524073654625142,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "sin",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "6cac218af1b7efb92df6aed4a47d0f7493234721b473040d997bbe1231dfc81a",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 6.40749931e-07,
+            "maxrel": 0.0331004701
+          },
+          {
+            "edge": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 6.40749931e-07,
+            "maxrel": 0.0331004701
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/sin/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 7.74860382e-07,
+            "maxrel": 1
+          },
+          {
+            "edge": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 7.74860382e-07,
+            "maxrel": 1
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/sin/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.11344099
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.024609089
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.045344114
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.067681074
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.063328981
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.023520947
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.038208008
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.056352854
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.063009024
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.025599957
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.056352854,
+    "raised_median_ms": 0.063328981,
+    "native_min_ms": 0.023520947,
+    "native_median_ms": 0.025599957,
+    "native_over_raised_min": 0.4173869703209708,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "cos",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "d3bdb41495684233fec113a267636baa91daf5437f2ecb75b335313c4fbed6d0",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 3.87430191e-07,
+            "maxrel": 0.000114231329
+          },
+          {
+            "edge": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 3.87430191e-07,
+            "maxrel": 0.000114231329
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/cos/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 7.37607479e-06,
+            "maxrel": 6.68199927e-05
+          },
+          {
+            "edge": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 7.37607479e-06,
+            "maxrel": 6.68199927e-05
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/cos/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.122370005
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.024703979
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.022816896
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.052736044
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.065217018
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.024065018
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.017663956
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.044833183
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.066272974
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.025471926
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.044833183,
+    "raised_median_ms": 0.065217018,
+    "native_min_ms": 0.017663956,
+    "native_median_ms": 0.024065018,
+    "native_over_raised_min": 0.3939929047643127,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "tanh",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "146da3646c955aba22705b10439dad4f6e7de3501f0a1730e04f4449d78bb9b8",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "resident": 0,
+            "count": 256,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 6.91413879e-06,
+            "maxrel": 8.45794253e-06
+          },
+          {
+            "edge": 0,
+            "resident": 1,
+            "count": 256,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 6.91413879e-06,
+            "maxrel": 8.45794253e-06
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/tanh/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "resident": 0,
+            "count": 256,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 6.7949295e-06,
+            "maxrel": 8.92198196e-06
+          },
+          {
+            "edge": 1,
+            "resident": 1,
+            "count": 256,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 6.7949295e-06,
+            "maxrel": 8.92198196e-06
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/tanh/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.119970083
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.022208214
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.043329
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.055520058
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.060608149
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.023104906
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.01772809
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.047137022
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.069568872
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.030719995
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.047137022,
+    "raised_median_ms": 0.060608149,
+    "native_min_ms": 0.01772809,
+    "native_median_ms": 0.023104906,
+    "native_over_raised_min": 0.3760969456237604,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "sigmoid",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "9d060a9f46273941185401ceb152dfa5db4a69b87fc074c2976769e9f05659ef",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "resident": 0,
+            "count": 256,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.1920929e-07,
+            "maxrel": 2.26682015e-07
+          },
+          {
+            "edge": 0,
+            "resident": 1,
+            "count": 256,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.1920929e-07,
+            "maxrel": 2.26682015e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/sigmoid/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "resident": 0,
+            "count": 256,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 5.96046448e-08,
+            "maxrel": 6.76712601e-08
+          },
+          {
+            "edge": 1,
+            "resident": 1,
+            "count": 256,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 5.96046448e-08,
+            "maxrel": 6.76712601e-08
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/sigmoid/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.113441944
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.023040056
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.025921106
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.058881044
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.068545103
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.023360014
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.039041042
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.073952913
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.061377048
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.027391911
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.058881044,
+    "raised_median_ms": 0.068545103,
+    "native_min_ms": 0.023040056,
+    "native_median_ms": 0.025921106,
+    "native_over_raised_min": 0.39129836081031444,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "floor",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "82415a619b5a52a9ede51c7afab2a2e13778c680f6691ace51fa455d4d9c36ed",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/floor/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/floor/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.120481968
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.021663904
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.044800997
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.068512917
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.067873001
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.025151968
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.039264917
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.063137054
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.060161114
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.025920153
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.060161114,
+    "raised_median_ms": 0.067873001,
+    "native_min_ms": 0.021663904,
+    "native_median_ms": 0.025920153,
+    "native_over_raised_min": 0.360098119193737,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "ceil",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "34e0a624100dd481d223951d798d4c8ca075f4e5c8f0e512dd910fa5cbf8db9c",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/ceil/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/ceil/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.114049911
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.021791935
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.021281004
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.068768978
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.060992002
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.023360968
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.038496017
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.060993195
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.06944108
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.026241064
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.060992002,
+    "raised_median_ms": 0.068768978,
+    "native_min_ms": 0.021281004,
+    "native_median_ms": 0.023360968,
+    "native_over_raised_min": 0.3489146658934068,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "erf",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "f25f4885b447926c05661a3d5712d493e09d20e06ca600dabb5bb56d7df75882",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 5.96046448e-08,
+            "maxrel": 1.18252847e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 5.96046448e-08,
+            "maxrel": 1.18252847e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/erf/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 5.96046448e-08,
+            "maxrel": 5.98847685e-08
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 5.96046448e-08,
+            "maxrel": 5.98847685e-08
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/erf/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.118498087
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.028703928
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.026336908
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.063105106
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.067969084
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.027040005
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.043457031
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.070721149
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.062752962
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.028352022
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.062752962,
+    "raised_median_ms": 0.067969084,
+    "native_min_ms": 0.026336908,
+    "native_median_ms": 0.028352022,
+    "native_over_raised_min": 0.41969187048095036,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "pow",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "7c48af615b283d0cf4f437e5589bea8489600d67bcebce369065aabe97e9ece5",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0.000244140625,
+            "maxrel": 1.12681148e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0.000244140625,
+            "maxrel": 1.12681148e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/pow/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/pow/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.128194094
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.046463966
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.043776035
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.070753098
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.061888933
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.028768063
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.02726388
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.071969032
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.064449072
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.03292799
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.061888933,
+    "raised_median_ms": 0.070753098,
+    "native_min_ms": 0.02726388,
+    "native_median_ms": 0.03292799,
+    "native_over_raised_min": 0.4405291653679019,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "atan2",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "2f16b3d5c8c4f0888a1312cd22cb1f76bf99eb681ffc7725ee49c835a68cd34d",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 1.51388306e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 1.51388306e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/atan2/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.1920929e-07,
+            "maxrel": 7.64997274e-08
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.1920929e-07,
+            "maxrel": 7.64997274e-08
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/atan2/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.126466036
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.027839899
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.025792122
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.07753706
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.068289042
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.024991989
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.041409016
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.083712816
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.070497036
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.026113033
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.068289042,
+    "raised_median_ms": 0.07753706,
+    "native_min_ms": 0.024991989,
+    "native_median_ms": 0.026113033,
+    "native_over_raised_min": 0.36597363600444127,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "mul",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "f91c1b6359a0b332b8563fcf32823fce04bb0a80f9f71a9e8a272b65cca8acf3",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/mul/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/mul/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.129281044
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.030655861
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.04361701
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.067713022
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.070240974
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.025376081
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.041312933
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.077089071
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.070976973
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.023424149
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.067713022,
+    "raised_median_ms": 0.070976973,
+    "native_min_ms": 0.023424149,
+    "native_median_ms": 0.030655861,
+    "native_over_raised_min": 0.3459327070057514,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "div",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "4096e6bbfcfc2d65d88b6c963043d2b801a54c66721860cab35968178b986cf6",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 3.81469727e-06,
+            "maxrel": 1.35522142e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 3.81469727e-06,
+            "maxrel": 1.35522142e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/div/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/div/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.134849072
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.02374506
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.024352074
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.061505079
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.072352886
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.026880026
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.030943871
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.06406498
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.061057091
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.023072004
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.061057091,
+    "raised_median_ms": 0.06406498,
+    "native_min_ms": 0.023072004,
+    "native_median_ms": 0.024352074,
+    "native_over_raised_min": 0.37787591288946276,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "square",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "3d2ff8ebc9f5653135e32d08d45478661def847ee87fc5bdbd9c24e7bb4188e8",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/square/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/square/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.130625963
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.027296066
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.034049034
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.08038497
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.09459281
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.02940917
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.01987195
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.060128927
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.069152832
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.033184052
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.060128927,
+    "raised_median_ms": 0.08038497,
+    "native_min_ms": 0.01987195,
+    "native_median_ms": 0.02940917,
+    "native_over_raised_min": 0.3304890173742831,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "rsqrt",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "6ac047aa8604fb11e9b2cee4eb51e01e2df645b61e0282ffeddf284a70244ead",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 4.76837158e-07,
+            "maxrel": 1.19049107e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 4.76837158e-07,
+            "maxrel": 1.19049107e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/rsqrt/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/rsqrt/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.111424923
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.021248102
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.024735928
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.077152967
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.066144943
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.023936987
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.040287971
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.065184832
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.061856985
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.029439926
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.061856985,
+    "raised_median_ms": 0.066144943,
+    "native_min_ms": 0.021248102,
+    "native_median_ms": 0.024735928,
+    "native_over_raised_min": 0.34350368030384926,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "sigmoid_backward",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "8d8f6e23926cc10ec88f40995a762926f2681c4ffacb89c35979e4ee22f2df08",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/sigmoid_backward/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/sigmoid_backward/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.131392956
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.024224997
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.047807932
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.08220911
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.071777105
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.030207872
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.019999981
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.056576967
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.065376997
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.025633097
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.056576967,
+    "raised_median_ms": 0.071777105,
+    "native_min_ms": 0.019999981,
+    "native_median_ms": 0.025633097,
+    "native_over_raised_min": 0.35350040945107575,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "tanh_backward",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "d78918f2abe2530a998eae93c843f62c2dce8e661e8c31f77345348b4b2f4fd6",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/tanh_backward/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/tanh_backward/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.125890017
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.023583889
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.02230382
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.06515193
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.072736979
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.027040958
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.021216154
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.074337006
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.069633007
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.025761127
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.06515193,
+    "raised_median_ms": 0.072736979,
+    "native_min_ms": 0.021216154,
+    "native_median_ms": 0.023583889,
+    "native_over_raised_min": 0.3256412204519498,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "silu",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "38f37ff0e859f6823ffe07d60b27e728f4a5630ec0d8626e166318dc61b8a68b",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 256,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 4.76837158e-07,
+            "maxrel": 2.40704199e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 256,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 4.76837158e-07,
+            "maxrel": 2.40704199e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/silu/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 256,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.1920929e-07,
+            "maxrel": 6.76712601e-08
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 256,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.1920929e-07,
+            "maxrel": 6.76712601e-08
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/silu/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.110434055
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.024703979
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.01779294
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.057471991
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.063361168
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.022721052
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.021215916
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.060961008
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.05696106
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.021408081
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.05696106,
+    "raised_median_ms": 0.060961008,
+    "native_min_ms": 0.01779294,
+    "native_median_ms": 0.021408081,
+    "native_over_raised_min": 0.31237024030100563,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "silu_backward",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "60fdacb95946b4dca9555b11364d321c6ff8b6ce03314aee1a292c8bc512e71b",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.1920929e-06,
+            "maxrel": 6.15675871e-05
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.1920929e-06,
+            "maxrel": 6.15675871e-05
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/silu_backward/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 1.11224362e-07
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 1.11224362e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/silu_backward/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.12435317
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.029855967
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.022175789
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.073024988
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.073536873
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.025312901
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.019392014
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.068225145
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.066817045
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.027424097
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.066817045,
+    "raised_median_ms": 0.073024988,
+    "native_min_ms": 0.019392014,
+    "native_median_ms": 0.025312901,
+    "native_over_raised_min": 0.2902255554701648,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "acos",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "2863d1615f1e46378269dbca3453b09e997759187722c3e8597ffcbcce2b3a09",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 1.18770657e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 1.18770657e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/acos/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/acos/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 2.646851063
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.091712952
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.04787302
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 1.190927029
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 1.174031973
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.086945057
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.040033102
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 1.154511213
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 1.122318983
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.098881006
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 1.122318983,
+    "raised_median_ms": 1.174031973,
+    "native_min_ms": 0.040033102,
+    "native_median_ms": 0.086945057,
+    "native_over_raised_min": 0.035669985633665434,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "acosh",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "c745b9926f253b366284307d40f67aef5d7ca3df969851afbd807d4d51a2480b",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 1.18802702e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 1.18802702e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/acosh/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/acosh/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 2.558721066
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.093314171
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.044191837
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 1.221104145
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 1.137711048
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.084673166
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.036832094
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 1.175695896
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 1.137519121
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.097345114
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 1.137519121,
+    "raised_median_ms": 1.175695896,
+    "native_min_ms": 0.036832094,
+    "native_median_ms": 0.084673166,
+    "native_over_raised_min": 0.03237931857147217,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "asin",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "42b9fd1658b047351e797c76bd5da651dffdceeba9eb35ea318ee85498aa39d3",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.1920929e-07,
+            "maxrel": 1.18897469e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.1920929e-07,
+            "maxrel": 1.18897469e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/asin/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/asin/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 2.560930014
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.089600801
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.042912006
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 1.237103939
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 1.142958879
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.084481001
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.039680958
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 1.166126966
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 1.176079988
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.101409197
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 1.142958879,
+    "raised_median_ms": 1.176079988,
+    "native_min_ms": 0.039680958,
+    "native_median_ms": 0.084481001,
+    "native_over_raised_min": 0.034717747706477196,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "asinh",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "9cc0b998d1d48b99822d501255efb50d378f321382bab107b2bb84267895f9a0",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 1.71596034e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 1.71596034e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/asinh/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/asinh/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 3.046503782
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.097921848
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.031424046
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 1.234767914
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 1.139214039
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.088545084
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.038336039
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 1.173871994
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 1.180175066
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.101984978
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 1.139214039,
+    "raised_median_ms": 1.180175066,
+    "native_min_ms": 0.031424046,
+    "native_median_ms": 0.088545084,
+    "native_over_raised_min": 0.027583970109413297,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "atan",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "197ef52f80d9852b2549ec770cb219876e772597087eb1a0232fddb7ae3ec335",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.1920929e-07,
+            "maxrel": 1.19100307e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.1920929e-07,
+            "maxrel": 1.19100307e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/atan/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/atan/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 1.197999001
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.096289873
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.042655945
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 1.201423883
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 1.13783884
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.083361149
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.038464785
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 1.12958312
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 1.11706996
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.091104984
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 1.11706996,
+    "raised_median_ms": 1.13783884,
+    "native_min_ms": 0.038464785,
+    "native_median_ms": 0.083361149,
+    "native_over_raised_min": 0.03443364012760669,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "atanh",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "1aec597333637ace59a0ee81165badafb50c1592596034c8bc467e6119afa5b2",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 1.46123088e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 2.38418579e-07,
+            "maxrel": 1.46123088e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/atanh/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/atanh/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 1.225903988
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.096289158
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.021697044
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 1.205871105
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 1.167342901
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.086944818
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.038848877
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 1.148719072
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 1.118798018
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.085313082
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 1.118798018,
+    "raised_median_ms": 1.167342901,
+    "native_min_ms": 0.021697044,
+    "native_median_ms": 0.085313082,
+    "native_over_raised_min": 0.019393173433383756,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "cosh",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "1561b8d4cba5f874859f1996be2625f5c0e79ff507cd4c511c3585f571c96761",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.90734863e-06,
+            "maxrel": 1.52558164e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.90734863e-06,
+            "maxrel": 1.52558164e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/cosh/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 2.47588008e+27,
+            "maxrel": 8.93719103e-08
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 2.47588008e+27,
+            "maxrel": 8.93719103e-08
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/cosh/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 1.631029129
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.096768856
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.046977043
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 1.532788038
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 1.543283939
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.087296963
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.025760889
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 1.509938955
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 1.502228022
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.083616972
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 1.502228022,
+    "raised_median_ms": 1.532788038,
+    "native_min_ms": 0.025760889,
+    "native_median_ms": 0.083616972,
+    "native_over_raised_min": 0.017148454577290532,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "sinh",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "60def656bbb18da8a3d61f91cfedeab3a651d156914ed04161617cb4863ab774",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.90734863e-06,
+            "maxrel": 2.14519172e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.90734863e-06,
+            "maxrel": 2.14519172e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/sinh/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 2.47588008e+27,
+            "maxrel": 8.93719103e-08
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 2.47588008e+27,
+            "maxrel": 8.93719103e-08
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/sinh/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 1.213840008
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.100385904
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.028831959
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 1.252016068
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 1.149006844
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.089025021
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.043135881
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 1.157488108
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 1.163822889
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.088993073
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 1.149006844,
+    "raised_median_ms": 1.163822889,
+    "native_min_ms": 0.028831959,
+    "native_median_ms": 0.088993073,
+    "native_over_raised_min": 0.02509293930715699,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "tan",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "24221f0bcb644df8ee3e0cb52c4b9c6b651445e9db603875a0b9ec593db539c4",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.52587891e-05,
+            "maxrel": 1.95578862e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 1.52587891e-05,
+            "maxrel": 1.95578862e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/tan/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 9.53674316e-07,
+            "maxrel": 1.09114069e-07
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 9.53674316e-07,
+            "maxrel": 1.09114069e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/tan/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 1.631572962
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.097760916
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.046432972
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 1.598100901
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 1.527315855
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.088865042
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.028736115
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 1.523859978
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 1.500180006
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.086945057
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 1.500180006,
+    "raised_median_ms": 1.527315855,
+    "native_min_ms": 0.028736115,
+    "native_median_ms": 0.086945057,
+    "native_over_raised_min": 0.019155111310022354,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "threshold_backward",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "88ffc91de80e45b984984200e7dcb5290467dde48489dd9f74205d52897d73c8",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/threshold_backward/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/threshold_backward/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.134016991
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.030591965
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.021503925
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.066049099
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.070337057
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.025633097
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.018368006
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.060961008
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.067360878
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.032992125
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.060961008,
+    "raised_median_ms": 0.067360878,
+    "native_min_ms": 0.018368006,
+    "native_median_ms": 0.025633097,
+    "native_over_raised_min": 0.30130745213399357,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "rms_norm",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "Native rms_norm allocates its output; raised output is preallocated. Do not treat latency ratio as allocation-matched speedup.",
+    "program_sha256": "637d8231b8d1d1cfbd9ad09765b7fe689ec85266c270ccee7acfcd5e714497df",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 128,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 4.76837158e-07,
+            "maxrel": 1.7694419e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 128,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 4.76837158e-07,
+            "maxrel": 1.7694419e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 0,
+            "count": 128,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 4.76837158e-07,
+            "maxrel": 2.05976511e-07
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 1,
+            "count": 128,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 4.76837158e-07,
+            "maxrel": 2.05976511e-07
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/rms_norm/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 128,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 3.33228775e-42,
+            "maxrel": 3.33228775e-12
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 128,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 3.33228775e-42,
+            "maxrel": 3.33228775e-12
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 0,
+            "count": 128,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 3.33228775e-42,
+            "maxrel": 3.33228775e-12
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 1,
+            "count": 128,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 3.33228775e-42,
+            "maxrel": 3.33228775e-12
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/rms_norm/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.161314011
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.1505301
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.127873898
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.073504925
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.078080893
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.153634071
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.12368083
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.079682112
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.072736979
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.141248941
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "allocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.072736979,
+    "raised_median_ms": 0.078080893,
+    "native_min_ms": 0.12368083,
+    "native_median_ms": 0.141248941,
+    "native_equivalence": "pass",
+    "timing_comparison": "raw_allocation_difference"
+  },
+  {
+    "name": "add",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "3bc68f14a0f755ad5c387b96c8f3f9d11b98d19e8fdc3b4565fb6cc121429857",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "alias": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "alias": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "alias": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "alias": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/add/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "alias": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "alias": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "alias": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "alias": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/add/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.115809202
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.028480053
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.025183916
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.077920914
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.068576813
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.033761024
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.027935982
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.077728987
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.071199894
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.028833151
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": "outside each timed interval"
+    },
+    "raised_min_ms": 0.068576813,
+    "raised_median_ms": 0.077728987,
+    "native_min_ms": 0.025183916,
+    "native_median_ms": 0.028480053,
+    "native_over_raised_min": 0.3672366051773214,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "hardshrink",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "f75f8d4709265e2221199a4dc291908baf668d79dcd2a4b62ca8af5983bb0b38",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/hardshrink/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/hardshrink/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.128801107
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.0241611
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.022176027
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.058721066
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.066945076
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.023263931
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.041665077
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.078080893
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.068960905
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.023679972
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.058721066,
+    "raised_median_ms": 0.068960905,
+    "native_min_ms": 0.022176027,
+    "native_median_ms": 0.023679972,
+    "native_over_raised_min": 0.37765027971392756,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "shrink_backward",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "0e05e779cd7fc6c9644f31c68dcedb0e84c5da7ac4173f50b2050f0e3b80c5c7",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/shrink_backward/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/shrink_backward/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.133409977
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.027584076
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.023839951
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.066368103
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.078817129
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.026273012
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.041855812
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.076800108
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.066175938
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.026496887
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.066175938,
+    "raised_median_ms": 0.076800108,
+    "native_min_ms": 0.023839951,
+    "native_median_ms": 0.026496887,
+    "native_over_raised_min": 0.3602510477448767,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "softshrink",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "Positive lambda: signed-zero differences (122 normal outputs) and signed-zero/NaN differences (862 edge outputs) per residency mode. Existing negative lambda -0.75 is rejected by native API. Raw timing only; no semantically validated speedup ratio.",
+    "program_sha256": "ca79ab98c47f5519c865657ae1a9d3c418d9e66b0fccdafeb550d43ab9714cfb",
+    "correctness": {
+      "normal": {
+        "rc": 134,
+        "passed": false,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 122,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 122,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [
+          "NATIVE_MISMATCH i=7 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=21 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=58 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=72 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=109 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=123 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=7 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=21 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=58 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=72 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=109 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=123 raised=-0x0p+0 native=0x0p+0"
+        ],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/softshrink/normal-native.log",
+        "supplemental_linebuffered_log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/softshrink/linebuffered-normal.log"
+      },
+      "edge": {
+        "rc": 134,
+        "passed": false,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 862,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 862,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [
+          "NATIVE_MISMATCH i=1 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=9 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=14 raised=nan native=0x0p+0",
+          "NATIVE_MISMATCH i=16 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=20 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=28 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=1 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=9 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=14 raised=nan native=0x0p+0",
+          "NATIVE_MISMATCH i=16 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=20 raised=-0x0p+0 native=0x0p+0",
+          "NATIVE_MISMATCH i=28 raised=-0x0p+0 native=0x0p+0"
+        ],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/softshrink/edge-native.log",
+        "supplemental_linebuffered_log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/softshrink/linebuffered-edge.log"
+      }
+    },
+    "normal_pass": false,
+    "edge_pass": false,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.123585939
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.026304007
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.029887915
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.061601162
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.062176943
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.026624203
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.020799875
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.055392027
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.062657118
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.024159908
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.055392027,
+    "raised_median_ms": 0.062176943,
+    "native_min_ms": 0.020799875,
+    "native_median_ms": 0.026304007,
+    "native_equivalence": "mismatch",
+    "timing_comparison": "raw_semantic_difference"
+  },
+  {
+    "name": "hardtanh_backward",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "6a857a7da09fb5d9c57ce03eea1a563884a828ee197726a95195aa9286353fa1",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/hardtanh_backward/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/hardtanh_backward/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.134786129
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.025215864
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.024096012
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.060736895
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.071201086
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.025920153
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.040736198
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.079777002
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.068225145
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.025343895
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.060736895,
+    "raised_median_ms": 0.071201086,
+    "native_min_ms": 0.024096012,
+    "native_median_ms": 0.025343895,
+    "native_over_raised_min": 0.39672775501612323,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "hardsigmoid_backward",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "27308fee0de0cd920c5f1c044638d5f5a3bdd3d4eab644c684bbbf3309884efc",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/hardsigmoid_backward/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/hardsigmoid_backward/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.129281998
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.024544001
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.022527933
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.077888966
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.068833113
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.027425051
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.01987195
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.058624983
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.071233034
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.027551889
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.058624983,
+    "raised_median_ms": 0.071233034,
+    "native_min_ms": 0.01987195,
+    "native_median_ms": 0.024544001,
+    "native_over_raised_min": 0.3389672624723831,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "hardswish_backward",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "Native PyTorch 24.12 uses older CUDA endpoint derivatives: mismatches at self=-3/+3 (1 normal, 317 edge outputs per residency mode). Current reference uses upstream fix 97272e4b49. Raw timing only; no semantically validated speedup ratio.",
+    "program_sha256": "c8bafa718fbd78586a94d6436d34769c41a84f703378ac056234f845b1397419",
+    "correctness": {
+      "normal": {
+        "rc": 3,
+        "passed": false,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 1,
+            "maxabs": 4.76837158e-07,
+            "maxrel": 0.000183116645
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 1,
+            "maxabs": 4.76837158e-07,
+            "maxrel": 0.000183116645
+          }
+        ],
+        "mismatches": [
+          "NATIVE_MISMATCH i=411 raised=0x0p+0 native=0x1.374p-1",
+          "NATIVE_MISMATCH i=411 raised=0x0p+0 native=0x1.374p-1"
+        ],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/hardswish_backward/normal-native.log"
+      },
+      "edge": {
+        "rc": 3,
+        "passed": false,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 317,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 317,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [
+          "NATIVE_MISMATCH i=116 raised=0x1p+0 native=0x1.8p+0",
+          "NATIVE_MISMATCH i=117 raised=-0x1p+0 native=-0x1.8p+0",
+          "NATIVE_MISMATCH i=118 raised=0x1p+1 native=0x1.8p+1",
+          "NATIVE_MISMATCH i=119 raised=-0x1p+1 native=-0x1.8p+1",
+          "NATIVE_MISMATCH i=120 raised=0x1.8p+1 native=0x1.2p+2",
+          "NATIVE_MISMATCH i=121 raised=-0x1.8p+1 native=-0x1.2p+2",
+          "NATIVE_MISMATCH i=116 raised=0x1p+0 native=0x1.8p+0",
+          "NATIVE_MISMATCH i=117 raised=-0x1p+0 native=-0x1.8p+0",
+          "NATIVE_MISMATCH i=118 raised=0x1p+1 native=0x1.8p+1",
+          "NATIVE_MISMATCH i=119 raised=-0x1p+1 native=-0x1.8p+1",
+          "NATIVE_MISMATCH i=120 raised=0x1.8p+1 native=0x1.2p+2",
+          "NATIVE_MISMATCH i=121 raised=-0x1.8p+1 native=-0x1.2p+2"
+        ],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/hardswish_backward/edge-native.log"
+      }
+    },
+    "normal_pass": false,
+    "edge_pass": false,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.10492897
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.061856985
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.039713144
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.061184883
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.071616888
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.062911987
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.050113201
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.064033031
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.068352938
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.053344965
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.061184883,
+    "raised_median_ms": 0.068352938,
+    "native_min_ms": 0.039713144,
+    "native_median_ms": 0.053344965,
+    "native_equivalence": "mismatch",
+    "timing_comparison": "raw_semantic_difference"
+  },
+  {
+    "name": "addcmul",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "f11f62e71687093e2401138d1881b904e52c94ddd98dffec21417dc3fc68f3eb",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/addcmul/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/addcmul/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.13785696
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.034431934
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.023519993
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.071713209
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.075585127
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.026688814
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.019616127
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.080864906
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.071201086
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.026623964
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.071201086,
+    "raised_median_ms": 0.075585127,
+    "native_min_ms": 0.019616127,
+    "native_median_ms": 0.026623964,
+    "native_over_raised_min": 0.2755031994877157,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  },
+  {
+    "name": "addcdiv",
+    "run_id": "20261111T213432Z",
+    "build_rc": 0,
+    "qualification": "",
+    "program_sha256": "011e5100eab84d6044eacb66ddd2452609f1cacf661038b28c1b5d141eccc4f5",
+    "correctness": {
+      "normal": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 9.53674316e-07,
+            "maxrel": 5.3416806e-06
+          },
+          {
+            "edge": 0,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 9.53674316e-07,
+            "maxrel": 5.3416806e-06
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 3.05175781e-05,
+            "maxrel": 1.43893174e-05
+          },
+          {
+            "edge": 0,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 3.05175781e-05,
+            "maxrel": 1.43893174e-05
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/addcdiv/normal-native.log"
+      },
+      "edge": {
+        "rc": 0,
+        "passed": true,
+        "checks": [
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 7.62939453e-06,
+            "maxrel": 1.30046503e-07
+          },
+          {
+            "edge": 1,
+            "parameters": 0,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 7.62939453e-06,
+            "maxrel": 1.30046503e-07
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 0,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          },
+          {
+            "edge": 1,
+            "parameters": 1,
+            "resident": 1,
+            "count": 4096,
+            "bad": 0,
+            "nativebad": 0,
+            "maxabs": 0,
+            "maxrel": 0
+          }
+        ],
+        "mismatches": [],
+        "log": "/home/arjaiswal/Polygeist/issues/aten43_native_cuda_20261111/comparison/addcdiv/edge-native.log"
+      }
+    },
+    "normal_pass": true,
+    "edge_pass": true,
+    "timing_pass": true,
+    "timing": {
+      "rc": 0,
+      "samples": [
+        {
+          "path": "raised",
+          "sample": 0,
+          "ms": 0.151170015
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 0,
+          "ms": 0.031103849
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 1,
+          "ms": 0.02115202
+        },
+        {
+          "path": "raised",
+          "sample": 1,
+          "ms": 0.062463999
+        },
+        {
+          "path": "raised",
+          "sample": 2,
+          "ms": 0.072480917
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 2,
+          "ms": 0.027296782
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 3,
+          "ms": 0.020832062
+        },
+        {
+          "path": "raised",
+          "sample": 3,
+          "ms": 0.08336091
+        },
+        {
+          "path": "raised",
+          "sample": 4,
+          "ms": 0.086432934
+        },
+        {
+          "path": "native_aten_cuda",
+          "sample": 4,
+          "ms": 0.027072906
+        }
+      ],
+      "interval": "synchronized host latency in same compiled C harness; CUDA-resident tensors; five warmups/five samples per path; alternating order",
+      "native_api_output": "preallocated",
+      "raised_api_output": "preallocated",
+      "inplace_reset": null
+    },
+    "raised_min_ms": 0.062463999,
+    "raised_median_ms": 0.08336091,
+    "native_min_ms": 0.020832062,
+    "native_median_ms": 0.027072906,
+    "native_over_raised_min": 0.3335050962715339,
+    "native_equivalence": "pass",
+    "timing_comparison": "comparable"
+  }
+]

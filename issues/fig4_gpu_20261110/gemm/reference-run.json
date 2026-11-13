@@ -1,0 +1,13 @@
+{
+  "kernel": "gemm",
+  "variant": "reference",
+  "rc": 0,
+  "elapsed_s": 13.105608224868774,
+  "sha256": "dabe4640d3bba4529b0b984873e317abb3bffe63623972223f3c34474347a8bd",
+  "cuda_graph": false,
+  "warmups": 5,
+  "measured": 5,
+  "dump_count": 1,
+  "max_temperature_c": 49.625,
+  "thermal_ok": true
+}

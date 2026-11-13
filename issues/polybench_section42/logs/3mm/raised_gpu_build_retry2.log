@@ -1,0 +1,782 @@
+[polygeist] input=tools/cgeist/Test/polybench/linear-algebra/kernels/3mm/3mm.c  function=kernel_3mm  target=jetson  output=/tmp/polybench-section42-3mm-jetson-correctness
+[polygeist] harness=tools/cgeist/Test/polybench/linear-algebra/kernels/3mm/3mm.c
+[polygeist] gcc passthrough: -O3 -Itools/cgeist/Test/polybench/utilities -Itools/cgeist/Test/polybench/linear-algebra/kernels/3mm -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO -DPOLYBENCH_DUMP_ARRAYS
+  [1-4/9] reuse stored semantic MLIR: issues/polybench_section42/ir/3mm/matched.mlir
+  [5/9] polygeist-opt: lower-kernel-launch-to-cublas (kernel.launch → func.call)
+         emitted 9 func.call to runtime shim
+  [6/9] mlir-opt → LLVM dialect → llvm-translate → kernel.ll
+  [7/9] gen_wrapper.py: ABI bridge for kernel_3mm
+  [8/9] compile kernel.ll + wrapper + harness + runtime shim (target=jetson)
+         + cuTensorNet runtime from /tmp/polygeist_cutensornet_aarch64/unified
+         + contraction-only runtime linkage
+warning: overriding the module target triple with aarch64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+In file included from /home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cuda.c:43:
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:434:1: warning: ‘csric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  434 | cusparseCreateCsric02Info(csric02Info_t* info);
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:438:1: warning: ‘csric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  438 | cusparseDestroyCsric02Info(csric02Info_t info);
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:442:1: warning: ‘bsric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  442 | cusparseCreateBsric02Info(bsric02Info_t* info);
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:446:1: warning: ‘bsric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  446 | cusparseDestroyBsric02Info(bsric02Info_t info);
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:450:1: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  450 | cusparseCreateCsrilu02Info(csrilu02Info_t* info);
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:454:1: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  454 | cusparseDestroyCsrilu02Info(csrilu02Info_t info);
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:458:1: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  458 | cusparseCreateBsrilu02Info(bsrilu02Info_t* info);
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:462:1: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  462 | cusparseDestroyBsrilu02Info(bsrilu02Info_t info);
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:466:1: warning: ‘bsrsv2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  466 | cusparseCreateBsrsv2Info(bsrsv2Info_t* info);
+      | ^~~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:470:1: warning: ‘bsrsv2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  470 | cusparseDestroyBsrsv2Info(bsrsv2Info_t info);
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:474:1: warning: ‘bsrsm2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  474 | cusparseCreateBsrsm2Info(bsrsm2Info_t* info);
+      | ^~~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:478:1: warning: ‘bsrsm2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  478 | cusparseDestroyBsrsm2Info(bsrsm2Info_t info);
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:482:1: warning: ‘csru2csrInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  482 | cusparseCreateCsru2csrInfo(csru2csrInfo_t* info);
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:486:1: warning: ‘csru2csrInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  486 | cusparseDestroyCsru2csrInfo(csru2csrInfo_t info);
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:490:1: warning: ‘cusparseColorInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  490 | cusparseCreateColorInfo(cusparseColorInfo_t* info);
+      | ^~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:494:1: warning: ‘cusparseColorInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  494 | cusparseDestroyColorInfo(cusparseColorInfo_t info);
+      | ^~~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:498:1: warning: ‘pruneInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  498 | cusparseCreatePruneInfo(pruneInfo_t* info);
+      | ^~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:502:1: warning: ‘pruneInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  502 | cusparseDestroyPruneInfo(pruneInfo_t info);
+      | ^~~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:759:27: warning: ‘bsrsv2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  759 |                           bsrsv2Info_t     info,
+      |                           ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:774:28: warning: ‘bsrsv2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  774 |                            bsrsv2Info_t             info,
+      |                            ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:789:28: warning: ‘bsrsv2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  789 |                            bsrsv2Info_t             info,
+      |                            ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:804:28: warning: ‘bsrsv2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  804 |                            bsrsv2Info_t             info,
+      |                            ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:819:28: warning: ‘bsrsv2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  819 |                            bsrsv2Info_t             info,
+      |                            ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:834:31: warning: ‘bsrsv2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  834 |                               bsrsv2Info_t             info,
+      |                               ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:849:31: warning: ‘bsrsv2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  849 |                               bsrsv2Info_t             info,
+      |                               ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:864:31: warning: ‘bsrsv2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  864 |                               bsrsv2Info_t             info,
+      |                               ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:879:31: warning: ‘bsrsv2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  879 |                               bsrsv2Info_t             info,
+      |                               ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:894:26: warning: ‘bsrsv2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  894 |                          bsrsv2Info_t             info,
+      |                          ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:895:26: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  895 |                          cusparseSolvePolicy_t    policy,
+      |                          ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:910:26: warning: ‘bsrsv2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  910 |                          bsrsv2Info_t             info,
+      |                          ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:911:26: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  911 |                          cusparseSolvePolicy_t    policy,
+      |                          ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:926:26: warning: ‘bsrsv2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  926 |                          bsrsv2Info_t             info,
+      |                          ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:927:26: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  927 |                          cusparseSolvePolicy_t    policy,
+      |                          ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:942:26: warning: ‘bsrsv2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  942 |                          bsrsv2Info_t             info,
+      |                          ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:943:26: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  943 |                          cusparseSolvePolicy_t    policy,
+      |                          ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:959:23: warning: ‘bsrsv2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  959 |                       bsrsv2Info_t             info,
+      |                       ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:962:23: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  962 |                       cusparseSolvePolicy_t    policy,
+      |                       ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:978:23: warning: ‘bsrsv2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  978 |                       bsrsv2Info_t             info,
+      |                       ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:981:23: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  981 |                       cusparseSolvePolicy_t    policy,
+      |                       ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:997:23: warning: ‘bsrsv2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+  997 |                       bsrsv2Info_t             info,
+      |                       ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1000:23: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1000 |                       cusparseSolvePolicy_t    policy,
+      |                       ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1016:23: warning: ‘bsrsv2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1016 |                       bsrsv2Info_t             info,
+      |                       ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1019:23: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1019 |                       cusparseSolvePolicy_t    policy,
+      |                       ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1113:27: warning: ‘bsrsm2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1113 |                           bsrsm2Info_t     info,
+      |                           ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1130:28: warning: ‘bsrsm2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1130 |                            bsrsm2Info_t             info,
+      |                            ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1147:28: warning: ‘bsrsm2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1147 |                            bsrsm2Info_t             info,
+      |                            ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1164:28: warning: ‘bsrsm2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1164 |                            bsrsm2Info_t             info,
+      |                            ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1181:28: warning: ‘bsrsm2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1181 |                            bsrsm2Info_t             info,
+      |                            ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1198:31: warning: ‘bsrsm2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1198 |                               bsrsm2Info_t             info,
+      |                               ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1215:31: warning: ‘bsrsm2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1215 |                               bsrsm2Info_t             info,
+      |                               ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1232:31: warning: ‘bsrsm2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1232 |                               bsrsm2Info_t             info,
+      |                               ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1249:31: warning: ‘bsrsm2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1249 |                               bsrsm2Info_t             info,
+      |                               ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1266:26: warning: ‘bsrsm2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1266 |                          bsrsm2Info_t             info,
+      |                          ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1267:26: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1267 |                          cusparseSolvePolicy_t    policy,
+      |                          ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1284:26: warning: ‘bsrsm2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1284 |                          bsrsm2Info_t             info,
+      |                          ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1285:26: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1285 |                          cusparseSolvePolicy_t    policy,
+      |                          ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1302:26: warning: ‘bsrsm2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1302 |                          bsrsm2Info_t             info,
+      |                          ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1303:26: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1303 |                          cusparseSolvePolicy_t    policy,
+      |                          ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1320:26: warning: ‘bsrsm2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1320 |                          bsrsm2Info_t             info,
+      |                          ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1321:26: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1321 |                          cusparseSolvePolicy_t    policy,
+      |                          ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1339:23: warning: ‘bsrsm2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1339 |                       bsrsm2Info_t             info,
+      |                       ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1344:23: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1344 |                       cusparseSolvePolicy_t    policy,
+      |                       ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1362:23: warning: ‘bsrsm2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1362 |                       bsrsm2Info_t             info,
+      |                       ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1367:23: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1367 |                       cusparseSolvePolicy_t    policy,
+      |                       ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1385:23: warning: ‘bsrsm2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1385 |                       bsrsm2Info_t             info,
+      |                       ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1390:23: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1390 |                       cusparseSolvePolicy_t    policy,
+      |                       ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1408:23: warning: ‘bsrsm2Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1408 |                       bsrsm2Info_t             info,
+      |                       ^~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1413:23: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1413 |                       cusparseSolvePolicy_t    policy,
+      |                       ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1423:32: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1423 |                                csrilu02Info_t   info,
+      |                                ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1431:32: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1431 |                                csrilu02Info_t   info,
+      |                                ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1439:32: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1439 |                                csrilu02Info_t   info,
+      |                                ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1447:32: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1447 |                                csrilu02Info_t   info,
+      |                                ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1455:29: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1455 |                             csrilu02Info_t   info,
+      |                             ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1467:30: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1467 |                              csrilu02Info_t           info,
+      |                              ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1479:30: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1479 |                              csrilu02Info_t           info,
+      |                              ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1491:30: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1491 |                              csrilu02Info_t           info,
+      |                              ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1503:30: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1503 |                              csrilu02Info_t           info,
+      |                              ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1515:33: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1515 |                                 csrilu02Info_t           info,
+      |                                 ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1527:33: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1527 |                                 csrilu02Info_t           info,
+      |                                 ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1539:33: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1539 |                                 csrilu02Info_t           info,
+      |                                 ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1551:33: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1551 |                                 csrilu02Info_t           info,
+      |                                 ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1563:28: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1563 |                            csrilu02Info_t           info,
+      |                            ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1564:28: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1564 |                            cusparseSolvePolicy_t    policy,
+      |                            ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1576:28: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1576 |                            csrilu02Info_t           info,
+      |                            ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1577:28: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1577 |                            cusparseSolvePolicy_t    policy,
+      |                            ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1589:28: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1589 |                            csrilu02Info_t           info,
+      |                            ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1590:28: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1590 |                            cusparseSolvePolicy_t    policy,
+      |                            ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1602:28: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1602 |                            csrilu02Info_t           info,
+      |                            ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1603:28: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1603 |                            cusparseSolvePolicy_t    policy,
+      |                            ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1615:19: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1615 |                   csrilu02Info_t        info,
+      |                   ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1616:19: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1616 |                   cusparseSolvePolicy_t policy,
+      |                   ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1628:19: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1628 |                   csrilu02Info_t        info,
+      |                   ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1629:19: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1629 |                   cusparseSolvePolicy_t policy,
+      |                   ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1641:19: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1641 |                   csrilu02Info_t        info,
+      |                   ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1642:19: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1642 |                   cusparseSolvePolicy_t policy,
+      |                   ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1654:19: warning: ‘csrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1654 |                   csrilu02Info_t        info,
+      |                   ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1655:19: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1655 |                   cusparseSolvePolicy_t policy,
+      |                   ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1661:32: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1661 |                                bsrilu02Info_t   info,
+      |                                ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1669:32: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1669 |                                bsrilu02Info_t   info,
+      |                                ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1677:32: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1677 |                                bsrilu02Info_t   info,
+      |                                ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1685:32: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1685 |                                bsrilu02Info_t   info,
+      |                                ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1693:29: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1693 |                             bsrilu02Info_t   info,
+      |                             ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1707:30: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1707 |                              bsrilu02Info_t           info,
+      |                              ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1721:30: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1721 |                              bsrilu02Info_t           info,
+      |                              ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1735:30: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1735 |                              bsrilu02Info_t           info,
+      |                              ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1749:30: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1749 |                              bsrilu02Info_t           info,
+      |                              ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1763:33: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1763 |                                 bsrilu02Info_t           info,
+      |                                 ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1777:33: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1777 |                                 bsrilu02Info_t           info,
+      |                                 ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1791:33: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1791 |                                 bsrilu02Info_t           info,
+      |                                 ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1805:32: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1805 |                                bsrilu02Info_t           info,
+      |                                ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1819:28: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1819 |                            bsrilu02Info_t           info,
+      |                            ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1820:28: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1820 |                            cusparseSolvePolicy_t    policy,
+      |                            ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1834:28: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1834 |                            bsrilu02Info_t           info,
+      |                            ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1835:28: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1835 |                            cusparseSolvePolicy_t    policy,
+      |                            ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1849:28: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1849 |                            bsrilu02Info_t           info,
+      |                            ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1850:28: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1850 |                            cusparseSolvePolicy_t    policy,
+      |                            ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1864:28: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1864 |                            bsrilu02Info_t           info,
+      |                            ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1865:28: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1865 |                            cusparseSolvePolicy_t    policy,
+      |                            ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1879:19: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1879 |                   bsrilu02Info_t           info,
+      |                   ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1880:19: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1880 |                   cusparseSolvePolicy_t    policy,
+      |                   ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1894:19: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1894 |                   bsrilu02Info_t           info,
+      |                   ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1895:19: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1895 |                   cusparseSolvePolicy_t    policy,
+      |                   ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1909:19: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1909 |                   bsrilu02Info_t           info,
+      |                   ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1910:19: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1910 |                   cusparseSolvePolicy_t    policy,
+      |                   ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1924:19: warning: ‘bsrilu02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1924 |                   bsrilu02Info_t           info,
+      |                   ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1925:19: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1925 |                   cusparseSolvePolicy_t    policy,
+      |                   ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1931:28: warning: ‘csric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1931 |                            csric02Info_t    info,
+      |                            ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1943:29: warning: ‘csric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1943 |                             csric02Info_t            info,
+      |                             ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1955:29: warning: ‘csric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1955 |                             csric02Info_t            info,
+      |                             ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1967:29: warning: ‘csric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1967 |                             csric02Info_t            info,
+      |                             ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1979:29: warning: ‘csric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1979 |                             csric02Info_t            info,
+      |                             ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:1991:32: warning: ‘csric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 1991 |                                csric02Info_t            info,
+      |                                ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2003:32: warning: ‘csric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2003 |                                csric02Info_t            info,
+      |                                ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2015:32: warning: ‘csric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2015 |                                csric02Info_t            info,
+      |                                ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2027:32: warning: ‘csric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2027 |                                csric02Info_t            info,
+      |                                ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2039:27: warning: ‘csric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2039 |                           csric02Info_t            info,
+      |                           ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2040:27: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2040 |                           cusparseSolvePolicy_t    policy,
+      |                           ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2052:27: warning: ‘csric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2052 |                           csric02Info_t            info,
+      |                           ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2053:27: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2053 |                           cusparseSolvePolicy_t    policy,
+      |                           ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2065:27: warning: ‘csric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2065 |                           csric02Info_t            info,
+      |                           ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2066:27: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2066 |                           cusparseSolvePolicy_t    policy,
+      |                           ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2078:27: warning: ‘csric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2078 |                           csric02Info_t            info,
+      |                           ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2079:27: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2079 |                           cusparseSolvePolicy_t    policy,
+      |                           ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2091:18: warning: ‘csric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2091 |                  csric02Info_t            info,
+      |                  ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2092:18: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2092 |                  cusparseSolvePolicy_t    policy,
+      |                  ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2104:18: warning: ‘csric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2104 |                  csric02Info_t            info,
+      |                  ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2105:18: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2105 |                  cusparseSolvePolicy_t    policy,
+      |                  ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2117:18: warning: ‘csric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2117 |                  csric02Info_t            info,
+      |                  ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2118:18: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2118 |                  cusparseSolvePolicy_t    policy,
+      |                  ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2130:18: warning: ‘csric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2130 |                  csric02Info_t            info,
+      |                  ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2131:18: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2131 |                  cusparseSolvePolicy_t    policy,
+      |                  ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2137:28: warning: ‘bsric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2137 |                            bsric02Info_t    info,
+      |                            ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2151:29: warning: ‘bsric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2151 |                             bsric02Info_t            info,
+      |                             ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2165:29: warning: ‘bsric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2165 |                             bsric02Info_t            info,
+      |                             ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2179:29: warning: ‘bsric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2179 |                             bsric02Info_t            info,
+      |                             ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2193:29: warning: ‘bsric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2193 |                             bsric02Info_t            info,
+      |                             ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2207:32: warning: ‘bsric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2207 |                                bsric02Info_t            info,
+      |                                ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2221:32: warning: ‘bsric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2221 |                                bsric02Info_t            info,
+      |                                ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2235:32: warning: ‘bsric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2235 |                                bsric02Info_t            info,
+      |                                ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2249:32: warning: ‘bsric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2249 |                                bsric02Info_t            info,
+      |                                ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2263:27: warning: ‘bsric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2263 |                           bsric02Info_t            info,
+      |                           ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2264:27: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2264 |                           cusparseSolvePolicy_t    policy,
+      |                           ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2278:27: warning: ‘bsric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2278 |                           bsric02Info_t            info,
+      |                           ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2279:27: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2279 |                           cusparseSolvePolicy_t    policy,
+      |                           ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2293:27: warning: ‘bsric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2293 |                           bsric02Info_t            info,
+      |                           ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2294:27: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2294 |                           cusparseSolvePolicy_t    policy,
+      |                           ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2308:27: warning: ‘bsric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2308 |                           bsric02Info_t            info,
+      |                           ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2309:27: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2309 |                           cusparseSolvePolicy_t    policy,
+      |                           ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2323:18: warning: ‘bsric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2323 |                  bsric02Info_t            info,
+      |                  ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2324:18: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2324 |                  cusparseSolvePolicy_t    policy,
+      |                  ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2338:18: warning: ‘bsric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2338 |                  bsric02Info_t            info,
+      |                  ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2339:18: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2339 |                  cusparseSolvePolicy_t    policy,
+      |                  ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2354:18: warning: ‘bsric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2354 |                  bsric02Info_t            info,
+      |                  ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2355:18: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2355 |                  cusparseSolvePolicy_t    policy,
+      |                  ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2369:18: warning: ‘bsric02Info_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2369 |                  bsric02Info_t            info,
+      |                  ^~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:2370:18: warning: ‘cusparseSolvePolicy_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 2370 |                  cusparseSolvePolicy_t    policy,
+      |                  ^~~~~~~~~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:318:14: note: declared here
+  318 | typedef enum {
+      |              ^
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:3043:19: warning: ‘cusparseColorInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 3043 |                   const cusparseColorInfo_t info);
+      |                   ^~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:3058:19: warning: ‘cusparseColorInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 3058 |                   const cusparseColorInfo_t info);
+      |                   ^~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:3073:19: warning: ‘cusparseColorInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 3073 |                   const cusparseColorInfo_t info);
+      |                   ^~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:3088:19: warning: ‘cusparseColorInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 3088 |                   const cusparseColorInfo_t info);
+      |                   ^~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4152:33: warning: ‘csru2csrInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4152 |                                 csru2csrInfo_t   info,
+      |                                 ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4164:33: warning: ‘csru2csrInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4164 |                                 csru2csrInfo_t   info,
+      |                                 ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4176:33: warning: ‘csru2csrInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4176 |                                 csru2csrInfo_t   info,
+      |                                 ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4188:33: warning: ‘csru2csrInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4188 |                                 csru2csrInfo_t   info,
+      |                                 ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4201:19: warning: ‘csru2csrInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4201 |                   csru2csrInfo_t           info,
+      |                   ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4214:19: warning: ‘csru2csrInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4214 |                   csru2csrInfo_t           info,
+      |                   ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4227:19: warning: ‘csru2csrInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4227 |                   csru2csrInfo_t           info,
+      |                   ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4240:19: warning: ‘csru2csrInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4240 |                   csru2csrInfo_t           info,
+      |                   ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4253:19: warning: ‘csru2csrInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4253 |                   csru2csrInfo_t           info,
+      |                   ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4266:19: warning: ‘csru2csrInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4266 |                   csru2csrInfo_t           info,
+      |                   ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4279:19: warning: ‘csru2csrInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4279 |                   csru2csrInfo_t           info,
+      |                   ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4292:19: warning: ‘csru2csrInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4292 |                   csru2csrInfo_t           info,
+      |                   ^~~~~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4619:36: warning: ‘pruneInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4619 |                                    pruneInfo_t              info,
+      |                                    ^~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4635:36: warning: ‘pruneInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4635 |                                    pruneInfo_t              info,
+      |                                    ^~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4668:37: warning: ‘pruneInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4668 |                                     pruneInfo_t              info,
+      |                                     ^~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4683:37: warning: ‘pruneInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4683 |                                     pruneInfo_t              info,
+      |                                     ^~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4717:37: warning: ‘pruneInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4717 |                                     pruneInfo_t              info,
+      |                                     ^~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4732:37: warning: ‘pruneInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4732 |                                     pruneInfo_t              info,
+      |                                     ^~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4774:36: warning: ‘pruneInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4774 |                                    pruneInfo_t              info,
+      |                                    ^~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4793:36: warning: ‘pruneInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4793 |                                    pruneInfo_t              info,
+      |                                    ^~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4833:37: warning: ‘pruneInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4833 |                                     pruneInfo_t              info,
+      |                                     ^~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4851:37: warning: ‘pruneInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4851 |                                     pruneInfo_t              info,
+      |                                     ^~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4891:35: warning: ‘pruneInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4891 |                                   pruneInfo_t              info,
+      |                                   ^~~~~~~~~~~
+/usr/local/cuda-12.6/targets/sbsa-linux/include/cusparse.h:4909:35: warning: ‘pruneInfo_t’ is deprecated: The type will be removed in the next major release [-Wdeprecated-declarations]
+ 4909 |                                   pruneInfo_t              info,
+      |                                   ^~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cuda.c: In function ‘polygeist_cudnn_batchnorm_inference’:
+/home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cuda.c:5757:34: warning: passing argument 1 of ‘pointer_is_device_resident’ discards ‘const’ qualifier from pointer target type [-Wdiscarded-qualifiers]
+ 5757 |   if (pointer_is_device_resident(inv_std, &inv_std_device)) {
+      |                                  ^~~~~~~
+/home/arjaiswal/Polygeist-section42/runtime/polygeist_cublas_rt_cuda.c:772:45: note: expected ‘void *’ but argument is of type ‘const float *’
+  772 | static int pointer_is_device_resident(void *ptr, void **device_ptr) {
+      |                                       ~~~~~~^~~
+         + polybench utility from tools/cgeist/Test/polybench/utilities/polybench.c
+  [9/9] link → /tmp/polybench-section42-3mm-jetson-correctness
+
+═══ build complete ═══
+/tmp/polybench-section42-3mm-jetson-correctness: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=e42480495c2d6ef9c83732abaed97f4576d59578, for GNU/Linux 3.7.0, not stripped

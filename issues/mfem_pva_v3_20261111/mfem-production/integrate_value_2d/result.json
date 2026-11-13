@@ -1,0 +1,11 @@
+{
+  "name": "integrate_value_2d",
+  "rc": 0,
+  "passed": true,
+  "actual_vendor_invocations": 2048,
+  "calls": [
+    "cublasDgemm"
+  ],
+  "program_sha256": "105c4d5266f88ad70ee132a9b4ffcece25610d9cd1c3729523379d225c3784af",
+  "command": "ulimit -s unlimited; LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-integrate_value_2d-20261111"
+}

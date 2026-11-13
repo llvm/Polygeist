@@ -1,0 +1,3 @@
+==BEGIN DUMP_ARRAYS==
+450.34 nan -2.00
+==END   DUMP_ARRAYS==

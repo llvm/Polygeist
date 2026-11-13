@@ -1,0 +1,13 @@
+{
+  "kernel": "atax",
+  "variant": "reference",
+  "rc": 0,
+  "elapsed_s": 1.1460158824920654,
+  "sha256": "fdefe7149f980b6f4b304e60228c3c272109215f2751acd88f6ddb199063cebd",
+  "cuda_graph": false,
+  "warmups": 5,
+  "measured": 5,
+  "dump_count": 1,
+  "max_temperature_c": 49.375,
+  "thermal_ok": true
+}

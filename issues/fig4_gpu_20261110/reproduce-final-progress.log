@@ -1,0 +1,37 @@
+2mm raised rc 0 samples 5 dumps 1 device_ms 48.981697
+2mm native rc 0 samples 5 dumps 1 device_ms 71.815551758
+3mm native rc 0 samples 5 dumps 1 device_ms 82.286079407
+3mm raised rc 0 samples 5 dumps 1 device_ms 82.653694
+atax raised rc 0 samples 5 dumps 1 device_ms 0.586272
+atax native rc 0 samples 5 dumps 1 device_ms 2.385663986
+bicg native rc 0 samples 5 dumps 1 device_ms 2.225183964
+bicg raised rc 0 samples 5 dumps 1 device_ms 0.5864
+correlation raised rc 0 samples 5 dumps 1 device_ms 297.755615
+correlation paper-baseline rc 0 samples 5 dumps 1 device_ms 318.78918457
+covariance paper-baseline rc 0 samples 5 dumps 1 device_ms 329.448425293
+covariance raised rc 0 samples 5 dumps 1 device_ms 127.858749
+gemm raised rc 0 samples 5 dumps 1 device_ms 40.248447
+gemm native rc 0 samples 5 dumps 1 device_ms 74.957344055
+gemver native rc 0 samples 5 dumps 1 device_ms 2.647007942
+gemver raised rc 0 samples 5 dumps 1 device_ms 1.653856
+gesummv raised rc 0 samples 5 dumps 1 device_ms 0.344544
+gesummv native rc 0 samples 5 dumps 1 device_ms 0.872255981
+mvt native rc 0 samples 5 dumps 1 device_ms 2.158560038
+mvt raised rc 0 samples 5 dumps 1 device_ms 0.948064
+syr2k raised rc 0 samples 5 dumps 1 device_ms 41.915039
+syr2k native rc 0 samples 5 dumps 1 device_ms 208.006851196
+syrk native rc 0 samples 5 dumps 1 device_ms 83.556541443
+syrk raised rc 0 samples 5 dumps 1 device_ms 22.758528
+2mm raised:PASS native:PASS
+3mm raised:PASS native:PASS
+atax raised:PASS native:PASS
+bicg raised:PASS native:PASS
+correlation raised:PASS native:PASS paper-baseline:PASS
+covariance raised:PASS native:PASS paper-baseline:PASS
+gemm raised:PASS native:PASS
+gemver raised:PASS native:PASS
+gesummv raised:PASS native:PASS
+mvt raised:PASS native:PASS
+syr2k raised:PASS native:PASS
+syrk raised:PASS native:PASS
+Execution failures: []

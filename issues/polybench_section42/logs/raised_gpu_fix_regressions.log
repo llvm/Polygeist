@@ -1,0 +1,13 @@
+llvm-lit: /home/arjaiswal/Polygeist/llvm-project/llvm/utils/lit/lit/TestingConfig.py:151: fatal: unable to parse config file '/home/arjaiswal/Polygeist-section42/test/lit.cfg.py', traceback: Traceback (most recent call last):
+  File "/home/arjaiswal/Polygeist/llvm-project/llvm/utils/lit/lit/TestingConfig.py", line 139, in load_from_path
+    exec(compile(data, path, "exec"), cfg_globals, None)
+  File "/home/arjaiswal/Polygeist-section42/test/lit.cfg.py", line 22, in <module>
+    config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
+                                                ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'use_lit_shell'
+
+-- Testing: 4 tests, 4 workers --
+Testing:  0.. 10.. 20.. 30.. 40.. 50.. 60.. 70.. 80.. 90.. 
+
+Testing Time: 0.76s
+  Passed: 4

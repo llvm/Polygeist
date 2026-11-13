@@ -1,0 +1,28 @@
+COMMAND: aarch64-linux-gnu-gcc -O3 -fno-inline -fno-inline-functions -fsemantic-interposition -fgnu89-inline -Dstatic=__attribute__((noipa)) -DLARGE_DATASET -DDATA_TYPE_IS_DOUBLE -DPOLYBENCH_USE_C99_PROTO -I/home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/utilities -I/home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/datamining/covariance -DPOLYBENCH_DUMP_ARRAYS -c /home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/datamining/covariance/covariance.c
+In file included from /home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/datamining/covariance/covariance.c:33:
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/utilities/polybench.h:233:21: warning: inline function ‘polybench_alloc_data’ given attribute ‘noinline’ [-Wattributes]
+  233 | static inline void* polybench_alloc_data(unsigned long long int n, int elt_size) {
+      |                     ^~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist-section42/tools/cgeist/Test/polybench/utilities/polybench.h:236:20: warning: inline function ‘polybench_free_data’ given attribute ‘noinline’ [-Wattributes]
+  236 | static inline void polybench_free_data(void* ptr) {
+      |                    ^~~~~~~~~~~~~~~~~~~
+COMMAND: /usr/local/cuda-12.6/bin/nvcc -O3 -std=c++17 -arch=sm_87 -ccbin aarch64-linux-gnu-g++ -c /home/arjaiswal/Polygeist-section42/issues/polybench_section42/polybenchgpu_adapters/covariance.cu
+/home/arjaiswal/Polygeist/third_party/polybenchGpu/CUDA/COVAR/covariance.cu: In function ‘void covarianceCuda(int, int, double (*)[1400], double (*)[1200], double*, double (*)[1200])’:
+/home/arjaiswal/Polygeist/third_party/polybenchGpu/CUDA/COVAR/covariance.cu:199:29: warning: ‘cudaError_t cudaThreadSynchronize()’ is deprecated [-Wdeprecated-declarations]
+  199 |         cudaThreadSynchronize();
+      |         ~~~~~~~~~~~~~~~~~~~~^~
+/usr/local/cuda-12.6/bin/../targets/sbsa-linux/include/cuda_runtime_api.h:1169:46: note: declared here
+ 1169 | extern __CUDA_DEPRECATED __host__ cudaError_t CUDARTAPI cudaThreadSynchronize(void);
+      |                                              ^~~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist/third_party/polybenchGpu/CUDA/COVAR/covariance.cu:201:29: warning: ‘cudaError_t cudaThreadSynchronize()’ is deprecated [-Wdeprecated-declarations]
+  201 |         cudaThreadSynchronize();
+      |         ~~~~~~~~~~~~~~~~~~~~^~
+/usr/local/cuda-12.6/bin/../targets/sbsa-linux/include/cuda_runtime_api.h:1169:46: note: declared here
+ 1169 | extern __CUDA_DEPRECATED __host__ cudaError_t CUDARTAPI cudaThreadSynchronize(void);
+      |                                              ^~~~~~~~~~~~~~~~~~~~~
+/home/arjaiswal/Polygeist/third_party/polybenchGpu/CUDA/COVAR/covariance.cu:203:29: warning: ‘cudaError_t cudaThreadSynchronize()’ is deprecated [-Wdeprecated-declarations]
+  203 |         cudaThreadSynchronize();
+      |         ~~~~~~~~~~~~~~~~~~~~^~
+/usr/local/cuda-12.6/bin/../targets/sbsa-linux/include/cuda_runtime_api.h:1169:46: note: declared here
+ 1169 | extern __CUDA_DEPRECATED __host__ cudaError_t CUDARTAPI cudaThreadSynchronize(void);
+      |                                              ^~~~~~~~~~~~~~~~~~~~~

@@ -1,0 +1,11 @@
+-- Testing: 6 of 180 tests, 6 workers --
+PASS: polygeist :: polygeist-opt/raise-hoist-index-only.mlir (1 of 6)
+PASS: polygeist :: scripts/polybench-e2e-config.c (2 of 6)
+PASS: polygeist :: scripts/gen-wrapper-cuda-timing.c (3 of 6)
+PASS: polygeist :: scripts/compare-polybench-dumps.c (4 of 6)
+PASS: polygeist :: scripts/kernel-match-composition-root-rewire.mlir (5 of 6)
+PASS: polygeist :: runtime/cblas-runtime-compiles.c (6 of 6)
+
+Testing Time: 2.34s
+  Excluded: 174
+  Passed  :   6

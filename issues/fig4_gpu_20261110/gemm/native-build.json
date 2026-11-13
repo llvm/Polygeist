@@ -1,0 +1,12 @@
+{
+  "upstream_source": "third_party/polybenchGpu/CUDA/GEMM/gemm.cu",
+  "upstream_sha256": "8d458e662aeff25003c5efad74e22ef4414d6655c098aa28a7e8c5bf61e82880",
+  "kernel_sha256": [
+    "9f237638fb41f8bf9c6f51555b3c5c9933c180d72723ab139d24fda601e2162e"
+  ],
+  "computational_bodies_verbatim": true,
+  "qualifier": "upstream CUDA kernels, canonical FP64 shapes and initialization",
+  "generated_source_sha256": "21e8bac021167a6ad7ff1b081ebfb7be65842ea0a30ab556b0fc230a3b26801a",
+  "build_rc": 0,
+  "executable_sha256": "f3d75b25f1b0f732532cfd23cbfd488badadb20f6ffcda3cefa929f578a0d8cb"
+}

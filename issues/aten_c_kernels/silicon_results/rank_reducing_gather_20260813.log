@@ -1,0 +1,4 @@
+Jetson Orin sm87, MAXN, CUDA 12.6, warm mean over 10 calls after 3 warmups
+ATen standalone extraction scaled to B=131072, N=64
+
+RESULT kernel=aten_nested_select_cpu warm_us=7559.158398 errors=0 max_error=0 coverage=full_rank-reducing_row-element_gather_through_Thrust

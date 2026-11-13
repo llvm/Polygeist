@@ -1,0 +1,1131 @@
+{
+  "fixtures": 18,
+  "recognized": 18,
+  "built": 18,
+  "full_output_validated": 18,
+  "historical_sites": 128,
+  "recognized_sites": 135,
+  "lowered_sites": 135,
+  "validated_sites": 135,
+  "note": "Static call counts may change with the library and generic rank slicing; compare full fixture coverage and outputs before equating site counts.",
+  "rows": [
+    {
+      "name": "mass_apply_2d",
+      "historical_sites": 3,
+      "build": {
+        "kernel": "mass_apply_2d",
+        "rc": 0,
+        "command": [
+          "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+          "--target=jetson",
+          "--function=mfem_pa_mass_apply_2d_stage_sliced",
+          "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+          "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/mass_stage_sliced.c",
+          "-DBENCH_MASS_2D",
+          "-DMFEM_BENCH_NE=1024",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/mass_apply_2d/program"
+        ],
+        "seconds": 57.83866710960865,
+        "source_sha256": "82f10136103b36fd496cb47f82709c9a3101b0968a03f216ebd5a407722e4cf3",
+        "program_sha256": "e0ccebeeafa6a81266e82e87110700e69b111af25a3c00c23901a6c11df872cf",
+        "specifications": [
+          "openblas_dgemm_tn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_tn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1"
+        ],
+        "calls": 4
+      },
+      "execution": {
+        "name": "mass_apply_2d",
+        "rc": 0,
+        "passed": true,
+        "actual_vendor_invocations": 2050,
+        "calls": [
+          "cublasDgemm"
+        ],
+        "program_sha256": "e0ccebeeafa6a81266e82e87110700e69b111af25a3c00c23901a6c11df872cf",
+        "command": "LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-mass_apply_2d-20261111"
+      },
+      "recognized_sites": 4,
+      "specifications": [
+        "openblas_dgemm_tn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_tn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1"
+      ],
+      "proof_sha256": "00965295bf0dcf1fad6ec5d8cbccdef15c5f667c9b4ede04f0c9ffc821918538",
+      "lowered_sites": 4,
+      "correctness_lines": [
+        "kernel=mass_apply_2d ne=1024 elements=16384 correctness=PASS failures=0 max_abs=0 max_rel=0 worst=0 actual=-0.11283511635920809 expected=-0.11283511635920809"
+      ],
+      "binary_hash_agrees": true,
+      "fully_validated": true
+    },
+    {
+      "name": "mass_apply_3d",
+      "historical_sites": 5,
+      "build": {
+        "kernel": "mass_apply_3d",
+        "rc": 0,
+        "command": [
+          "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+          "--target=jetson",
+          "--function=mfem_pa_mass_apply_3d_stage_sliced",
+          "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+          "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/mass_stage_sliced.c",
+          "-DBENCH_MASS_3D",
+          "-DMFEM_BENCH_NE=1024",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/mass_apply_3d/program"
+        ],
+        "seconds": 63.17531602084637,
+        "source_sha256": "82f10136103b36fd496cb47f82709c9a3101b0968a03f216ebd5a407722e4cf3",
+        "program_sha256": "781e3b2641a12d4f852dd1bcbc139c4ad9b994fcabd1c1cbaec41a303346e7fb",
+        "specifications": [
+          "openblas_dgemm_tn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_tn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1"
+        ],
+        "calls": 6
+      },
+      "execution": {
+        "name": "mass_apply_3d",
+        "rc": 0,
+        "passed": true,
+        "actual_vendor_invocations": 11266,
+        "calls": [
+          "cublasDgemm"
+        ],
+        "program_sha256": "781e3b2641a12d4f852dd1bcbc139c4ad9b994fcabd1c1cbaec41a303346e7fb",
+        "command": "LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-mass_apply_3d-20261111"
+      },
+      "recognized_sites": 6,
+      "specifications": [
+        "openblas_dgemm_tn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_tn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1"
+      ],
+      "proof_sha256": "fd97890b7604c8debc7b0e98beb0ba508383cf6933adf7f9e292e20972c6ad41",
+      "lowered_sites": 6,
+      "correctness_lines": [
+        "kernel=mass_apply_3d ne=1024 elements=65536 correctness=PASS failures=0 max_abs=0 max_rel=0 worst=0 actual=-0.11283618558743534 expected=-0.11283618558743534"
+      ],
+      "binary_hash_agrees": true,
+      "fully_validated": true
+    },
+    {
+      "name": "diffusion_apply_2d",
+      "historical_sites": 6,
+      "build": {
+        "kernel": "diffusion_apply_2d",
+        "rc": 0,
+        "command": [
+          "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+          "--target=jetson",
+          "--function=mfem_pa_diffusion_apply_2d_stage_sliced",
+          "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+          "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/diffusion_stage_sliced.c",
+          "-DBENCH_DIFFUSION_2D",
+          "-DMFEM_BENCH_NE=1024",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/diffusion_apply_2d/program"
+        ],
+        "seconds": 38.77931793779135,
+        "source_sha256": "482b7f8f6b154e99569a0902fb3890844d16183b8fc72f887448a2898da3cfb1",
+        "program_sha256": "4ea1e12e3a4356fdbc8f2dc0fb73d82926f5fcf030b7ffe7eaedb4e8ed115e3a",
+        "specifications": [
+          "openblas_dgemm_tn_b1_alpha1",
+          "openblas_dgemm_tn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1"
+        ],
+        "calls": 6
+      },
+      "execution": {
+        "name": "diffusion_apply_2d",
+        "rc": 0,
+        "passed": true,
+        "actual_vendor_invocations": 4098,
+        "calls": [
+          "cublasDgemm"
+        ],
+        "program_sha256": "4ea1e12e3a4356fdbc8f2dc0fb73d82926f5fcf030b7ffe7eaedb4e8ed115e3a",
+        "command": "LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-diffusion_apply_2d-20261111"
+      },
+      "recognized_sites": 6,
+      "specifications": [
+        "openblas_dgemm_tn_b1_alpha1",
+        "openblas_dgemm_tn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1"
+      ],
+      "proof_sha256": "e03a7ec3c5cb6b47699e2d75c3a1ceea3d6a37cafcbe98b3816a149d862ebf24",
+      "lowered_sites": 6,
+      "correctness_lines": [
+        "kernel=diffusion_apply_2d ne=1024 elements=16384 correctness=PASS failures=0 max_abs=1.3877787807814457e-17 max_rel=1.3877787807814457e-17 worst=615 actual=0.089558118112253005 expected=0.089558118112252991"
+      ],
+      "binary_hash_agrees": true,
+      "fully_validated": true
+    },
+    {
+      "name": "diffusion_apply_3d",
+      "historical_sites": 14,
+      "build": {
+        "kernel": "diffusion_apply_3d",
+        "rc": 0,
+        "command": [
+          "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+          "--target=jetson",
+          "--function=mfem_pa_diffusion_apply_3d_stage_sliced",
+          "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+          "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/diffusion_stage_sliced.c",
+          "-DBENCH_DIFFUSION_3D",
+          "-DMFEM_BENCH_NE=1024",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/diffusion_apply_3d/program"
+        ],
+        "seconds": 64.47325453907251,
+        "source_sha256": "482b7f8f6b154e99569a0902fb3890844d16183b8fc72f887448a2898da3cfb1",
+        "program_sha256": "6a80b2e4c10d7a0cb0c0cee84775153b29b6b389bdd8f437b13721b1e4408bf6",
+        "specifications": [
+          "openblas_dgemm_tn_b1_alpha1",
+          "openblas_dgemm_tn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1"
+        ],
+        "calls": 14
+      },
+      "execution": {
+        "name": "diffusion_apply_3d",
+        "rc": 0,
+        "passed": true,
+        "actual_vendor_invocations": 33794,
+        "calls": [
+          "cublasDgemm"
+        ],
+        "program_sha256": "6a80b2e4c10d7a0cb0c0cee84775153b29b6b389bdd8f437b13721b1e4408bf6",
+        "command": "ulimit -s unlimited; LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-diffusion_apply_3d-20261111"
+      },
+      "recognized_sites": 14,
+      "specifications": [
+        "openblas_dgemm_tn_b1_alpha1",
+        "openblas_dgemm_tn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1"
+      ],
+      "proof_sha256": "ee3c202e1c157eff8844c7e18b82d60c805f1b7f81be1665f0c0cd4662094fc4",
+      "lowered_sites": 14,
+      "correctness_lines": [
+        "kernel=diffusion_apply_3d ne=1024 elements=65536 correctness=PASS failures=0 max_abs=6.9388939039072284e-18 max_rel=6.9388939039072284e-18 worst=1476 actual=0.058369582591921008 expected=0.058369582591921015"
+      ],
+      "binary_hash_agrees": true,
+      "fully_validated": true
+    },
+    {
+      "name": "convection_apply_2d",
+      "historical_sites": 5,
+      "build": {
+        "kernel": "convection_apply_2d",
+        "rc": 0,
+        "command": [
+          "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+          "--target=jetson",
+          "--function=mfem_pa_convection_apply_2d_stage_sliced",
+          "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+          "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/convection_stage_sliced.c",
+          "-DBENCH_CONVECTION_2D",
+          "-DMFEM_BENCH_NE=1024",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/convection_apply_2d/program"
+        ],
+        "seconds": 35.499776147305965,
+        "source_sha256": "d6433547f1f30cacd91f4f49919ba50a65b3723c94db8743ed23cd37f482deea",
+        "program_sha256": "9c28e0c04c6e6dee5d0ae7d5615ef51895ee2260ae8e5585f743d7528de45325",
+        "specifications": [
+          "openblas_dgemm_tn_b1_alpha1",
+          "openblas_dgemm_tn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1"
+        ],
+        "calls": 5
+      },
+      "execution": {
+        "name": "convection_apply_2d",
+        "rc": 0,
+        "passed": true,
+        "actual_vendor_invocations": 3074,
+        "calls": [
+          "cublasDgemm"
+        ],
+        "program_sha256": "9c28e0c04c6e6dee5d0ae7d5615ef51895ee2260ae8e5585f743d7528de45325",
+        "command": "LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-convection_apply_2d-20261111"
+      },
+      "recognized_sites": 5,
+      "specifications": [
+        "openblas_dgemm_tn_b1_alpha1",
+        "openblas_dgemm_tn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1"
+      ],
+      "proof_sha256": "ae6065e5b7e6da92ae18b77512fd024a86356dc412af25b5d2ca3ce4c0aa38af",
+      "lowered_sites": 5,
+      "correctness_lines": [
+        "kernel=convection_apply_2d ne=1024 elements=16384 correctness=PASS failures=0 max_abs=3.4694469519536142e-18 max_rel=3.4694469519536142e-18 worst=525 actual=0.031097120982689314 expected=0.031097120982689311"
+      ],
+      "binary_hash_agrees": true,
+      "fully_validated": true
+    },
+    {
+      "name": "convection_apply_3d",
+      "historical_sites": 10,
+      "build": {
+        "kernel": "convection_apply_3d",
+        "rc": 0,
+        "command": [
+          "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+          "--target=jetson",
+          "--function=mfem_pa_convection_apply_3d_stage_sliced",
+          "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+          "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/convection_stage_sliced.c",
+          "-DBENCH_CONVECTION_3D",
+          "-DMFEM_BENCH_NE=1024",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/convection_apply_3d/program"
+        ],
+        "seconds": 50.77859341353178,
+        "source_sha256": "d6433547f1f30cacd91f4f49919ba50a65b3723c94db8743ed23cd37f482deea",
+        "program_sha256": "c9df31041703f81f1b11480621a8088db01ce0a74eba3d20e453226aaae8289b",
+        "specifications": [
+          "openblas_dgemm_tn_b1_alpha1",
+          "openblas_dgemm_tn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1"
+        ],
+        "calls": 10
+      },
+      "execution": {
+        "name": "convection_apply_3d",
+        "rc": 0,
+        "passed": true,
+        "actual_vendor_invocations": 21506,
+        "calls": [
+          "cublasDgemm"
+        ],
+        "program_sha256": "c9df31041703f81f1b11480621a8088db01ce0a74eba3d20e453226aaae8289b",
+        "command": "ulimit -s unlimited; LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-convection_apply_3d-20261111"
+      },
+      "recognized_sites": 10,
+      "specifications": [
+        "openblas_dgemm_tn_b1_alpha1",
+        "openblas_dgemm_tn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1"
+      ],
+      "proof_sha256": "97819787b11767e27cde2fa0dfcace18b2f799d07f1ee58b23230913cc23af4d",
+      "lowered_sites": 10,
+      "correctness_lines": [
+        "kernel=convection_apply_3d ne=1024 elements=65536 correctness=PASS failures=0 max_abs=3.4694469519536142e-18 max_rel=3.4694469519536142e-18 worst=1226 actual=0.027238123679494419 expected=0.027238123679494415"
+      ],
+      "binary_hash_agrees": true,
+      "fully_validated": true
+    },
+    {
+      "name": "curlcurl_apply_2d",
+      "historical_sites": 5,
+      "build": {
+        "kernel": "curlcurl_apply_2d",
+        "rc": 0,
+        "command": [
+          "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+          "--target=jetson",
+          "--function=mfem_pa_curlcurl_apply_2d_stage_sliced",
+          "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+          "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/de_rham2_stage_sliced.c",
+          "-DBENCH_CURLCURL_2D",
+          "-DMFEM_BENCH_NE=1024",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/curlcurl_apply_2d/program"
+        ],
+        "seconds": 33.27629479020834,
+        "source_sha256": "1ec9abd1c30e950afc9efdfd31d280308bff674eed0c58368d0fea84096cff80",
+        "program_sha256": "dd3c2bd336a8bf5809907a83701f596052b0f9199e497fc3dc57d772c027b50a",
+        "specifications": [
+          "openblas_dgemv_t_beta1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemv_t_beta1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1"
+        ],
+        "calls": 5
+      },
+      "execution": {
+        "name": "curlcurl_apply_2d",
+        "rc": 0,
+        "passed": true,
+        "actual_vendor_invocations": 3082,
+        "calls": [
+          "cublasDgemm",
+          "cublasDgemv"
+        ],
+        "program_sha256": "dd3c2bd336a8bf5809907a83701f596052b0f9199e497fc3dc57d772c027b50a",
+        "command": "LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-curlcurl_apply_2d-20261111"
+      },
+      "recognized_sites": 5,
+      "specifications": [
+        "openblas_dgemv_t_beta1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemv_t_beta1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1"
+      ],
+      "proof_sha256": "97eef15fb88f75389a05f23dca330f01f0925cefd1c521e42f2b6993e1967623",
+      "lowered_sites": 5,
+      "correctness_lines": [
+        "kernel=curlcurl_apply_2d ne=1024 elements=24576 correctness=PASS failures=0 max_abs=1.3877787807814457e-17 max_rel=1.3877787807814457e-17 worst=2421 actual=0.08177721850636617 expected=0.081777218506366184"
+      ],
+      "binary_hash_agrees": true,
+      "fully_validated": true
+    },
+    {
+      "name": "curlcurl_apply_3d",
+      "historical_sites": 29,
+      "build": {
+        "kernel": "curlcurl_apply_3d",
+        "rc": 0,
+        "command": [
+          "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+          "--target=jetson",
+          "--function=mfem_pa_curlcurl_apply_3d_stage_sliced",
+          "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+          "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/curlcurl3_stage_sliced.c",
+          "-DBENCH_CURLCURL_3D",
+          "-DMFEM_BENCH_NE=1024",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/curlcurl_apply_3d/program"
+        ],
+        "seconds": 123.76431537419558,
+        "source_sha256": "6e511389bebc570f524b4063fa735a24d273d985fff753d067704934be99c170",
+        "program_sha256": "e2cc229f55d5e2f0b74cbae0221ca30ffc400b681d965d50dc21bb8cdab90510",
+        "specifications": [
+          "openblas_dgemv_t_beta1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemv_t_beta1",
+          "openblas_dgemv_t_beta1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemv_t_beta1",
+          "openblas_dgemv_t_beta1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1"
+        ],
+        "calls": 29
+      },
+      "execution": {
+        "name": "curlcurl_apply_3d",
+        "rc": 0,
+        "passed": true,
+        "actual_vendor_invocations": 65561,
+        "calls": [
+          "cublasDgemm",
+          "cublasDgemv"
+        ],
+        "program_sha256": "e2cc229f55d5e2f0b74cbae0221ca30ffc400b681d965d50dc21bb8cdab90510",
+        "command": "ulimit -s unlimited; LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-curlcurl_apply_3d-20261111"
+      },
+      "recognized_sites": 29,
+      "specifications": [
+        "openblas_dgemv_t_beta1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemv_t_beta1",
+        "openblas_dgemv_t_beta1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemv_t_beta1",
+        "openblas_dgemv_t_beta1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1"
+      ],
+      "proof_sha256": "5ac806e3a13fa3fa6c472dedcbff6eb53d609b26ccb7de3eeff3519d72a8217a",
+      "lowered_sites": 29,
+      "correctness_lines": [
+        "kernel=curlcurl_apply_3d ne=1024 elements=147456 correctness=PASS failures=0 max_abs=1.3877787807814457e-17 max_rel=1.3877787807814457e-17 worst=4316 actual=0.066148228678195392 expected=0.066148228678195406"
+      ],
+      "binary_hash_agrees": true,
+      "fully_validated": true
+    },
+    {
+      "name": "divdiv_apply_2d",
+      "historical_sites": 6,
+      "build": {
+        "kernel": "divdiv_apply_2d",
+        "rc": 0,
+        "command": [
+          "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+          "--target=jetson",
+          "--function=mfem_pa_divdiv_apply_2d_stage_sliced",
+          "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+          "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/de_rham2_stage_sliced.c",
+          "-DBENCH_DIVDIV_2D",
+          "-DMFEM_BENCH_NE=1024",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/divdiv_apply_2d/program"
+        ],
+        "seconds": 35.37477454543114,
+        "source_sha256": "1ec9abd1c30e950afc9efdfd31d280308bff674eed0c58368d0fea84096cff80",
+        "program_sha256": "12935f65627b4d3f42bd600fa8c59166ed3cd430626abe44d9b2e039a00dbfab",
+        "specifications": [
+          "openblas_dgemv_t_beta1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemv_t_beta1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1"
+        ],
+        "calls": 6
+      },
+      "execution": {
+        "name": "divdiv_apply_2d",
+        "rc": 0,
+        "passed": true,
+        "actual_vendor_invocations": 4106,
+        "calls": [
+          "cublasDgemm",
+          "cublasDgemv"
+        ],
+        "program_sha256": "12935f65627b4d3f42bd600fa8c59166ed3cd430626abe44d9b2e039a00dbfab",
+        "command": "LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-divdiv_apply_2d-20261111"
+      },
+      "recognized_sites": 6,
+      "specifications": [
+        "openblas_dgemv_t_beta1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemv_t_beta1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1"
+      ],
+      "proof_sha256": "15881e94a9c2fde187bb4bb91f5522ae4bbd0a8a92f806aa75ac5fa5d1279bf7",
+      "lowered_sites": 6,
+      "correctness_lines": [
+        "kernel=divdiv_apply_2d ne=1024 elements=24576 correctness=PASS failures=0 max_abs=1.3877787807814457e-17 max_rel=1.3877787807814457e-17 worst=487 actual=-0.12451726916614229 expected=-0.12451726916614231"
+      ],
+      "binary_hash_agrees": true,
+      "fully_validated": true
+    },
+    {
+      "name": "divdiv_apply_3d",
+      "historical_sites": 12,
+      "build": {
+        "kernel": "divdiv_apply_3d",
+        "rc": 0,
+        "command": [
+          "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+          "--target=jetson",
+          "--function=mfem_pa_divdiv_apply_3d_stage_sliced",
+          "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+          "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/divdiv3_stage_sliced.c",
+          "-DBENCH_DIVDIV_3D",
+          "-DMFEM_BENCH_NE=1024",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/divdiv_apply_3d/program"
+        ],
+        "seconds": 62.16708844155073,
+        "source_sha256": "bc7179eddb6bda6584e759c6eb3fbdb259ceaa1c41e58db918ae2830b6a093b5",
+        "program_sha256": "8d0cc2847aafeb8a8a0fb2d4dd0bffef5a46878717b097623ec8a21ce4529fe4",
+        "specifications": [
+          "openblas_dgemv_t_beta1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemv_t_beta1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemv_t_beta1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1"
+        ],
+        "calls": 15
+      },
+      "execution": {
+        "name": "divdiv_apply_3d",
+        "rc": 0,
+        "passed": true,
+        "actual_vendor_invocations": 31759,
+        "calls": [
+          "cublasDgemm",
+          "cublasDgemv"
+        ],
+        "program_sha256": "8d0cc2847aafeb8a8a0fb2d4dd0bffef5a46878717b097623ec8a21ce4529fe4",
+        "command": "ulimit -s unlimited; LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-divdiv_apply_3d-20261111"
+      },
+      "recognized_sites": 15,
+      "specifications": [
+        "openblas_dgemv_t_beta1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemv_t_beta1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemv_t_beta1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1"
+      ],
+      "proof_sha256": "df1fac53982bdf845ad985d4bc1d839266c82ba670dfe888cf73df7462eea183",
+      "lowered_sites": 15,
+      "correctness_lines": [
+        "kernel=divdiv_apply_3d ne=1024 elements=110592 correctness=PASS failures=0 max_abs=3.4694469519536142e-18 max_rel=3.4694469519536142e-18 worst=3578 actual=-0.019454553764345704 expected=-0.019454553764345701"
+      ],
+      "binary_hash_agrees": true,
+      "fully_validated": true
+    },
+    {
+      "name": "interp_value_2d",
+      "historical_sites": 2,
+      "build": {
+        "kernel": "interp_value_2d",
+        "rc": 0,
+        "command": [
+          "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+          "--target=jetson",
+          "--function=mfem_interp_value_2d_scratch_sliced",
+          "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+          "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/value_scratch_sliced.c",
+          "-DBENCH_INTERP_VALUE_2D",
+          "-DMFEM_BENCH_NE=1024",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/interp_value_2d/program"
+        ],
+        "seconds": 25.668290480971336,
+        "source_sha256": "8d872b872a02965b0363ca82946b968e224f833913af686185e1c2f21b6d49cd",
+        "program_sha256": "f1f05505da24fa8264a6fe7f0ade7038f7e64cf5fdb0ec96d28b936855646187",
+        "specifications": [
+          "openblas_dgemm_tn_b1_alpha1",
+          "openblas_dgemm_tt_b1_alpha1"
+        ],
+        "calls": 2
+      },
+      "execution": {
+        "name": "interp_value_2d",
+        "rc": 0,
+        "passed": true,
+        "actual_vendor_invocations": 1025,
+        "calls": [
+          "cublasDgemm"
+        ],
+        "program_sha256": "f1f05505da24fa8264a6fe7f0ade7038f7e64cf5fdb0ec96d28b936855646187",
+        "command": "ulimit -s unlimited; LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-interp_value_2d-20261111"
+      },
+      "recognized_sites": 2,
+      "specifications": [
+        "openblas_dgemm_tn_b1_alpha1",
+        "openblas_dgemm_tt_b1_alpha1"
+      ],
+      "proof_sha256": "c000ba919487399fc0c846ab9703c53ceb6e861bdec486d8b2a12ce40d74c8cb",
+      "lowered_sites": 2,
+      "correctness_lines": [
+        "kernel=interp_value_2d ne=1024 elements=25600 correctness=PASS failures=0 max_abs=0 max_rel=0 worst=0 actual=0.0004007754412727304 expected=0.0004007754412727304"
+      ],
+      "binary_hash_agrees": true,
+      "fully_validated": true
+    },
+    {
+      "name": "interp_value_3d",
+      "historical_sites": 3,
+      "build": {
+        "kernel": "interp_value_3d",
+        "rc": 0,
+        "command": [
+          "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+          "--target=jetson",
+          "--function=mfem_interp_value_3d_scratch_sliced",
+          "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+          "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/value_scratch_sliced.c",
+          "-DBENCH_INTERP_VALUE_3D",
+          "-DMFEM_BENCH_NE=1024",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/interp_value_3d/program"
+        ],
+        "seconds": 28.697245992720127,
+        "source_sha256": "8d872b872a02965b0363ca82946b968e224f833913af686185e1c2f21b6d49cd",
+        "program_sha256": "0f3f6503d1a08b2c39eca3c2d8c70051836d8bde97c852287f88d6c44136505f",
+        "specifications": [
+          "openblas_dgemm_tn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemv_n_beta1"
+        ],
+        "calls": 3
+      },
+      "execution": {
+        "name": "interp_value_3d",
+        "rc": 0,
+        "passed": true,
+        "actual_vendor_invocations": 29697,
+        "calls": [
+          "cublasDgemm",
+          "cublasDgemv"
+        ],
+        "program_sha256": "0f3f6503d1a08b2c39eca3c2d8c70051836d8bde97c852287f88d6c44136505f",
+        "command": "ulimit -s unlimited; LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-interp_value_3d-20261111"
+      },
+      "recognized_sites": 3,
+      "specifications": [
+        "openblas_dgemm_tn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemv_n_beta1"
+      ],
+      "proof_sha256": "8ce4c72056ee84a60ef2d91881e5532a0454c985a76f14e956b2106f7deacd41",
+      "lowered_sites": 3,
+      "correctness_lines": [
+        "kernel=interp_value_3d ne=1024 elements=128000 correctness=PASS failures=0 max_abs=0 max_rel=0 worst=0 actual=-0.00018592424141469844 expected=-0.00018592424141469844"
+      ],
+      "binary_hash_agrees": true,
+      "fully_validated": true
+    },
+    {
+      "name": "integrate_value_2d",
+      "historical_sites": 1,
+      "build": {
+        "kernel": "integrate_value_2d",
+        "rc": 0,
+        "command": [
+          "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+          "--target=jetson",
+          "--function=mfem_integrate_value_2d_scratch_sliced",
+          "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+          "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/value_scratch_sliced.c",
+          "-DBENCH_INTEGRATE_VALUE_2D",
+          "-DMFEM_BENCH_NE=1024",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/integrate_value_2d/program"
+        ],
+        "seconds": 25.476693741977215,
+        "source_sha256": "8d872b872a02965b0363ca82946b968e224f833913af686185e1c2f21b6d49cd",
+        "program_sha256": "105c4d5266f88ad70ee132a9b4ffcece25610d9cd1c3729523379d225c3784af",
+        "specifications": [
+          "openblas_dgemm_nt_b1_alpha1",
+          "openblas_dgemm_nt_b1_alpha1"
+        ],
+        "calls": 2
+      },
+      "execution": {
+        "name": "integrate_value_2d",
+        "rc": 0,
+        "passed": true,
+        "actual_vendor_invocations": 2048,
+        "calls": [
+          "cublasDgemm"
+        ],
+        "program_sha256": "105c4d5266f88ad70ee132a9b4ffcece25610d9cd1c3729523379d225c3784af",
+        "command": "ulimit -s unlimited; LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-integrate_value_2d-20261111"
+      },
+      "recognized_sites": 2,
+      "specifications": [
+        "openblas_dgemm_nt_b1_alpha1",
+        "openblas_dgemm_nt_b1_alpha1"
+      ],
+      "proof_sha256": "cd89fa2debbfc922dd5538e2db5100c8858996394e0ca740410886c8f13dede4",
+      "lowered_sites": 2,
+      "correctness_lines": [
+        "kernel=integrate_value_2d ne=1024 elements=16384 correctness=PASS failures=0 max_abs=0 max_rel=0 worst=0 actual=-0.12653823275762782 expected=-0.12653823275762782"
+      ],
+      "binary_hash_agrees": true,
+      "fully_validated": true
+    },
+    {
+      "name": "integrate_value_3d",
+      "historical_sites": 2,
+      "build": {
+        "kernel": "integrate_value_3d",
+        "rc": 0,
+        "command": [
+          "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+          "--target=jetson",
+          "--function=mfem_integrate_value_3d_scratch_sliced",
+          "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+          "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/value_scratch_sliced.c",
+          "-DBENCH_INTEGRATE_VALUE_3D",
+          "-DMFEM_BENCH_NE=1024",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/integrate_value_3d/program"
+        ],
+        "seconds": 52.45708467066288,
+        "source_sha256": "8d872b872a02965b0363ca82946b968e224f833913af686185e1c2f21b6d49cd",
+        "program_sha256": "f99239df11d66587253348f09a0a1b4f57db3ad10780bedc81478408bb24aa90",
+        "specifications": [
+          "openblas_dgemm_nt_b1_alpha1",
+          "openblas_dgemv_t_beta1",
+          "openblas_dgemm_nt_b1_alpha1"
+        ],
+        "calls": 3
+      },
+      "execution": {
+        "name": "integrate_value_3d",
+        "rc": 0,
+        "passed": true,
+        "actual_vendor_invocations": 22528,
+        "calls": [
+          "cublasDgemm",
+          "cublasDgemv"
+        ],
+        "program_sha256": "f99239df11d66587253348f09a0a1b4f57db3ad10780bedc81478408bb24aa90",
+        "command": "ulimit -s unlimited; LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-integrate_value_3d-20261111"
+      },
+      "recognized_sites": 3,
+      "specifications": [
+        "openblas_dgemm_nt_b1_alpha1",
+        "openblas_dgemv_t_beta1",
+        "openblas_dgemm_nt_b1_alpha1"
+      ],
+      "proof_sha256": "138c8840845455587f551241a86c22dfdfd6423b69efc7cc8446401d4e99c702",
+      "lowered_sites": 3,
+      "correctness_lines": [
+        "kernel=integrate_value_3d ne=1024 elements=65536 correctness=PASS failures=0 max_abs=2.7755575615628914e-17 max_rel=2.7755575615628914e-17 worst=551 actual=0.17895849008420583 expected=0.17895849008420586"
+      ],
+      "binary_hash_agrees": true,
+      "fully_validated": true
+    },
+    {
+      "name": "interp_grad_2d",
+      "historical_sites": 4,
+      "build": {
+        "kernel": "interp_grad_2d",
+        "rc": 0,
+        "command": [
+          "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+          "--target=jetson",
+          "--function=mfem_interp_grad_2d_stage_sliced",
+          "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+          "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/gradient_stage_sliced.c",
+          "-DBENCH_INTERP_GRAD_2D",
+          "-DMFEM_BENCH_NE=1024",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/interp_grad_2d/program"
+        ],
+        "seconds": 33.67917340248823,
+        "source_sha256": "f500968482b02e1513a5de7e2083b36628e8bd78dbb25d6e02528ad831d7e8eb",
+        "program_sha256": "d71f13450b4c103988eb8ba5f89b8a156d1b0b767efe5880382b9b3c9ca14dc2",
+        "specifications": [
+          "openblas_dgemm_tn_b1_alpha1",
+          "openblas_dgemm_tn_b1_alpha1",
+          "openblas_dgemm_tt_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1"
+        ],
+        "calls": 4
+      },
+      "execution": {
+        "name": "interp_grad_2d",
+        "rc": 0,
+        "passed": true,
+        "actual_vendor_invocations": 2050,
+        "calls": [
+          "cublasDgemm"
+        ],
+        "program_sha256": "d71f13450b4c103988eb8ba5f89b8a156d1b0b767efe5880382b9b3c9ca14dc2",
+        "command": "ulimit -s unlimited; LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-interp_grad_2d-20261111"
+      },
+      "recognized_sites": 4,
+      "specifications": [
+        "openblas_dgemm_tn_b1_alpha1",
+        "openblas_dgemm_tn_b1_alpha1",
+        "openblas_dgemm_tt_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1"
+      ],
+      "proof_sha256": "fde5f95d0bbf1200c41bcd90e991c26b6d3480f69bacd5adbee7a8205b5b661a",
+      "lowered_sites": 4,
+      "correctness_lines": [
+        "kernel=interp_grad_2d ne=1024 elements=51200 correctness=PASS failures=0 max_abs=0 max_rel=0 worst=0 actual=0.0012416792555792059 expected=0.0012416792555792059"
+      ],
+      "binary_hash_agrees": true,
+      "fully_validated": true
+    },
+    {
+      "name": "interp_grad_3d",
+      "historical_sites": 8,
+      "build": {
+        "kernel": "interp_grad_3d",
+        "rc": 0,
+        "command": [
+          "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+          "--target=jetson",
+          "--function=mfem_interp_grad_3d_stage_sliced",
+          "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+          "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/gradient_stage_sliced.c",
+          "-DBENCH_INTERP_GRAD_3D",
+          "-DMFEM_BENCH_NE=1024",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/interp_grad_3d/program"
+        ],
+        "seconds": 54.320191249251366,
+        "source_sha256": "f500968482b02e1513a5de7e2083b36628e8bd78dbb25d6e02528ad831d7e8eb",
+        "program_sha256": "f350bfcd4158efb099abdca0869820f036a951e8a86fcda3240e27def6b61b04",
+        "specifications": [
+          "openblas_dgemm_tn_b1_alpha1",
+          "openblas_dgemm_tn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemv_n_beta1",
+          "openblas_dgemm_nn_b1_alpha1",
+          "openblas_dgemm_nn_b1_alpha1"
+        ],
+        "calls": 8
+      },
+      "execution": {
+        "name": "interp_grad_3d",
+        "rc": 0,
+        "passed": true,
+        "actual_vendor_invocations": 39938,
+        "calls": [
+          "cublasDgemm",
+          "cublasDgemv"
+        ],
+        "program_sha256": "f350bfcd4158efb099abdca0869820f036a951e8a86fcda3240e27def6b61b04",
+        "command": "ulimit -s unlimited; LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-interp_grad_3d-20261111"
+      },
+      "recognized_sites": 8,
+      "specifications": [
+        "openblas_dgemm_tn_b1_alpha1",
+        "openblas_dgemm_tn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemv_n_beta1",
+        "openblas_dgemm_nn_b1_alpha1",
+        "openblas_dgemm_nn_b1_alpha1"
+      ],
+      "proof_sha256": "df006792506023020e6c89dedb86f802ddf7df1b8420734c5b7bce14a51511b0",
+      "lowered_sites": 8,
+      "correctness_lines": [
+        "kernel=interp_grad_3d ne=1024 elements=384000 correctness=PASS failures=0 max_abs=0 max_rel=0 worst=0 actual=-0.00014357598847121667 expected=-0.00014357598847121667"
+      ],
+      "binary_hash_agrees": true,
+      "fully_validated": true
+    },
+    {
+      "name": "integrate_grad_2d",
+      "historical_sites": 4,
+      "build": {
+        "kernel": "integrate_grad_2d",
+        "rc": 0,
+        "command": [
+          "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+          "--target=jetson",
+          "--function=mfem_integrate_grad_2d_stage_sliced",
+          "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+          "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/gradient_stage_sliced.c",
+          "-DBENCH_INTEGRATE_GRAD_2D",
+          "-DMFEM_BENCH_NE=1024",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/integrate_grad_2d/program"
+        ],
+        "seconds": 31.0426569506526,
+        "source_sha256": "f500968482b02e1513a5de7e2083b36628e8bd78dbb25d6e02528ad831d7e8eb",
+        "program_sha256": "123f23e3a32b338686d97330779323a94e901554e93e48f362bc70f955a19a8d",
+        "specifications": [
+          "openblas_dgemm_nt_b1_alpha1",
+          "openblas_dgemv_t_beta1",
+          "openblas_dgemm_nt_b1_alpha1",
+          "openblas_dgemm_nt_b1_alpha1"
+        ],
+        "calls": 4
+      },
+      "execution": {
+        "name": "integrate_grad_2d",
+        "rc": 0,
+        "passed": true,
+        "actual_vendor_invocations": 3076,
+        "calls": [
+          "cublasDgemm",
+          "cublasDgemv"
+        ],
+        "program_sha256": "123f23e3a32b338686d97330779323a94e901554e93e48f362bc70f955a19a8d",
+        "command": "ulimit -s unlimited; LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-integrate_grad_2d-20261111"
+      },
+      "recognized_sites": 4,
+      "specifications": [
+        "openblas_dgemm_nt_b1_alpha1",
+        "openblas_dgemv_t_beta1",
+        "openblas_dgemm_nt_b1_alpha1",
+        "openblas_dgemm_nt_b1_alpha1"
+      ],
+      "proof_sha256": "a880fcc193bfed0c5e05c866bdbb74066ec51396876544adeca51a0b311d0994",
+      "lowered_sites": 4,
+      "correctness_lines": [
+        "kernel=integrate_grad_2d ne=1024 elements=16384 correctness=PASS failures=0 max_abs=2.7755575615628914e-17 max_rel=2.7755575615628914e-17 worst=433 actual=-0.17042005071933095 expected=-0.17042005071933092"
+      ],
+      "binary_hash_agrees": true,
+      "fully_validated": true
+    },
+    {
+      "name": "integrate_grad_3d",
+      "historical_sites": 9,
+      "build": {
+        "kernel": "integrate_grad_3d",
+        "rc": 0,
+        "command": [
+          "/home/arjaiswal/Polygeist/scripts/correctness/polygeist_build.sh",
+          "--target=jetson",
+          "--function=mfem_integrate_grad_3d_stage_sliced",
+          "--harness=/home/arjaiswal/Polygeist/issues/mfem_c_kernels/benchmarks/mfem_full_output_validation.c",
+          "/home/arjaiswal/Polygeist/issues/mfem_c_kernels/normalized/gradient_stage_sliced.c",
+          "-DBENCH_INTEGRATE_GRAD_3D",
+          "-DMFEM_BENCH_NE=1024",
+          "-o",
+          "/home/arjaiswal/Polygeist/issues/mfem_pva_v3_20261111/mfem-production/integrate_grad_3d/program"
+        ],
+        "seconds": 69.27890585362911,
+        "source_sha256": "f500968482b02e1513a5de7e2083b36628e8bd78dbb25d6e02528ad831d7e8eb",
+        "program_sha256": "1c8283a16a3fd114b31e21c3582e0161b98cd2fa9387fb8506c28d563088f0f7",
+        "specifications": [
+          "openblas_dgemm_nt_b1_alpha1",
+          "openblas_dgemv_t_beta1",
+          "openblas_dgemv_t_beta1",
+          "openblas_dgemm_nt_b1_alpha1",
+          "openblas_dgemm_nt_b1_alpha1",
+          "openblas_dgemm_nt_b1_alpha1",
+          "openblas_dgemm_nt_b1_alpha1",
+          "openblas_dgemm_nt_b1_alpha1",
+          "openblas_dgemm_nt_b1_alpha1"
+        ],
+        "calls": 9
+      },
+      "execution": {
+        "name": "integrate_grad_3d",
+        "rc": 0,
+        "passed": true,
+        "actual_vendor_invocations": 23560,
+        "calls": [
+          "cublasDgemm",
+          "cublasDgemv"
+        ],
+        "program_sha256": "1c8283a16a3fd114b31e21c3582e0161b98cd2fa9387fb8506c28d563088f0f7",
+        "command": "ulimit -s unlimited; LD_LIBRARY_PATH=/home/nvidia/jetson-cuda-libs:/home/nvidia/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu POLYGEIST_V2_TRACE=1 timeout 300 /tmp/mfem-v3-integrate_grad_3d-20261111"
+      },
+      "recognized_sites": 9,
+      "specifications": [
+        "openblas_dgemm_nt_b1_alpha1",
+        "openblas_dgemv_t_beta1",
+        "openblas_dgemv_t_beta1",
+        "openblas_dgemm_nt_b1_alpha1",
+        "openblas_dgemm_nt_b1_alpha1",
+        "openblas_dgemm_nt_b1_alpha1",
+        "openblas_dgemm_nt_b1_alpha1",
+        "openblas_dgemm_nt_b1_alpha1",
+        "openblas_dgemm_nt_b1_alpha1"
+      ],
+      "proof_sha256": "6b11806b7a07f080c7c5048df4a9c2391e05b8ab3fb989ac693487bb992d3260",
+      "lowered_sites": 9,
+      "correctness_lines": [
+        "kernel=integrate_grad_3d ne=1024 elements=65536 correctness=PASS failures=0 max_abs=2.7755575615628914e-17 max_rel=2.7755575615628914e-17 worst=159 actual=0.19340837219356069 expected=0.19340837219356072"
+      ],
+      "binary_hash_agrees": true,
+      "fully_validated": true
+    }
+  ],
+  "full_output_values": 1305600,
+  "maximum_absolute_error": 2.7755575615628914e-17,
+  "specifications": {
+    "openblas_dgemm_tn_b1_alpha1": 18,
+    "openblas_dgemm_nn_b1_alpha1": 83,
+    "openblas_dgemv_t_beta1": 16,
+    "openblas_dgemm_tt_b1_alpha1": 2,
+    "openblas_dgemv_n_beta1": 2,
+    "openblas_dgemm_nt_b1_alpha1": 14
+  },
+  "actual_vendor_invocations": 304218
+}

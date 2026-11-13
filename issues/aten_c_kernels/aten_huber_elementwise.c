@@ -1,0 +1,14 @@
+/* Fixed-shape scalar specialization extracted from pinned ATen. */
+#ifndef N
+#define N 4096
+#endif
+#define ATEN_CONST __attribute__((const))
+void aten_huber_elementwise(float a[N], float b[N], float delta, float out[N]) {
+#pragma scop
+  for (int i = 0; i < N; ++i) {
+    float z = a[i] - b[i];
+    float az = z < 0.0f ? -z : z;
+    out[i] = az < delta ? 0.5f * z * z : delta * (az - 0.5f * delta);
+  }
+#pragma endscop
+}
